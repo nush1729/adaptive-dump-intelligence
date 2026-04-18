@@ -1,0 +1,9 @@
+{
+  "ml_efficiency": 72.4,
+  "heuristic_efficiency": 72.4,
+  "delta": 0.0,
+  "model_type": "supervised_mlp",
+  "top1_accuracy": 0.23,
+  "n_params": 5431984,
+  "training_polygons": 60
+}
