@@ -94,26 +94,33 @@ def run_heuristic(terrain: Terrain, fleet, n_dumps: int) -> dict:
     for truck_id, payload_t in dispatches:
         total += 1
         t0 = time.perf_counter()
-        r, c, _ = eng.score_all(reserved_cells=reserved)
-        latency_ms = (time.perf_counter() - t0) * 1000
 
-        if r is None:
-            rejected += 1
-            latencies.append(latency_ms)
-            continue
+        placed = False
+        for _attempt in range(50):
+            r, c, _ = eng.score_all(reserved_cells=reserved)
+            latency_ms = (time.perf_counter() - t0) * 1000
 
-        safe, _ = val.validate(r, c, payload_t)
-        if not safe:
-            rejected += 1
-            latencies.append(latency_ms)
-            continue
+            if r is None:
+                break
 
-        ok, _ = terrain.apply_dump(r, c, payload_t)
-        latencies.append(latency_ms)
-        if ok:
-            success += 1
-            dump_positions.append((r, c))
-        else:
+            safe, _ = val.validate(r, c, payload_t)
+            if not safe:
+                reserved.add((r, c))
+                continue
+
+            ok, _ = terrain.apply_dump(r, c, payload_t)
+            if ok:
+                success += 1
+                dump_positions.append((r, c))
+                val.record_dump(r, c)
+                placed = True
+            else:
+                reserved.add((r, c))
+                continue
+            break
+
+        latencies.append(latency_ms if 'latency_ms' in dir() else 0)
+        if not placed:
             rejected += 1
 
     vol  = terrain.total_volume()
@@ -324,8 +331,7 @@ def main():
     results = []
     t_global = time.time()
 
-    print(f"
-ADIOS Benchmark  |  {args.polygons} polygons  |  {args.dumps} dumps each")
+    print(f"\nADIOS Benchmark  |  {args.polygons} polygons  |  {args.dumps} dumps each")
     print(f"Seeds {args.seed_start} – {args.seed_start + args.polygons - 1}")
     print("─" * 60)
 
@@ -355,8 +361,7 @@ ADIOS Benchmark  |  {args.polygons} polygons  |  {args.dumps} dumps each")
             results.append(m_kpis)
 
     elapsed = time.time() - t_global
-    print(f"
-  Completed {args.polygons} polygons in {elapsed:.1f}s")
+    print(f"\n  Completed {args.polygons} polygons in {elapsed:.1f}s")
 
     # ── Summaries
     policies = ["heuristic", "static_grid"]
@@ -382,8 +387,7 @@ ADIOS Benchmark  |  {args.polygons} polygons  |  {args.dumps} dumps each")
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2)
-    print(f"  Results written → {out_path}
-")
+    print(f"  Results written → {out_path}\n")
 
     # ── Also write the "baseline" file that the frontend reads from /benchmark
     baseline_path = os.path.join(

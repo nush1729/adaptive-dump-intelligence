@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Tuple
+from scipy.ndimage import gaussian_filter1d
 
 MATERIALS = {
     "default": {"density": 1.8, "name": "Default"},
@@ -9,10 +10,12 @@ MATERIALS = {
 }
 
 class Terrain:
-    def __init__(self, height: np.ndarray, mask: np.ndarray, entry: Tuple[int, int]):
+    def __init__(self, height: np.ndarray, mask: np.ndarray,
+                 entry: Tuple[int, int], material: str = "default"):
         self.height = height
         self.mask = mask
         self.entry = entry
+        self.material = material
         self.dump_count = 0
         self.cols = height.shape[1]
         self.rows = height.shape[0]
@@ -32,8 +35,7 @@ class Terrain:
     def slope_map(self) -> np.ndarray:
         """Compute slope as gradient magnitude"""
         gy, gx = np.gradient(self.height)
-        slope = np.sqrt(gx**2 + gy**2)
-        return slope
+        return np.sqrt(gx**2 + gy**2)
 
     def total_volume(self) -> float:
         """Total dumped volume in masked region"""
@@ -58,17 +60,14 @@ class Terrain:
         if mean_h < 0.01:
             return 0.0
         std_h = heights_in_mask.std()
-        # Inverse of coefficient of variation
         return max(0.0, 1.0 - (std_h / (mean_h + 1e-6)))
 
     def mean_height(self) -> float:
-        """Mean height in masked region"""
         if not self.mask.any():
             return 0.0
         return float(np.mean(self.height[self.mask]))
 
     def height_std(self) -> float:
-        """Standard deviation of heights in masked region"""
         if not self.mask.any():
             return 0.0
         return float(np.std(self.height[self.mask]))
@@ -76,19 +75,43 @@ class Terrain:
     @staticmethod
     def make_demo_polygon(rows: int, cols: int, material: str, seed: int) -> 'Terrain':
         rng = np.random.default_rng(seed)
-        # Create a simple rectangular mask for demo
-        mask = np.zeros((rows, cols), dtype=bool)
-        # Create a polygon shape, e.g., a rectangle in the center
-        start_r = rows // 4
-        end_r = 3 * rows // 4
-        start_c = cols // 4
-        end_c = 3 * cols // 4
-        mask[start_r:end_r, start_c:end_c] = True
 
-        # Height starts at 0
+        # ── organic radial polygon — every seed produces different shape ──
+        n_ctrl = 14
+        angles = np.linspace(0, 2 * np.pi, n_ctrl, endpoint=False)
+        radii = rng.uniform(28, 44, n_ctrl)
+        radii = gaussian_filter1d(radii, sigma=1.5, mode='wrap')
+
+        cx, cy = cols * 0.5, rows * 0.5
+        vx = cx + radii * np.cos(angles)
+        vy = cy + radii * np.sin(angles)
+
+        # close polygon, clip to grid
+        vx = np.clip(np.append(vx, vx[0]), 2, cols - 2)
+        vy = np.clip(np.append(vy, vy[0]), 2, rows - 2)
+
+        # rasterise with matplotlib Path
+        from matplotlib.path import Path as MplPath
+        poly = MplPath(np.column_stack([vx, vy]))
+        yi, xi = np.mgrid[0:rows, 0:cols]
+        pts = np.column_stack([xi.ravel(), yi.ravel()])
+        mask = poly.contains_points(pts).reshape(rows, cols)
+
         height = np.zeros((rows, cols), dtype=np.float32)
 
-        # Entry point, say top center
-        entry = (0, cols // 2)
+        # ── dynamic entry: bottom-centre of polygon ──
+        mc = np.argwhere(mask)
+        col_mid = int(np.mean(mc[:, 1]))
+        entry_r = int(mc[0, 0])          # fallback
+        for rr in range(rows - 1, -1, -1):
+            if mask[rr, col_mid]:
+                entry_r = rr
+                break
+        # safety: if col_mid missed, pick nearest mask cell in bottom row
+        if not mask[entry_r, col_mid]:
+            bot = mc[mc[:, 0] == mc[:, 0].max()]
+            col_mid = int(bot[len(bot) // 2, 1])
+            entry_r = int(bot[0, 0])
 
-        return Terrain(height, mask, entry)
+        entry = (entry_r, col_mid)
+        return Terrain(height, mask, entry, material)

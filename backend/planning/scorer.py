@@ -13,49 +13,59 @@ class ScoringEngine:
         self.entry = entry
         self.weights = weights or DEFAULT_WEIGHTS
 
-    def score_all(self):
-        """Compute score map for all cells in the terrain.
-        
-        Returns: (r, c, score_map) where score_map is a 2D array of scores.
-        Heuristic: score = 1.0 / (1 + dist_to_entry + dist_to_mask_edge + slope)
+    def score_all(self, reserved_cells=None):
+        """Compute score map and return (best_r, best_c, score_map).
+
+        Args:
+            reserved_cells: optional set of (r,c) tuples to exclude
+        Returns:
+            (best_r, best_c, score_map) — best_r/c are None when no
+            valid cell remains.
         """
         terrain = self.terrain
         mask = terrain.mask
         rows, cols = mask.shape
-        
-        # Build score map based on accessibility and slope
-        score_map = np.zeros((rows, cols))
-        
+
+        score_map = np.full((rows, cols), np.nan)
         if not mask.any():
-            return None, None, None
-        
-        # Distance to entry point
+            return None, None, score_map
+
+        # distance to entry
         er, ec = self.entry
-        dist_grid = np.sqrt((np.arange(rows)[:, None] - er)**2 + (np.arange(cols)[None, :] - ec)**2)
-        
-        # Slope penalty (higher slope = lower score)
+        ri = np.arange(rows)[:, None]
+        ci = np.arange(cols)[None, :]
+        dist_penalty = np.sqrt((ri - er)**2 + (ci - ec)**2) / (rows + cols)
+
+        # slope penalty
         slope = terrain.slope_map()
-        slope_penalty = (slope / (np.max(slope) + 1e-6)) if np.max(slope) > 0 else 0
-        
-        # Coverage penalty (already-filled cells score lower)
-        height = terrain.height.copy()
-        height_norm = height / (np.max(height) + 1e-6) if np.max(height) > 0 else 0
-        
-        # Score: closer to entry and lower slope = higher score
-        for r in range(rows):
-            for c in range(cols):
-                if mask[r, c]:
-                    dist_penalty = dist_grid[r, c] / (rows + cols)
-                    score_map[r, c] = 1.0 / (1.0 + dist_penalty + slope_penalty[r, c] + height_norm[r, c])
-                else:
-                    score_map[r, c] = np.nan
-        
-        # Normalize to [0, 1]
-        valid_scores = score_map[np.isfinite(score_map)]
-        if len(valid_scores) > 0:
-            min_s = np.min(valid_scores)
-            max_s = np.max(valid_scores)
-            if max_s > min_s:
-                score_map = (score_map - min_s) / (max_s - min_s)
-        
+        slope_penalty = slope / (np.max(slope) + 1e-6)
+
+        # height penalty (already-filled cells score lower)
+        height_norm = terrain.height / (np.max(terrain.height) + 1e-6)
+
+        # vectorised score
+        scores = 1.0 / (1.0 + dist_penalty + slope_penalty + height_norm)
+        score_map = np.where(mask, scores, np.nan)
+
+        # normalise to [0, 1]
+        valid = score_map[np.isfinite(score_map)]
+        if len(valid) > 0:
+            lo, hi = np.min(valid), np.max(valid)
+            if hi > lo:
+                score_map = np.where(np.isfinite(score_map),
+                                     (score_map - lo) / (hi - lo), np.nan)
+
+        # block reserved cells
+        if reserved_cells:
+            for (br, bc) in reserved_cells:
+                score_map[br, bc] = np.nan
+
+        # find best valid cell
+        ok = np.isfinite(score_map) & mask
+        if ok.any():
+            masked = np.where(ok, score_map, -np.inf)
+            flat = int(np.argmax(masked))
+            best_r, best_c = divmod(flat, cols)
+            return int(best_r), int(best_c), score_map
+
         return None, None, score_map
