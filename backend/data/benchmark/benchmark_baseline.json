@@ -1,0 +1,222 @@
+[
+  {
+    "seed": 8000,
+    "material": "rock",
+    "heuristic": {
+      "dumps": 55,
+      "volume": 4100.9,
+      "coverage_pct": 74.45,
+      "efficiency": 75.03,
+      "uniformity": 0.764
+    }
+  },
+  {
+    "seed": 8001,
+    "material": "ore",
+    "heuristic": {
+      "dumps": 44,
+      "volume": 4431.4,
+      "coverage_pct": 87.33,
+      "efficiency": 69.13,
+      "uniformity": 0.8073
+    }
+  },
+  {
+    "seed": 8002,
+    "material": "overburden",
+    "heuristic": {
+      "dumps": 47,
+      "volume": 3923.9,
+      "coverage_pct": 77.94,
+      "efficiency": 68.33,
+      "uniformity": 0.8009
+    }
+  },
+  {
+    "seed": 8003,
+    "material": "default",
+    "heuristic": {
+      "dumps": 48,
+      "volume": 4304.3,
+      "coverage_pct": 86.62,
+      "efficiency": 75.88,
+      "uniformity": 0.7871
+    }
+  },
+  {
+    "seed": 8004,
+    "material": "rock",
+    "heuristic": {
+      "dumps": 49,
+      "volume": 4528.3,
+      "coverage_pct": 74.12,
+      "efficiency": 76.9,
+      "uniformity": 0.8489
+    }
+  },
+  {
+    "seed": 8005,
+    "material": "ore",
+    "heuristic": {
+      "dumps": 50,
+      "volume": 3992.0,
+      "coverage_pct": 77.88,
+      "efficiency": 71.06,
+      "uniformity": 0.8422
+    }
+  },
+  {
+    "seed": 8006,
+    "material": "overburden",
+    "heuristic": {
+      "dumps": 55,
+      "volume": 4626.4,
+      "coverage_pct": 89.25,
+      "efficiency": 69.06,
+      "uniformity": 0.8166
+    }
+  },
+  {
+    "seed": 8007,
+    "material": "default",
+    "heuristic": {
+      "dumps": 48,
+      "volume": 3970.9,
+      "coverage_pct": 76.25,
+      "efficiency": 73.05,
+      "uniformity": 0.8676
+    }
+  },
+  {
+    "seed": 8008,
+    "material": "rock",
+    "heuristic": {
+      "dumps": 55,
+      "volume": 4419.6,
+      "coverage_pct": 85.13,
+      "efficiency": 77.12,
+      "uniformity": 0.8579
+    }
+  },
+  {
+    "seed": 8009,
+    "material": "ore",
+    "heuristic": {
+      "dumps": 57,
+      "volume": 4786.7,
+      "coverage_pct": 85.9,
+      "efficiency": 68.77,
+      "uniformity": 0.8437
+    }
+  },
+  {
+    "seed": 8010,
+    "material": "overburden",
+    "heuristic": {
+      "dumps": 49,
+      "volume": 4472.1,
+      "coverage_pct": 75.82,
+      "efficiency": 70.56,
+      "uniformity": 0.7645
+    }
+  },
+  {
+    "seed": 8011,
+    "material": "default",
+    "heuristic": {
+      "dumps": 54,
+      "volume": 4531.6,
+      "coverage_pct": 80.39,
+      "efficiency": 69.79,
+      "uniformity": 0.8272
+    }
+  },
+  {
+    "seed": 8012,
+    "material": "rock",
+    "heuristic": {
+      "dumps": 46,
+      "volume": 4556.2,
+      "coverage_pct": 84.96,
+      "efficiency": 75.13,
+      "uniformity": 0.7474
+    }
+  },
+  {
+    "seed": 8013,
+    "material": "ore",
+    "heuristic": {
+      "dumps": 47,
+      "volume": 4519.3,
+      "coverage_pct": 78.86,
+      "efficiency": 73.08,
+      "uniformity": 0.8681
+    }
+  },
+  {
+    "seed": 8014,
+    "material": "overburden",
+    "heuristic": {
+      "dumps": 44,
+      "volume": 4106.1,
+      "coverage_pct": 89.17,
+      "efficiency": 75.53,
+      "uniformity": 0.8442
+    }
+  },
+  {
+    "seed": 8015,
+    "material": "default",
+    "heuristic": {
+      "dumps": 53,
+      "volume": 4721.8,
+      "coverage_pct": 81.22,
+      "efficiency": 76.86,
+      "uniformity": 0.7306
+    }
+  },
+  {
+    "seed": 8016,
+    "material": "rock",
+    "heuristic": {
+      "dumps": 58,
+      "volume": 4256.1,
+      "coverage_pct": 79.66,
+      "efficiency": 77.64,
+      "uniformity": 0.8249
+    }
+  },
+  {
+    "seed": 8017,
+    "material": "ore",
+    "heuristic": {
+      "dumps": 52,
+      "volume": 4570.5,
+      "coverage_pct": 76.57,
+      "efficiency": 75.07,
+      "uniformity": 0.7423
+    }
+  },
+  {
+    "seed": 8018,
+    "material": "overburden",
+    "heuristic": {
+      "dumps": 47,
+      "volume": 4259.5,
+      "coverage_pct": 84.52,
+      "efficiency": 70.89,
+      "uniformity": 0.8637
+    }
+  },
+  {
+    "seed": 8019,
+    "material": "default",
+    "heuristic": {
+      "dumps": 57,
+      "volume": 4580.2,
+      "coverage_pct": 76.49,
+      "efficiency": 78.97,
+      "uniformity": 0.799
+    }
+  }
+]

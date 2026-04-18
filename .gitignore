@@ -1,0 +1,45 @@
+# =========================
+# Operating System Files
+# =========================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# =========================
+# Python & Backend
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env
+*.log
+
+# =========================
+# Machine Learning / Data
+# =========================
+# (Optional: uncomment these if your models/datasets get too large for GitHub)
+# *.pt
+# *.pth
+# *.onnx
+# data/**/*.json
+
+# =========================
+# Node.js & Frontend (Next.js)
+# =========================
+node_modules/
+.next/
+out/
+build/
+.npm/
+frontend/.env.local
+frontend/.env.*.local
+
+# =========================
+# IDEs & Editors
+# =========================
+.vscode/
+.idea/
+*.swp
