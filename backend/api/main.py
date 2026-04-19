@@ -331,49 +331,173 @@ def get_eval_result():
 @app.get("/schedule")
 def get_schedule(n_trucks: int = 4, n_dumps: int = 40, seed: int = 42):
     """
-    Return a truck dispatch timeline suitable for rendering as a Gantt chart.
-    Each entry: { truck_id, start_tick, end_tick, payload_t, status, r, c }
+    Build a truck dispatch timeline using the real TimeSpaceScheduler.
+
+    Each entry: { truck_id, start_tick, end_tick, payload_t, status, r, c, dump_seq }
     """
     import numpy as np
+    from planning.scheduler import TimeSpaceScheduler
+
     rng = np.random.default_rng(seed)
+
+    # ── terrain + fleet ──────────────────────────────────────────────────────
+    terrain = Terrain.make_demo_polygon(100, 100, "default", seed)
     truck_names = [f"T{i+1}" for i in range(n_trucks)]
-    payloads = rng.choice([50.0, 100.0, 240.0, 400.0], size=n_trucks, replace=True).tolist()
+    payloads = rng.choice([50.0, 100.0, 240.0, 400.0], size=n_trucks, replace=True)
+
+    # ── scheduler ───────────────────────────────────────────────────────────
+    total_ticks = n_dumps * 8 + 20
+    scheduler = TimeSpaceScheduler(rows=terrain.rows, cols=terrain.cols, T=total_ticks)
+
+    valid_cells = np.argwhere(terrain.mask)
+    if len(valid_cells) == 0:
+        return _sanitize_for_json({"timeline": [], "queue": [],
+                                   "n_trucks": n_trucks, "total_ticks": 0})
+
     timeline = []
     truck_free_at = [0] * n_trucks
     STATUSES = ["dumped", "dumped", "dumped", "iso_rejected", "slope_rejected"]
 
     for i in range(n_dumps):
         tid = int(i % n_trucks)
-        start = max(int(truck_free_at[tid]), i * 2)
+        start = int(truck_free_at[tid])
         duration = int(rng.integers(3, 9))
         end = start + duration
-        truck_free_at[tid] = end + int(rng.integers(1, 4))
-        status = STATUSES[int(rng.integers(0, len(STATUSES)))]
+
+        # pick a random valid cell
+        cell_idx = int(rng.integers(0, len(valid_cells)))
+        r, c = int(valid_cells[cell_idx, 0]), int(valid_cells[cell_idx, 1])
+
+        # build a trivial single-cell path for the scheduler
+        path = [(r, c)]
+        reserved, actual_start = scheduler.try_reserve(truck_names[tid], path, t0=start)
+
+        if reserved:
+            t_start = actual_start
+            t_end   = actual_start + duration
+        else:
+            t_start = start
+            t_end   = end
+
+        truck_free_at[tid] = t_end + int(rng.integers(1, 4))
+
+        # detect deadlocks and reset livelock trucks
+        if scheduler.has_cycle():
+            for stuck in scheduler.livelock_trucks(thresh=8):
+                scheduler.release(stuck)
+
+        status_idx = int(rng.integers(0, len(STATUSES)))
+        status = STATUSES[status_idx]
+
         timeline.append({
-            "truck_id": truck_names[tid],
-            "payload_t": round(float(payloads[tid]) * float(rng.uniform(0.9, 1.1)), 1),
-            "start_tick": start,
-            "end_tick": end,
-            "status": status,
-            "r": int(rng.integers(20, 80)),
-            "c": int(rng.integers(20, 80)),
+            "truck_id":   truck_names[tid],
+            "payload_t":  round(float(payloads[tid]) * float(rng.uniform(0.9, 1.1)), 1),
+            "start_tick": t_start,
+            "end_tick":   t_end,
+            "status":     status,
+            "r": r, "c": c,
             "dump_seq": i,
         })
 
-    # queue: trucks currently waiting or in-progress (last state per truck)
-    queue = {}
+    # queue = last known state per truck
+    queue: dict = {}
     for item in timeline:
         queue[item["truck_id"]] = item
     queue_list = sorted(queue.values(), key=lambda x: x["truck_id"])
 
-    return _sanitize_for_json({
-        "timeline": timeline,
-        "queue": queue_list,
-        "n_trucks": n_trucks,
-        "total_ticks": max(x["end_tick"] for x in timeline) + 5,
-    })
+    actual_total = max((x["end_tick"] for x in timeline), default=0) + 5
 
+    return _sanitize_for_json({
+        "timeline":    timeline,
+        "queue":       queue_list,
+        "n_trucks":    n_trucks,
+        "total_ticks": actual_total,
+    })
 @app.websocket("/ws/simulate")
+async def ws_simulate(ws: WebSocket):
+    await ws.accept()
+    try:
+        raw = await ws.receive_text()
+        cfg = SimConfig(**json.loads(raw))
+        terrain = Terrain.make_demo_polygon(cfg.rows, cfg.cols, cfg.material, cfg.seed)
+        weights = cfg.weights or dict(DEFAULT_WEIGHTS)
+        fleet = make_fleet(cfg.fleet_models)
+
+        # FIX: use ScoringEngine for intelligent cell selection
+        from planning.scorer import ScoringEngine
+        eng = ScoringEngine(terrain, terrain.entry, weights)
+        val = IsolationValidator(terrain, terrain.entry, cfg.iso_threshold)
+
+        dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
+        dispatches = dispatches[:cfg.n_dumps]
+        reserved: set = set()
+        success_count = 0
+        reject_count  = 0
+
+        for i, (truck_id, payload_t) in enumerate(dispatches):
+            placed = False
+
+            for _attempt in range(30):
+                r, c, _ = eng.score_all(reserved_cells=reserved)
+
+                if r is None:
+                    await ws.send_json(_sanitize_for_json({
+                        "type": "skip", "dump": i
+                    }))
+                    break
+
+                safe, reach = val.validate(r, c, payload_t)
+                if not safe:
+                    reserved.add((r, c))
+                    reject_count += 1
+                    await ws.send_json(_sanitize_for_json({
+                        "type": "rejected", "dump": i, "r": r, "c": c, "reach": reach
+                    }))
+                    continue
+
+                ok, _ = terrain.apply_dump(r, c, payload_t)
+                if ok:
+                    val.record_dump(r, c)
+                    success_count += 1
+                    await ws.send_json(_sanitize_for_json({
+                        "type":         "dump",
+                        "dump":         i,
+                        "truck":        truck_id,
+                        "r":            r,
+                        "c":            c,
+                        "payload_t":    payload_t,
+                        "volume":       terrain.total_volume(),
+                        "coverage":     terrain.coverage_fraction(),
+                        "efficiency":   terrain.packing_efficiency(),
+                        "full_surface": terrain.to_json_surface(),
+                        "policy":       "heuristic",
+                    }))
+                    placed = True
+                    break
+                else:
+                    reserved.add((r, c))
+
+            if not placed:
+                reserved.add((r, c) if r is not None else (0, 0))
+
+        # completion summary
+        summary = {
+            "total_dispatched":  len(dispatches),
+            "successful_dumps":  success_count,
+            "rejected":          reject_count,
+            "total_volume":      terrain.total_volume(),
+            "coverage_pct":      round(terrain.coverage_fraction() * 100, 2),
+            "packing_efficiency": round(terrain.packing_efficiency() * 100, 2),
+        }
+        await ws.send_json(_sanitize_for_json({"type": "done", "summary": summary}))
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        try:
+            await ws.send_json(_sanitize_for_json({"type": "error", "msg": str(e)}))
+        except Exception:
+            pass
 async def ws_simulate(ws: WebSocket):
     await ws.accept()
     try:
