@@ -53,5 +53,170 @@
       "efficiency": 0.0,
       "uniformity": -7.4862
     }
+  },
+  {
+    "seed": 8005,
+    "material": "ore",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.43,
+      "efficiency": 0.0,
+      "uniformity": -8.1164
+    }
+  },
+  {
+    "seed": 8006,
+    "material": "overburden",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.61,
+      "efficiency": 0.0,
+      "uniformity": -7.5942
+    }
+  },
+  {
+    "seed": 8007,
+    "material": "default",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.43,
+      "efficiency": 0.0,
+      "uniformity": -8.1219
+    }
+  },
+  {
+    "seed": 8008,
+    "material": "rock",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.49,
+      "efficiency": 0.0,
+      "uniformity": -7.9251
+    }
+  },
+  {
+    "seed": 8009,
+    "material": "ore",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.43,
+      "efficiency": 0.0,
+      "uniformity": -8.1164
+    }
+  },
+  {
+    "seed": 8010,
+    "material": "overburden",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.43,
+      "efficiency": 0.0,
+      "uniformity": -8.1274
+    }
+  },
+  {
+    "seed": 8011,
+    "material": "default",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.44,
+      "efficiency": 0.0,
+      "uniformity": -8.0844
+    }
+  },
+  {
+    "seed": 8012,
+    "material": "rock",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.45,
+      "efficiency": 0.0,
+      "uniformity": -8.0678
+    }
+  },
+  {
+    "seed": 8013,
+    "material": "ore",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.49,
+      "efficiency": 0.0,
+      "uniformity": -7.9262
+    }
+  },
+  {
+    "seed": 8014,
+    "material": "overburden",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.43,
+      "efficiency": 0.0,
+      "uniformity": -8.1328
+    }
+  },
+  {
+    "seed": 8015,
+    "material": "default",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.42,
+      "efficiency": 0.0,
+      "uniformity": -8.1394
+    }
+  },
+  {
+    "seed": 8016,
+    "material": "rock",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.49,
+      "efficiency": 0.0,
+      "uniformity": -7.942
+    }
+  },
+  {
+    "seed": 8017,
+    "material": "ore",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.64,
+      "efficiency": 0.0,
+      "uniformity": -7.4968
+    }
+  },
+  {
+    "seed": 8018,
+    "material": "overburden",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.67,
+      "efficiency": 0.0,
+      "uniformity": -7.4245
+    }
+  },
+  {
+    "seed": 8019,
+    "material": "default",
+    "heuristic": {
+      "dumps": 60,
+      "volume": 14100.0,
+      "coverage_pct": 1.35,
+      "efficiency": 0.0,
+      "uniformity": -8.3745
+    }
   }
 ]
