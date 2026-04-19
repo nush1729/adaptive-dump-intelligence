@@ -9,7 +9,7 @@
       "Cat797",
       "Cat793"
     ],
-    "elapsed_s": 9.3
+    "elapsed_s": 9.1
   },
   "per_polygon": [
     {
@@ -22,7 +22,7 @@
       "height_uniformity": -8.0734,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.003,
-      "latency_ms": 1.549,
+      "latency_ms": 1.522,
       "seed": 8000,
       "material": "rock"
     },
@@ -49,7 +49,7 @@
       "height_uniformity": -7.7286,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.003,
-      "latency_ms": 1.514,
+      "latency_ms": 1.505,
       "seed": 8001,
       "material": "ore"
     },
@@ -76,7 +76,7 @@
       "height_uniformity": -7.9889,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.629,
+      "latency_ms": 1.512,
       "seed": 8002,
       "material": "overburden"
     },
@@ -103,7 +103,7 @@
       "height_uniformity": -7.6535,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.528,
+      "latency_ms": 1.493,
       "seed": 8003,
       "material": "default"
     },
@@ -130,7 +130,7 @@
       "height_uniformity": -7.4862,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.003,
-      "latency_ms": 1.495,
+      "latency_ms": 1.522,
       "seed": 8004,
       "material": "rock"
     },
@@ -157,7 +157,7 @@
       "height_uniformity": -8.1164,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.501,
+      "latency_ms": 1.504,
       "seed": 8005,
       "material": "ore"
     },
@@ -184,7 +184,7 @@
       "height_uniformity": -7.5942,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.485,
+      "latency_ms": 1.458,
       "seed": 8006,
       "material": "overburden"
     },
@@ -211,7 +211,7 @@
       "height_uniformity": -8.1219,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.499,
+      "latency_ms": 1.487,
       "seed": 8007,
       "material": "default"
     },
@@ -265,7 +265,7 @@
       "height_uniformity": -8.1164,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.501,
+      "latency_ms": 1.485,
       "seed": 8009,
       "material": "ore"
     },
@@ -292,7 +292,7 @@
       "height_uniformity": -8.1274,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.491,
+      "latency_ms": 1.471,
       "seed": 8010,
       "material": "overburden"
     },
@@ -319,7 +319,7 @@
       "height_uniformity": -8.0844,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.492,
+      "latency_ms": 1.477,
       "seed": 8011,
       "material": "default"
     },
@@ -346,7 +346,7 @@
       "height_uniformity": -8.0678,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.003,
-      "latency_ms": 1.528,
+      "latency_ms": 1.507,
       "seed": 8012,
       "material": "rock"
     },
@@ -359,7 +359,7 @@
       "height_uniformity": -6.9893,
       "rejection_rate": 0.0,
       "mean_spacing_m": 8.0,
-      "latency_ms": 0.002,
+      "latency_ms": 0.003,
       "seed": 8012,
       "material": "rock"
     },
@@ -373,7 +373,7 @@
       "height_uniformity": -7.9262,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.495,
+      "latency_ms": 1.5,
       "seed": 8013,
       "material": "ore"
     },
@@ -400,7 +400,7 @@
       "height_uniformity": -8.1328,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.495,
+      "latency_ms": 1.481,
       "seed": 8014,
       "material": "overburden"
     },
@@ -427,7 +427,7 @@
       "height_uniformity": -8.1394,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.511,
+      "latency_ms": 1.507,
       "seed": 8015,
       "material": "default"
     },
@@ -454,7 +454,7 @@
       "height_uniformity": -7.942,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.501,
+      "latency_ms": 1.488,
       "seed": 8016,
       "material": "rock"
     },
@@ -481,7 +481,7 @@
       "height_uniformity": -7.4968,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.484,
+      "latency_ms": 1.468,
       "seed": 8017,
       "material": "ore"
     },
@@ -508,7 +508,7 @@
       "height_uniformity": -7.4245,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.003,
-      "latency_ms": 1.5,
+      "latency_ms": 1.478,
       "seed": 8018,
       "material": "overburden"
     },
@@ -535,7 +535,7 @@
       "height_uniformity": -8.3745,
       "rejection_rate": 0.0,
       "mean_spacing_m": 3.0,
-      "latency_ms": 1.542,
+      "latency_ms": 1.483,
       "seed": 8019,
       "material": "default"
     },
@@ -595,10 +595,10 @@
           "max": 3.003
         },
         "latency_ms": {
-          "mean": 1.512,
-          "std": 0.032,
-          "min": 1.484,
-          "max": 1.629
+          "mean": 1.492,
+          "std": 0.017,
+          "min": 1.458,
+          "max": 1.522
         },
         "generalisation_delta": 0.0
       }
@@ -647,7 +647,7 @@
           "mean": 0.002,
           "std": 0.0,
           "min": 0.002,
-          "max": 0.002
+          "max": 0.003
         },
         "generalisation_delta": 0.0
       }
