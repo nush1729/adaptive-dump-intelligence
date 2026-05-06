@@ -55,7 +55,7 @@ export default function TruckQueue({ queue, currentTick = 0, liveDispatches = 0 
         display: "flex", alignItems: "center", justifyContent: "space-between",
       }}>
         <span style={{
-          fontFamily: "Syncopate", fontSize: "0.6rem",
+          fontFamily: "Syncopate", fontSize: "0.7rem",
           letterSpacing: "0.2em", textTransform: "uppercase",
           color: "var(--text2)",
         }}>
@@ -63,7 +63,7 @@ export default function TruckQueue({ queue, currentTick = 0, liveDispatches = 0 
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{
-            fontFamily: "JetBrains Mono", fontSize: "0.55rem",
+            fontFamily: "JetBrains Mono", fontSize: "0.75rem",
             color: "var(--muted)",
           }}>
             t = {currentTick}
@@ -71,7 +71,7 @@ export default function TruckQueue({ queue, currentTick = 0, liveDispatches = 0 
           <span style={{
             background: "rgba(200,255,0,0.12)",
             color: "var(--acid)",
-            fontFamily: "JetBrains Mono", fontSize: "0.55rem",
+            fontFamily: "JetBrains Mono", fontSize: "0.75rem",
             padding: "2px 8px", borderRadius: 3,
           }}>
             {liveDispatches} dispatched
@@ -83,7 +83,7 @@ export default function TruckQueue({ queue, currentTick = 0, liveDispatches = 0 
       <div style={{ flex: 1, overflowY: "auto", padding: "6px 0" }}>
         {queue.length === 0 ? (
           <div style={{ padding: 16, textAlign: "center",
-            fontFamily: "JetBrains Mono", fontSize: "0.65rem",
+            fontFamily: "JetBrains Mono", fontSize: "0.75rem",
             color: "var(--muted)" }}>
             awaiting dispatch data…
           </div>
@@ -107,7 +107,7 @@ export default function TruckQueue({ queue, currentTick = 0, liveDispatches = 0 
                 <Chip status={entry.status} />
               </div>
               <div style={{
-                fontFamily: "JetBrains Mono", fontSize: "0.55rem",
+                fontFamily: "JetBrains Mono", fontSize: "0.75rem",
                 color: "var(--text2)", marginTop: 2,
                 display: "flex", gap: 12,
               }}>

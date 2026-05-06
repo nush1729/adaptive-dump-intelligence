@@ -45,7 +45,7 @@ function CustomTooltip({ active, payload, label }: any) {
   return (
     <div style={{
       background: "var(--panel)", border: "1px solid var(--border)",
-      padding: "8px 12px", fontFamily: "JetBrains Mono", fontSize: "0.65rem",
+      padding: "8px 12px", fontFamily: "JetBrains Mono", fontSize: "0.75rem",
     }}>
       <div style={{ color: "var(--text2)", marginBottom: 4 }}>{label}</div>
       {payload.map((p: any) => (
@@ -151,7 +151,7 @@ export default function BenchmarkPanel() {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         flexShrink: 0,
       }}>
-        <span style={{ fontFamily: "Syncopate", fontSize: "0.55rem",
+        <span style={{ fontFamily: "Syncopate", fontSize: "0.75rem",
           letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--text2)" }}>
           Benchmark — ADIOS vs Static vs ML
         </span>
@@ -176,7 +176,7 @@ export default function BenchmarkPanel() {
       {agg && allEffZero && (
         <div style={{ padding: "5px 14px", background: "rgba(255,107,53,0.08)",
           borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-          <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.55rem",
+          <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.75rem",
             color: "var(--ore)" }}>
             ⚠ Packing efficiency = 0 (too few dumps to fill grid). Showing Coverage % instead.
             Run more dumps or regenerate benchmark for efficiency data.
@@ -216,14 +216,14 @@ export default function BenchmarkPanel() {
       <div style={{ flex: 1, padding: "10px 14px", minHeight: 0, overflow: "hidden" }}>
         {loading ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
-            height: "100%", fontFamily: "JetBrains Mono", fontSize: "0.65rem",
+            height: "100%", fontFamily: "JetBrains Mono", fontSize: "0.75rem",
             color: "var(--muted)" }}>
             LOADING BENCHMARK DATA…
           </div>
         ) : rows.length === 0 ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
             height: "100%", textAlign: "center",
-            fontFamily: "JetBrains Mono", fontSize: "0.65rem", color: "var(--muted)",
+            fontFamily: "JetBrains Mono", fontSize: "0.75rem", color: "var(--muted)",
             lineHeight: 1.8, flexDirection: "column", gap: 8 }}>
             <div>No benchmark data found.</div>
             <div>Generate it by running:</div>
@@ -231,7 +231,7 @@ export default function BenchmarkPanel() {
               padding: "4px 12px", borderRadius: 3, fontSize: "0.7rem" }}>
               cd backend && python evaluation/benchmark.py
             </code>
-            <div style={{ fontSize: "0.6rem", color: "var(--muted)", marginTop: 4 }}>
+            <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>
               or: python ml/data_gen.py
             </div>
           </div>
@@ -246,9 +246,9 @@ export default function BenchmarkPanel() {
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem",
                 color: "var(--text2)", paddingTop: 8 }} />
-              <Bar dataKey="ADIOS"  fill="#C8FF00" fillOpacity={0.85} radius={[2,2,0,0]} />
+              <Bar dataKey="ADIOS"  fill="#FFC000" fillOpacity={0.85} radius={[2,2,0,0]} />
               <Bar dataKey="ML"     fill="#7B68EE" fillOpacity={0.85} radius={[2,2,0,0]} />
-              <Bar dataKey="Static" fill="#FF6B35" fillOpacity={0.75}  radius={[2,2,0,0]} />
+              <Bar dataKey="Static" fill="#FF5722" fillOpacity={0.75}  radius={[2,2,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : tab === "radar" ? (
@@ -258,11 +258,11 @@ export default function BenchmarkPanel() {
               <PolarAngleAxis dataKey="metric"
                 tick={{ fill: "var(--text2)", fontSize: 9, fontFamily: "JetBrains Mono" }} />
               <Radar name="ADIOS"  dataKey="ADIOS"
-                stroke="#C8FF00" fill="#C8FF00" fillOpacity={0.18} />
+                stroke="#FFC000" fill="#FFC000" fillOpacity={0.18} />
               <Radar name="ML"     dataKey="ML"
                 stroke="#7B68EE" fill="#7B68EE" fillOpacity={0.18} />
               <Radar name="Static" dataKey="Static"
-                stroke="#FF6B35" fill="#FF6B35" fillOpacity={0.14} />
+                stroke="#FF5722" fill="#FF5722" fillOpacity={0.14} />
               <Legend wrapperStyle={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem" }} />
               <Tooltip content={<CustomTooltip />} />
             </RadarChart>
@@ -271,7 +271,7 @@ export default function BenchmarkPanel() {
           // Table view
           <div style={{ overflowY: "auto", height: "100%" }}>
             <table style={{ width: "100%", borderCollapse: "collapse",
-              fontFamily: "JetBrains Mono", fontSize: "0.6rem" }}>
+              fontFamily: "JetBrains Mono", fontSize: "0.7rem" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", position: "sticky", top: 0,
                   background: "var(--panel)", zIndex: 1 }}>

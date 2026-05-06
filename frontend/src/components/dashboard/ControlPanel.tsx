@@ -32,19 +32,12 @@ function RangeField({
   step?: number; value: number; onChange: (v: number) => void; decimals?: number;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      {/* label row: left = name, right = current value — no overlap */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <label htmlFor={id} style={{
-          fontFamily: "JetBrains Mono", fontSize: "0.6rem",
-          letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text2)",
-        }}>
+    <div className="flex flex-col gap-1">
+      <div className="flex justify-between items-center">
+        <label htmlFor={id} className="font-mono text-[0.7rem] tracking-widest uppercase text-gray-600 dark:text-gray-400">
           {label}
         </label>
-        <span style={{
-          fontFamily: "JetBrains Mono", fontSize: "0.72rem",
-          color: "var(--acid)", minWidth: 40, textAlign: "right",
-        }}>
+        <span className="font-mono text-[0.85rem] font-bold text-[#FFC000] min-w-[40px] text-right bg-gray-100 dark:bg-[#1a1c23] px-2 py-0.5 rounded border border-gray-200 dark:border-[#2a2d35]">
           {value.toFixed(decimals)}
         </span>
       </div>
@@ -52,7 +45,7 @@ function RangeField({
         type="range" id={id} min={min} max={max} step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        style={{ accentColor: "var(--acid)", width: "100%", cursor: "pointer" }}
+        className="w-full cursor-pointer accent-[#FFC000] mt-1"
       />
     </div>
   );
@@ -67,181 +60,111 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
   } = useSimStore();
 
   return (
-    // FIX: The aside is a flex-column. The scrollable region is the middle section.
-    // The Execute button is pinned at the bottom via a non-shrinking footer div.
-    <aside style={{
-      display: "flex",
-      flexDirection: "column",
-      height: "100%",
-      background: "var(--surface)",
-      borderRight: "1px solid var(--border)",
-      overflow: "hidden",        // outer container never scrolls
-    }}>
-
-      {/* ── Scrollable body ── */}
-      <div style={{
-        flex: 1,
-        overflowY: "auto",       // FIX: only this region scrolls
-        overflowX: "hidden",
-        minHeight: 0,            // FIX: required for flex children to shrink correctly
-        padding: "16px 14px 8px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-      }}>
-
-        {/* Header */}
+    <div className="flex flex-col h-full bg-white dark:bg-[#111317] text-gray-700 dark:text-gray-300">
+      
+      {/* Scrollable Body */}
+      <div className="flex-1 overflow-y-auto min-h-0 p-4 flex flex-col gap-4 scrollbar-thin scrollbar-thumb-[#2a2d35]">
+        
+        {/* Simulation Section */}
         <div>
-          <div style={{ fontFamily: "Syncopate", fontSize: "0.52rem", letterSpacing: "0.3em",
-            color: "var(--muted)", textTransform: "uppercase", marginBottom: 2 }}>
-            ADIOS v3
+          <div className="text-[0.85rem] tracking-[0.25em] text-gray-500 dark:text-gray-500 uppercase border-b border-gray-200 dark:border-[#2a2d35] pb-1 mb-3 font-syncopate">
+            Simulation
           </div>
-          <div style={{ fontFamily: "Syncopate", fontSize: "1.05rem", letterSpacing: "0.15em",
-            color: "var(--acid)" }}>
-            CONTROL
+          
+          <div className="flex flex-col gap-1 mb-3">
+            <label className="font-mono text-[0.7rem] tracking-widest uppercase text-gray-600 dark:text-gray-400">Material</label>
+            <select
+              value={material}
+              onChange={(e) => setMaterial(e.target.value)}
+              className="bg-gray-100 dark:bg-[#1a1c23] border border-gray-200 dark:border-[#2a2d35] text-gray-200 p-1.5 rounded text-sm font-mono w-full focus:outline-none focus:border-[#FFC000]"
+            >
+              <option value="default">Default</option>
+              <option value="rock">Rock (40°)</option>
+              <option value="ore">Ore (37°)</option>
+              <option value="overburden">Overburden (35°)</option>
+            </select>
+          </div>
+
+          <RangeField id="n_dumps" label="Dump Count" min={10} max={120} step={1} value={nDumps} onChange={setNDumps} decimals={0} />
+          <RangeField id="iso" label="Iso Threshold" min={0.5} max={0.99} value={isoThreshold} onChange={setIsoThreshold} />
+
+          <div className="flex flex-col gap-1 mt-3">
+            <label className="font-mono text-[0.7rem] tracking-widest uppercase text-gray-600 dark:text-gray-400">Polygon Seed</label>
+            <input
+              type="number" value={seed} min={1} max={9999}
+              onChange={(e) => setSeed(parseInt(e.target.value) || 42)}
+              className="bg-gray-100 dark:bg-[#1a1c23] border border-gray-200 dark:border-[#2a2d35] text-gray-200 p-1.5 rounded text-sm font-mono w-full focus:outline-none focus:border-[#FFC000]"
+            />
+          </div>
+
+          {/* ML Toggle */}
+          <div className="flex items-center justify-between mt-4">
+            <span className="font-mono text-[0.7rem] tracking-widest uppercase text-gray-600 dark:text-gray-400">PPO Policy (ML)</span>
+            <button
+              onClick={() => setUseML(!useML)}
+              className={`px-3 py-1 rounded text-[0.85rem] font-mono transition-all border ${
+                useML ? "bg-[#FFC000]/10 border-[#FFC000] text-[#FFC000]" : "bg-gray-100 dark:bg-[#1a1c23] border-gray-200 dark:border-[#2a2d35] text-gray-600 dark:text-gray-400"
+              }`}
+            >
+              {useML ? "ON" : "OFF"}
+            </button>
           </div>
         </div>
 
-        {/* Simulation section */}
-        <div style={{ fontFamily: "Syncopate", fontSize: "0.52rem", letterSpacing: "0.25em",
-          color: "var(--muted)", textTransform: "uppercase",
-          paddingBottom: 5, borderBottom: "1px solid var(--border)" }}>
-          Simulation
+        {/* Fleet Section */}
+        <div>
+          <div className="text-[0.85rem] tracking-[0.25em] text-gray-500 dark:text-gray-500 uppercase border-b border-gray-200 dark:border-[#2a2d35] pb-1 mb-3 font-syncopate">
+            Fleet
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Object.keys(FLEET_COLORS).map((model) => {
+              const active = selectedFleet.includes(model);
+              return (
+                <button key={model} onClick={() => toggleFleet(model)}
+                  className={`px-2.5 py-1 rounded text-[0.7rem] font-mono transition-all border ${
+                    active ? "border-[#FFC000] text-[#FFC000] bg-[#FFC000]/10" : "border-gray-200 dark:border-[#2a2d35] text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-[#1a1c23]"
+                  }`}
+                >
+                  {FLEET_LABELS[model]}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <label style={{ fontFamily: "JetBrains Mono", fontSize: "0.6rem",
-            letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text2)" }}>
-            Material
-          </label>
-          <select
-            value={material}
-            onChange={(e) => setMaterial(e.target.value)}
-            style={{ background: "var(--panel)", border: "1px solid var(--border)",
-              color: "var(--text)", padding: "6px 8px", borderRadius: 3,
-              fontFamily: "JetBrains Mono", fontSize: "0.72rem", width: "100%" }}
-          >
-            <option value="default">Default</option>
-            <option value="rock">Rock (40°)</option>
-            <option value="ore">Ore (37°)</option>
-            <option value="overburden">Overburden (35°)</option>
-          </select>
-        </div>
-
-        <RangeField id="n_dumps" label="Dump Count" min={10} max={120}
-          step={1} value={nDumps} onChange={setNDumps} decimals={0} />
-
-        <RangeField id="iso" label="Iso Threshold" min={0.5} max={0.99}
-          value={isoThreshold} onChange={setIsoThreshold} />
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <label style={{ fontFamily: "JetBrains Mono", fontSize: "0.6rem",
-            letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text2)" }}>
-            Polygon Seed
-          </label>
-          <input
-            type="number" value={seed} min={1} max={9999}
-            onChange={(e) => setSeed(parseInt(e.target.value) || 42)}
-            style={{ background: "var(--panel)", border: "1px solid var(--border)",
-              color: "var(--text)", padding: "6px 8px", borderRadius: 3,
-              fontFamily: "JetBrains Mono", fontSize: "0.72rem", width: "100%" }}
-          />
-        </div>
-
-        {/* ML Toggle */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.6rem",
-            letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text2)" }}>
-            PPO Policy (ML)
-          </span>
+        {/* Weights Section */}
+        <div>
+          <div className="text-[0.85rem] tracking-[0.25em] text-gray-500 dark:text-gray-500 uppercase border-b border-gray-200 dark:border-[#2a2d35] pb-1 mb-3 font-syncopate">
+            Scoring Weights
+          </div>
+          <div className="flex flex-col gap-3">
+            <RangeField id="w1" label="w1 · Fill" min={0.5} max={3} value={weights.w1} onChange={(v) => setWeight("w1", v)} />
+            <RangeField id="w2" label="w2 · Congestion" min={0.1} max={2} value={weights.w2} onChange={(v) => setWeight("w2", v)} />
+            <RangeField id="w3" label="w3 · Isolation" min={1} max={5} step={0.1} value={weights.w3} onChange={(v) => setWeight("w3", v)} />
+            <RangeField id="w4" label="w4 · Distance" min={0.05} max={0.5} value={weights.w4} onChange={(v) => setWeight("w4", v)} />
+          </div>
+          
           <button
-            onClick={() => setUseML(!useML)}
-            style={{
-              padding: "3px 12px", borderRadius: 3, fontSize: "0.65rem",
-              fontFamily: "JetBrains Mono", cursor: "pointer", transition: "all 0.15s",
-              background: useML ? "rgba(200,255,0,0.15)" : "var(--panel)",
-              border: `1px solid ${useML ? "var(--acid)" : "var(--border)"}`,
-              color: useML ? "var(--acid)" : "var(--text2)",
-              flexShrink: 0,
-            }}
+            onClick={onTune}
+            disabled={isTuning || isRunning}
+            className="w-full mt-4 py-2 border border-[#FF5722] text-[#FF5722] text-[0.85rem] font-syncopate tracking-[0.15em] uppercase hover:bg-[#FF5722]/10 transition-all rounded"
           >
-            {useML ? "ON" : "OFF"}
+            {isTuning ? "Tuning…" : "⚙ Auto-Tune"}
           </button>
         </div>
-
-        {/* Fleet section */}
-        <div style={{ fontFamily: "Syncopate", fontSize: "0.52rem", letterSpacing: "0.25em",
-          color: "var(--muted)", textTransform: "uppercase",
-          paddingBottom: 5, borderBottom: "1px solid var(--border)" }}>
-          Fleet
-        </div>
-
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {Object.keys(FLEET_COLORS).map((model) => {
-            const active = selectedFleet.includes(model);
-            return (
-              <button key={model} onClick={() => toggleFleet(model)}
-                style={{
-                  padding: "4px 10px", borderRadius: 3, fontSize: "0.6rem",
-                  fontFamily: "JetBrains Mono", cursor: "pointer", transition: "all 0.15s",
-                  background: active ? `${FLEET_COLORS[model]}18` : "var(--panel)",
-                  border: `1px solid ${active ? FLEET_COLORS[model] : "var(--border)"}`,
-                  color: active ? FLEET_COLORS[model] : "var(--text2)",
-                }}>
-                {FLEET_LABELS[model]}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Weights section */}
-        <div style={{ fontFamily: "Syncopate", fontSize: "0.52rem", letterSpacing: "0.25em",
-          color: "var(--muted)", textTransform: "uppercase",
-          paddingBottom: 5, borderBottom: "1px solid var(--border)" }}>
-          Scoring Weights
-        </div>
-
-        {/* FIX: weights in a single-column list so values NEVER render behind labels */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <RangeField id="w1" label="w1 · Fill" min={0.5} max={3} value={weights.w1}
-            onChange={(v) => setWeight("w1", v)} />
-          <RangeField id="w2" label="w2 · Congestion" min={0.1} max={2} value={weights.w2}
-            onChange={(v) => setWeight("w2", v)} />
-          <RangeField id="w3" label="w3 · Isolation" min={1} max={5} step={0.1} value={weights.w3}
-            onChange={(v) => setWeight("w3", v)} />
-          <RangeField id="w4" label="w4 · Distance" min={0.05} max={0.5} value={weights.w4}
-            onChange={(v) => setWeight("w4", v)} />
-        </div>
-
-        <button
-          className="btn-secondary"
-          onClick={onTune}
-          disabled={isTuning || isRunning}
-          style={{ width: "100%" }}
-        >
-          {isTuning ? "Tuning…" : "⚙ Auto-Tune"}
-        </button>
-
       </div>
 
-      {/* ── Pinned Execute button — always fully visible ── */}
-      {/* FIX: lives outside the scroll area so it is NEVER clipped */}
-      <div style={{
-        flexShrink: 0,
-        padding: "10px 14px 14px",
-        borderTop: "1px solid var(--border)",
-        background: "var(--surface)",
-      }}>
+      {/* Pinned Footer Execute Button */}
+      <div className="shrink-0 p-4 border-t border-gray-200 dark:border-[#2a2d35] bg-gray-50 dark:bg-[#0a0c0f]">
         <button
-          className="btn-primary"
           onClick={onRun}
           disabled={isRunning}
-          style={{ width: "100%" }}
+          className="w-full py-3 bg-[#FFC000] text-black text-[0.85rem] font-syncopate tracking-[0.2em] uppercase font-bold hover:shadow-[0_0_15px_rgba(245,166,35,0.5)] transition-all rounded disabled:bg-gray-600 disabled:text-gray-600 dark:text-gray-400 disabled:shadow-none"
         >
           {isRunning ? "RUNNING…" : "▶ EXECUTE"}
         </button>
       </div>
 
-    </aside>
+    </div>
   );
 }
