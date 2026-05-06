@@ -70,7 +70,7 @@ N_ACTIONS  = ROWS * COLS   # 10 000
 
 class TerrainMLP(nn.Module):
     """
-    Lightweight CNN policy network for supervised cell-selection.
+    Stronger CNN policy network for supervised cell-selection.
     Input : (B, 3, 100, 100)  — three-channel terrain obs
     Output: (B, 10000)        — logits over all cells
     """
@@ -78,23 +78,29 @@ class TerrainMLP(nn.Module):
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(3, 32, kernel_size=8, stride=4, padding=0),   # → 32×24×24
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),  # → 64×11×11
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),  # → 64×9×9
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=0), # → 128×9×9
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Flatten(),                                            # → 5184
+            nn.Flatten(),                                           # → 10368
         )
         with torch.no_grad():
             n_flat = self.encoder(torch.zeros(1, 3, ROWS, COLS)).shape[1]
 
         self.head = nn.Sequential(
-            nn.Linear(n_flat, 512),
+            nn.Linear(n_flat, 1024),
+            nn.BatchNorm1d(1024),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),
             nn.ReLU(),
             nn.Dropout(0.1),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, N_ACTIONS),
+            nn.Linear(512, N_ACTIONS),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

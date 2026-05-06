@@ -82,45 +82,23 @@ function TerrainMesh({ surface, mask, heightScale = 4.0, showWireframe = false }
   const ROWS = surface.length;
   const COLS = surface[0].length;
 
-  const { geometry, material } = useMemo(() => {
+  const { geometry, material, remap } = useMemo(() => {
     const positions: number[] = [];
     const colors: number[] = [];
     const indices: number[] = [];
 
-    // Step 1: Find max height inside mask for normalisation
-    let maxH = 0;
-    for (let r = 0; r < ROWS; r++)
-      for (let c = 0; c < COLS; c++)
-        if (mask[r][c] && surface[r][c] > maxH) maxH = surface[r][c];
-    const hRange = Math.max(maxH, 0.01);
-
-    // Step 2: Create vertex index remap — only mask cells get vertices
     const remap = new Int32Array(ROWS * COLS).fill(-1);
     let vertIdx = 0;
 
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         if (!mask[r][c]) continue;
-
-        const h = surface[r][c];
-        const y = h * heightScale;
-        positions.push(c - COLS / 2, y, r - ROWS / 2);
-
-        if (h <= 0.001) {
-          // Polygon floor — subtle dark cyan-blue glow
-          colors.push(0.03, 0.14, 0.22);
-        } else {
-          const t = Math.min(1, h / hRange);
-          const [rr, gg, bb] = heightToRGB(t);
-          colors.push(rr, gg, bb);
-        }
-
-        remap[r * COLS + c] = vertIdx;
-        vertIdx++;
+        positions.push(c - COLS / 2, 0, r - ROWS / 2);
+        colors.push(0, 0, 0);
+        remap[r * COLS + c] = vertIdx++;
       }
     }
 
-    // Step 3: Emit faces only where ALL 4 quad corners are inside mask
     for (let r = 0; r < ROWS - 1; r++) {
       for (let c = 0; c < COLS - 1; c++) {
         const i00 = remap[r * COLS + c];
@@ -128,7 +106,6 @@ function TerrainMesh({ surface, mask, heightScale = 4.0, showWireframe = false }
         const i01 = remap[r * COLS + (c + 1)];
         const i11 = remap[(r + 1) * COLS + (c + 1)];
 
-        // Strict: ALL 4 must be in mask
         if (i00 < 0 || i10 < 0 || i01 < 0 || i11 < 0) continue;
 
         indices.push(i00, i10, i01);
@@ -140,7 +117,6 @@ function TerrainMesh({ surface, mask, heightScale = 4.0, showWireframe = false }
     geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     geo.setIndex(indices);
-    geo.computeVertexNormals();
 
     const mat = new THREE.MeshStandardMaterial({
       vertexColors: true,
@@ -151,8 +127,44 @@ function TerrainMesh({ surface, mask, heightScale = 4.0, showWireframe = false }
       flatShading: false,
     });
 
-    return { geometry: geo, material: mat };
-  }, [surface, mask, heightScale, showWireframe, ROWS, COLS]);
+    return { geometry: geo, material: mat, remap };
+  }, [mask, heightScale, showWireframe, ROWS, COLS]);
+
+  useEffect(() => {
+    if (!geometry || !surface || !mask) return;
+    const posAttr = geometry.getAttribute("position") as THREE.BufferAttribute;
+    const colAttr = geometry.getAttribute("color") as THREE.BufferAttribute;
+    
+    let maxH = 0;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (mask[r][c] && surface[r][c] > maxH) maxH = surface[r][c];
+      }
+    }
+    const hRange = Math.max(maxH, 0.01);
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (!mask[r][c]) continue;
+        const idx = remap[r * COLS + c];
+        const h = surface[r][c];
+        
+        posAttr.setY(idx, h * heightScale);
+
+        if (h <= 0.001) {
+          colAttr.setXYZ(idx, 0.03, 0.14, 0.22);
+        } else {
+          const t = Math.min(1, h / hRange);
+          const [rr, gg, bb] = heightToRGB(t);
+          colAttr.setXYZ(idx, rr, gg, bb);
+        }
+      }
+    }
+    
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+    geometry.computeVertexNormals();
+  }, [surface, geometry, mask, remap, heightScale, ROWS, COLS]);
 
   useEffect(() => () => { geometry.dispose(); material.dispose(); }, [geometry, material]);
 
@@ -192,7 +204,7 @@ function EntryMarker({ entry, rows, cols }: EntryMarkerProps) {
         <coneGeometry args={[2.0, 6, 6]} />
         <meshBasicMaterial color="#FF5722" transparent opacity={0.88} />
       </mesh>
-      <Html position={[0, 8, 0]} distanceFactor={1} occlude="blending">
+      <Html position={[0, 8, 0]}>
         <div style={{
           background: "rgba(5,5,10,0.92)",
           border: "1px solid #FF5722",
@@ -287,7 +299,7 @@ export default function Scene3D({
   return (
     <Canvas
       camera={{ position: [75, 55, 75], fov: 48, near: 0.1, far: 2000 }}
-      gl={{ antialias: true, alpha: false, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
+      gl={{ antialias: true, alpha: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
       onCreated={({ gl }) => gl.setClearColor(new THREE.Color("#060A10"), 1)}
       style={{ width: "100%", height: "100%" }}
     >

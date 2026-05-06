@@ -113,26 +113,19 @@ export default function BenchmarkPanel() {
   // bar chart data: first 12 seeds
   const barData = rows.slice(0, 12).map((r) => {
     const hVal = (r.heuristic as any)[primaryMetric] as number;
-    // static grid is ~55-65% of heuristic by volume, approximate for display
-    const staticVal = hVal * 0.62;
-    const mlVal = evalR?.ml_efficiency != null
-      ? hVal * (1 + (evalR.delta ?? 0) / 100)
-      : null;
+    const mlVal = evalR?.ml_efficiency != null ? evalR.ml_efficiency : null;
     return {
       name: `s${r.seed % 100}\n${r.material.slice(0, 3)}`,
       ADIOS: parseFloat(hVal.toFixed(2)),
       ...(mlVal !== null ? { ML: parseFloat(mlVal.toFixed(2)) } : {}),
-      Static: parseFloat(staticVal.toFixed(2)),
     };
   });
 
   const radarBase = agg?.heur_primary ?? 50;
   const radarData = agg ? [
-    { metric: metricLabel,  ADIOS: radarBase,          ML: radarBase * 1.08,  Static: radarBase * 0.62 },
-    { metric: "Coverage %", ADIOS: agg.heur_cov,       ML: agg.heur_cov * 1.04, Static: agg.heur_cov * 0.71 },
-    { metric: "Volume",     ADIOS: Math.min(100, agg.heur_vol / 200), ML: Math.min(100, agg.heur_vol / 185), Static: Math.min(100, agg.heur_vol * 0.44 / 200) },
-    { metric: "Latency",    ADIOS: 85,  ML: 62,   Static: 30 },
-    { metric: "Gen. Score", ADIOS: 74,  ML: 88,   Static: 40 },
+    { metric: metricLabel,  ADIOS: radarBase, ...(evalR?.ml_efficiency != null ? { ML: evalR.ml_efficiency } : {}) },
+    { metric: "Coverage %", ADIOS: agg.heur_cov },
+    { metric: "Volume",     ADIOS: Math.min(100, agg.heur_vol / 200) },
   ] : [];
 
   const tabs = ["bar", "radar", "table"] as const;
@@ -191,8 +184,6 @@ export default function BenchmarkPanel() {
           {[
             { label: `ADIOS ${metricLabel}`, val: `${agg.heur_primary.toFixed(2)}%`, color: "var(--acid)" },
             { label: "ML Est.",   val: evalR?.ml_efficiency ? `${evalR.ml_efficiency.toFixed(1)}%` : "—", color: "#7B68EE" },
-            { label: `Static Est.`, val: `${(agg.heur_primary * 0.62).toFixed(2)}%`, color: "var(--ore)" },
-            { label: "Δ ADIOS/Static", val: `+${((1/0.62 - 1) * 100).toFixed(0)}%`, color: "var(--acid)" },
             { label: "Polygons", val: `${rows.length}`, color: "var(--text2)" },
           ].map(({ label, val, color }) => (
             <div key={label} style={{
@@ -247,8 +238,7 @@ export default function BenchmarkPanel() {
               <Legend wrapperStyle={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem",
                 color: "var(--text2)", paddingTop: 8 }} />
               <Bar dataKey="ADIOS"  fill="#FFC000" fillOpacity={0.85} radius={[2,2,0,0]} />
-              <Bar dataKey="ML"     fill="#7B68EE" fillOpacity={0.85} radius={[2,2,0,0]} />
-              <Bar dataKey="Static" fill="#FF5722" fillOpacity={0.75}  radius={[2,2,0,0]} />
+              {evalR?.ml_efficiency != null && <Bar dataKey="ML" fill="#7B68EE" fillOpacity={0.85} radius={[2,2,0,0]} />}
             </BarChart>
           </ResponsiveContainer>
         ) : tab === "radar" ? (
@@ -259,10 +249,9 @@ export default function BenchmarkPanel() {
                 tick={{ fill: "var(--text2)", fontSize: 9, fontFamily: "JetBrains Mono" }} />
               <Radar name="ADIOS"  dataKey="ADIOS"
                 stroke="#FFC000" fill="#FFC000" fillOpacity={0.18} />
-              <Radar name="ML"     dataKey="ML"
-                stroke="#7B68EE" fill="#7B68EE" fillOpacity={0.18} />
-              <Radar name="Static" dataKey="Static"
-                stroke="#FF5722" fill="#FF5722" fillOpacity={0.14} />
+              {evalR?.ml_efficiency != null && (
+                <Radar name="ML" dataKey="ML" stroke="#7B68EE" fill="#7B68EE" fillOpacity={0.18} />
+              )}
               <Legend wrapperStyle={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem" }} />
               <Tooltip content={<CustomTooltip />} />
             </RadarChart>
