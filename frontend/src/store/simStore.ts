@@ -90,7 +90,7 @@ export const useSimStore = create<SimStore>((set) => ({
 
   setLiveSurface: (s) => set({ liveSurface: s }),
   appendSnapshot: (snap) =>
-    set((state) => ({ liveDumps: [...state.liveDumps, snap] })),
+    set((state) => ({ liveDumps: [...state.liveDumps, snap].slice(-200) })),
   appendLog: (e) =>
     set((state) => ({ liveLog: [e, ...state.liveLog].slice(0, 60) })),
   appendVolume: (v) =>

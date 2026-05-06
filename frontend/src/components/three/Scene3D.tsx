@@ -192,7 +192,7 @@ function EntryMarker({ entry, rows, cols }: EntryMarkerProps) {
         <coneGeometry args={[2.0, 6, 6]} />
         <meshBasicMaterial color="#FF5722" transparent opacity={0.88} />
       </mesh>
-      <Html position={[0, 8, 0]} distanceFactor={1} occlude="blending">
+      <Html position={[0, 8, 0]} distanceFactor={60} style={{ pointerEvents: "none" }}>
         <div style={{
           background: "rgba(5,5,10,0.92)",
           border: "1px solid #FF5722",
