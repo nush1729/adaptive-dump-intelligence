@@ -2,18 +2,13 @@
 /**
  * BenchmarkPanel — ADIOS vs Static vs ML
  *
- * FIX: The old panel showed an empty graph because:
- *   1. benchmark_baseline.json has efficiency = 0.0 for all rows (packing_efficiency
- *      is always 0 when mean_height ≈ 0 after only 60 small dumps on a 100×100 grid).
- *   2. The bar chart plotted `r.heuristic.efficiency` directly, so all bars were 0.
- *
- * This fix:
- *   - Falls back to `coverage_pct` as the primary visual metric when efficiency = 0.
- *   - Also loads the full benchmark_results.json (via /benchmark) which has richer data.
- *   - Normalises all bar values so something is always visible.
- *   - Shows a clear "no data" state with the CLI command to generate data.
+ * REWRITTEN: All data now comes from real backend benchmark results.
+ * - Bar chart: real heuristic volume vs real static volume per seed
+ * - Radar chart: real computed aggregates (no hardcoded values)
+ * - Summary KPIs: real averages from backend data
+ * - ML column: only shown when eval_result.json exists (never fabricated)
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, Legend, CartesianGrid,
@@ -21,16 +16,40 @@ import {
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-interface BenchmarkRow {
+// ── Types matching real benchmark_results.json ──────────────────────────────
+
+interface PerPolygonRow {
+  policy: "heuristic" | "static_grid" | "ml_ppo" | string;
   seed: number;
   material: string;
-  heuristic: {
-    dumps: number;
-    volume: number;
-    coverage_pct: number;
-    efficiency: number;
-    uniformity: number;
-  };
+  dumps_attempted?: number;
+  dumps_succeeded: number;
+  volume_m3: number;
+  coverage_pct: number;
+  packing_efficiency: number;
+  height_uniformity: number;
+  rejection_rate: number;
+  mean_spacing_m: number;
+  latency_ms: number;
+}
+
+interface KPIAgg {
+  mean: number | null;
+  std: number | null;
+  min: number | null;
+  max: number | null;
+}
+
+interface PolicySummary {
+  policy: string;
+  n_polygons: number;
+  kpis: Record<string, KPIAgg | number>;
+}
+
+interface BenchmarkData {
+  meta?: { n_polygons: number; n_dumps_per_polygon: number; seed_start: number; elapsed_s: number };
+  per_polygon: PerPolygonRow[];
+  summaries: PolicySummary[];
 }
 
 interface EvalResult {
@@ -39,7 +58,22 @@ interface EvalResult {
   delta: number | null;
 }
 
-// Recharts custom tooltip
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function avg(arr: number[]): number {
+  return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+}
+
+function kpiMean(summary: PolicySummary | undefined, key: string): number | null {
+  if (!summary) return null;
+  const v = summary.kpis[key];
+  if (typeof v === "number") return v;
+  if (v && typeof v === "object" && v.mean != null) return v.mean;
+  return null;
+}
+
+// ── Tooltip ─────────────────────────────────────────────────────────────────
+
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
@@ -50,90 +84,153 @@ function CustomTooltip({ active, payload, label }: any) {
       <div style={{ color: "var(--text2)", marginBottom: 4 }}>{label}</div>
       {payload.map((p: any) => (
         <div key={p.name} style={{ color: p.color }}>
-          {p.name}: {typeof p.value === "number" ? p.value.toFixed(2) : p.value}
+          {p.name}: {typeof p.value === "number" ? p.value.toFixed(1) : p.value}
         </div>
       ))}
     </div>
   );
 }
 
-export default function BenchmarkPanel() {
-  const [rows, setRows]       = useState<BenchmarkRow[]>([]);
-  const [evalR, setEvalR]     = useState<EvalResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab]         = useState<"bar"|"radar"|"table">("bar");
+// ── Main Component ──────────────────────────────────────────────────────────
 
+export default function BenchmarkPanel() {
+  const [data, setData]         = useState<BenchmarkData | null>(null);
+  const [evalR, setEvalR]       = useState<EvalResult | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [tab, setTab]           = useState<"bar" | "radar" | "table">("bar");
+
+  // Fetch real data from backend
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/benchmark`).then((r) => r.json()).catch(() => []),
+      fetch(`${API}/benchmark`).then((r) => r.json()).catch(() => null),
       fetch(`${API}/eval_result`).then((r) => r.json()).catch(() => null),
     ]).then(([bdata, edata]) => {
-      // /benchmark can return either the baseline array OR the full results object
-      if (Array.isArray(bdata)) {
-        setRows(bdata);
-      } else if (bdata?.per_polygon) {
-        // full benchmark_results.json: convert heuristic rows to baseline shape
-        const converted: BenchmarkRow[] = [];
-        for (const row of bdata.per_polygon) {
-          if (row.policy === "heuristic") {
-            converted.push({
-              seed: row.seed,
-              material: row.material,
-              heuristic: {
-                dumps:        row.dumps_succeeded ?? 0,
-                volume:       row.volume_m3 ?? 0,
-                coverage_pct: row.coverage_pct ?? 0,
-                efficiency:   row.packing_efficiency ?? 0,
-                uniformity:   row.height_uniformity ?? 0,
-              },
-            });
-          }
-        }
-        setRows(converted);
+      if (bdata && bdata.per_polygon && bdata.summaries) {
+        // Full benchmark_results.json
+        setData(bdata);
+      } else if (Array.isArray(bdata)) {
+        // Legacy baseline array — convert to full format
+        const perPoly: PerPolygonRow[] = bdata.map((r: any) => ({
+          policy: "heuristic",
+          seed: r.seed,
+          material: r.material,
+          dumps_succeeded: r.heuristic?.dumps ?? 0,
+          volume_m3: r.heuristic?.volume ?? 0,
+          coverage_pct: r.heuristic?.coverage_pct ?? 0,
+          packing_efficiency: r.heuristic?.efficiency ?? 0,
+          height_uniformity: r.heuristic?.uniformity ?? 0,
+          rejection_rate: 0,
+          mean_spacing_m: 0,
+          latency_ms: 0,
+        }));
+        setData({ per_polygon: perPoly, summaries: [] });
       }
-      if (edata) setEvalR(edata);
+      if (edata && edata.ml_efficiency != null) setEvalR(edata);
       setLoading(false);
     });
   }, []);
 
-  // FIX: choose the best non-zero metric to display
-  // If all efficiency values are 0 (common with small dump counts), use coverage_pct instead.
-  const allEffZero = rows.every((r) => r.heuristic.efficiency === 0);
-  const primaryMetric = allEffZero ? "coverage_pct" : "efficiency";
-  const metricLabel   = allEffZero ? "Coverage %" : "Efficiency %";
+  // ── Derive real data per seed ─────────────────────────────────────────────
 
-  // aggregate stats
-  const agg = rows.length ? {
-    heur_primary: rows.reduce((s, r) => s + (r.heuristic as any)[primaryMetric], 0) / rows.length,
-    heur_cov:  rows.reduce((s, r) => s + r.heuristic.coverage_pct, 0) / rows.length,
-    heur_vol:  rows.reduce((s, r) => s + r.heuristic.volume, 0) / rows.length,
-    heur_uni:  rows.reduce((s, r) => s + r.heuristic.uniformity, 0) / rows.length,
-  } : null;
+  const { seeds, heuristicRows, staticRows, mlRows, hSummary, sSummary, mSummary } = useMemo(() => {
+    if (!data) return { seeds: [], heuristicRows: [], staticRows: [], mlRows: [], hSummary: undefined, sSummary: undefined, mSummary: undefined };
 
-  // bar chart data: first 12 seeds
-  const barData = rows.slice(0, 12).map((r) => {
-    const hVal = (r.heuristic as any)[primaryMetric] as number;
-    // static grid is ~55-65% of heuristic by volume, approximate for display
-    const staticVal = hVal * 0.62;
-    const mlVal = evalR?.ml_efficiency != null
-      ? hVal * (1 + (evalR.delta ?? 0) / 100)
-      : null;
+    const hRows = data.per_polygon.filter((r) => r.policy === "heuristic");
+    const sRows = data.per_polygon.filter((r) => r.policy === "static_grid");
+    const mRows = data.per_polygon.filter((r) => r.policy === "ml_ppo");
+    const allSeeds = [...new Set(hRows.map((r) => r.seed))];
+
     return {
-      name: `s${r.seed % 100}\n${r.material.slice(0, 3)}`,
-      ADIOS: parseFloat(hVal.toFixed(2)),
-      ...(mlVal !== null ? { ML: parseFloat(mlVal.toFixed(2)) } : {}),
-      Static: parseFloat(staticVal.toFixed(2)),
+      seeds: allSeeds,
+      heuristicRows: hRows,
+      staticRows: sRows,
+      mlRows: mRows,
+      hSummary: data.summaries.find((s) => s.policy === "heuristic"),
+      sSummary: data.summaries.find((s) => s.policy === "static_grid"),
+      mSummary: data.summaries.find((s) => s.policy === "ml_ppo"),
     };
-  });
+  }, [data]);
 
-  const radarBase = agg?.heur_primary ?? 50;
-  const radarData = agg ? [
-    { metric: metricLabel,  ADIOS: radarBase,          ML: radarBase * 1.08,  Static: radarBase * 0.62 },
-    { metric: "Coverage %", ADIOS: agg.heur_cov,       ML: agg.heur_cov * 1.04, Static: agg.heur_cov * 0.71 },
-    { metric: "Volume",     ADIOS: Math.min(100, agg.heur_vol / 200), ML: Math.min(100, agg.heur_vol / 185), Static: Math.min(100, agg.heur_vol * 0.44 / 200) },
-    { metric: "Latency",    ADIOS: 85,  ML: 62,   Static: 30 },
-    { metric: "Gen. Score", ADIOS: 74,  ML: 88,   Static: 40 },
-  ] : [];
+  // ── Bar chart — real data per seed ────────────────────────────────────────
+
+  const barData = useMemo(() => {
+    const staticBySeed = new Map(staticRows.map((r) => [r.seed, r]));
+    const mlBySeed = new Map(mlRows.map((r) => [r.seed, r]));
+
+    return seeds.slice(0, 12).map((seed) => {
+      const h = heuristicRows.find((r) => r.seed === seed);
+      const s = staticBySeed.get(seed);
+      const m = mlBySeed.get(seed);
+      const mat = h?.material ?? "";
+
+      return {
+        name: `s${seed % 100}\n${mat.slice(0, 3)}`,
+        ADIOS: h ? parseFloat(h.volume_m3.toFixed(0)) : 0,
+        Static: s ? parseFloat(s.volume_m3.toFixed(0)) : 0,
+        ...(m ? { ML: parseFloat(m.volume_m3.toFixed(0)) } : {}),
+      };
+    });
+  }, [seeds, heuristicRows, staticRows, mlRows]);
+
+  // ── Radar chart — real aggregated data ────────────────────────────────────
+
+  const radarData = useMemo(() => {
+    if (heuristicRows.length === 0) return [];
+
+    const hVol = avg(heuristicRows.map((r) => r.volume_m3));
+    const sVol = avg(staticRows.map((r) => r.volume_m3));
+    const mVol = mlRows.length ? avg(mlRows.map((r) => r.volume_m3)) : null;
+
+    const hCov = avg(heuristicRows.map((r) => r.coverage_pct));
+    const sCov = avg(staticRows.map((r) => r.coverage_pct));
+    const mCov = mlRows.length ? avg(mlRows.map((r) => r.coverage_pct)) : null;
+
+    const hLat = avg(heuristicRows.map((r) => r.latency_ms));
+    const sLat = avg(staticRows.map((r) => r.latency_ms));
+    const mLat = mlRows.length ? avg(mlRows.map((r) => r.latency_ms)) : null;
+
+    const hSpac = avg(heuristicRows.map((r) => r.mean_spacing_m));
+    const sSpac = avg(staticRows.map((r) => r.mean_spacing_m));
+    const mSpac = mlRows.length ? avg(mlRows.map((r) => r.mean_spacing_m)) : null;
+
+    // Normalise to 0-100 scale for radar comparability
+    const maxVol = Math.max(hVol, sVol, mVol ?? 0, 1);
+    const maxLat = Math.max(hLat, sLat, mLat ?? 0, 0.01);
+
+    const base = [
+      { metric: "Volume",   ADIOS: (hVol / maxVol) * 100, Static: (sVol / maxVol) * 100 },
+      { metric: "Coverage", ADIOS: hCov, Static: sCov },
+      { metric: "Spacing",  ADIOS: Math.min(100, hSpac * 10), Static: Math.min(100, sSpac * 10) },
+      // Latency: lower is better → invert
+      { metric: "Speed",    ADIOS: Math.max(0, 100 - hLat * 10), Static: Math.max(0, 100 - sLat * 10) },
+      { metric: "Success",  ADIOS: (1 - avg(heuristicRows.map(r => r.rejection_rate))) * 100,
+                             Static: (1 - avg(staticRows.map(r => r.rejection_rate))) * 100 },
+    ];
+
+    // Add ML column if available
+    if (mlRows.length > 0) {
+      base[0] = { ...base[0], ML: ((mVol ?? 0) / maxVol) * 100 } as any;
+      base[1] = { ...base[1], ML: mCov } as any;
+      base[2] = { ...base[2], ML: Math.min(100, (mSpac ?? 0) * 10) } as any;
+      base[3] = { ...base[3], ML: Math.max(0, 100 - (mLat ?? 0) * 10) } as any;
+      base[4] = { ...base[4], ML: (1 - avg(mlRows.map(r => r.rejection_rate))) * 100 } as any;
+    }
+
+    return base;
+  }, [heuristicRows, staticRows, mlRows]);
+
+  // ── Aggregate KPIs ────────────────────────────────────────────────────────
+
+  const hasML = mlRows.length > 0 || (evalR?.ml_efficiency != null);
+
+  const aggHeurVol  = hSummary ? kpiMean(hSummary, "volume_m3") : (heuristicRows.length ? avg(heuristicRows.map(r => r.volume_m3)) : null);
+  const aggStatVol  = sSummary ? kpiMean(sSummary, "volume_m3") : (staticRows.length ? avg(staticRows.map(r => r.volume_m3)) : null);
+  const aggHeurCov  = hSummary ? kpiMean(hSummary, "coverage_pct") : (heuristicRows.length ? avg(heuristicRows.map(r => r.coverage_pct)) : null);
+  const aggStatCov  = sSummary ? kpiMean(sSummary, "coverage_pct") : (staticRows.length ? avg(staticRows.map(r => r.coverage_pct)) : null);
+
+  const deltaVol = (aggHeurVol != null && aggStatVol != null && aggStatVol > 0)
+    ? `+${(((aggHeurVol - aggStatVol) / aggStatVol) * 100).toFixed(0)}%`
+    : "—";
 
   const tabs = ["bar", "radar", "table"] as const;
 
@@ -153,7 +250,7 @@ export default function BenchmarkPanel() {
       }}>
         <span style={{ fontFamily: "Syncopate", fontSize: "0.75rem",
           letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--text2)" }}>
-          Benchmark — ADIOS vs Static vs ML
+          Benchmark — ADIOS vs Static{hasML ? " vs ML" : ""}
         </span>
         <div style={{ display: "flex", gap: 4 }}>
           {tabs.map((t) => (
@@ -172,28 +269,16 @@ export default function BenchmarkPanel() {
         </div>
       </div>
 
-      {/* FIX: show which metric is being used when efficiency is 0 */}
-      {agg && allEffZero && (
-        <div style={{ padding: "5px 14px", background: "rgba(255,107,53,0.08)",
-          borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-          <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.75rem",
-            color: "var(--ore)" }}>
-            ⚠ Packing efficiency = 0 (too few dumps to fill grid). Showing Coverage % instead.
-            Run more dumps or regenerate benchmark for efficiency data.
-          </span>
-        </div>
-      )}
-
-      {/* Summary KPIs */}
-      {agg && (
+      {/* Summary KPIs — all from real data */}
+      {heuristicRows.length > 0 && (
         <div style={{ display: "flex", gap: 8, padding: "8px 14px",
           borderBottom: "1px solid var(--border)", flexWrap: "wrap", flexShrink: 0 }}>
           {[
-            { label: `ADIOS ${metricLabel}`, val: `${agg.heur_primary.toFixed(2)}%`, color: "var(--acid)" },
-            { label: "ML Est.",   val: evalR?.ml_efficiency ? `${evalR.ml_efficiency.toFixed(1)}%` : "—", color: "#7B68EE" },
-            { label: `Static Est.`, val: `${(agg.heur_primary * 0.62).toFixed(2)}%`, color: "var(--ore)" },
-            { label: "Δ ADIOS/Static", val: `+${((1/0.62 - 1) * 100).toFixed(0)}%`, color: "var(--acid)" },
-            { label: "Polygons", val: `${rows.length}`, color: "var(--text2)" },
+            { label: "ADIOS Vol (avg)", val: aggHeurVol != null ? `${Math.round(aggHeurVol)} m³` : "—", color: "var(--acid)" },
+            { label: "Static Vol (avg)", val: aggStatVol != null ? `${Math.round(aggStatVol)} m³` : "—", color: "var(--ore)" },
+            ...(hasML ? [{ label: "ML Est.", val: evalR?.ml_efficiency != null ? `${evalR.ml_efficiency.toFixed(1)}%` : "—", color: "#7B68EE" }] : []),
+            { label: "Δ ADIOS/Static", val: deltaVol, color: "var(--acid)" },
+            { label: "Polygons", val: `${seeds.length}`, color: "var(--text2)" },
           ].map(({ label, val, color }) => (
             <div key={label} style={{
               background: "var(--surface)", border: "1px solid var(--border)",
@@ -220,7 +305,7 @@ export default function BenchmarkPanel() {
             color: "var(--muted)" }}>
             LOADING BENCHMARK DATA…
           </div>
-        ) : rows.length === 0 ? (
+        ) : heuristicRows.length === 0 ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
             height: "100%", textAlign: "center",
             fontFamily: "JetBrains Mono", fontSize: "0.75rem", color: "var(--muted)",
@@ -231,9 +316,6 @@ export default function BenchmarkPanel() {
               padding: "4px 12px", borderRadius: 3, fontSize: "0.7rem" }}>
               cd backend && python evaluation/benchmark.py
             </code>
-            <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: 4 }}>
-              or: python ml/data_gen.py
-            </div>
           </div>
         ) : tab === "bar" ? (
           <ResponsiveContainer width="100%" height="100%">
@@ -242,13 +324,13 @@ export default function BenchmarkPanel() {
               <XAxis dataKey="name" tick={{ fill: "var(--muted)", fontSize: 8,
                 fontFamily: "JetBrains Mono" }} interval={0} />
               <YAxis tick={{ fill: "var(--muted)", fontSize: 9,
-                fontFamily: "JetBrains Mono" }} unit="%" />
+                fontFamily: "JetBrains Mono" }} />
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem",
                 color: "var(--text2)", paddingTop: 8 }} />
               <Bar dataKey="ADIOS"  fill="#FFC000" fillOpacity={0.85} radius={[2,2,0,0]} />
-              <Bar dataKey="ML"     fill="#7B68EE" fillOpacity={0.85} radius={[2,2,0,0]} />
-              <Bar dataKey="Static" fill="#FF5722" fillOpacity={0.75}  radius={[2,2,0,0]} />
+              {hasML && <Bar dataKey="ML" fill="#7B68EE" fillOpacity={0.85} radius={[2,2,0,0]} />}
+              <Bar dataKey="Static" fill="#FF5722" fillOpacity={0.75} radius={[2,2,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : tab === "radar" ? (
@@ -259,8 +341,10 @@ export default function BenchmarkPanel() {
                 tick={{ fill: "var(--text2)", fontSize: 9, fontFamily: "JetBrains Mono" }} />
               <Radar name="ADIOS"  dataKey="ADIOS"
                 stroke="#FFC000" fill="#FFC000" fillOpacity={0.18} />
-              <Radar name="ML"     dataKey="ML"
-                stroke="#7B68EE" fill="#7B68EE" fillOpacity={0.18} />
+              {hasML && (
+                <Radar name="ML" dataKey="ML"
+                  stroke="#7B68EE" fill="#7B68EE" fillOpacity={0.18} />
+              )}
               <Radar name="Static" dataKey="Static"
                 stroke="#FF5722" fill="#FF5722" fillOpacity={0.14} />
               <Legend wrapperStyle={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem" }} />
@@ -275,7 +359,7 @@ export default function BenchmarkPanel() {
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", position: "sticky", top: 0,
                   background: "var(--panel)", zIndex: 1 }}>
-                  {["Seed","Material","Dumps","Volume m³","Coverage%",`${metricLabel}%`,"Uniformity"]
+                  {["Seed", "Material", "Policy", "Dumps", "Volume m³", "Coverage%", "Spacing", "Latency ms"]
                     .map((h) => (
                       <th key={h} style={{ padding: "5px 8px", textAlign: "left",
                         color: "var(--muted)", fontWeight: 400, letterSpacing: "0.06em" }}>
@@ -285,20 +369,21 @@ export default function BenchmarkPanel() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr key={r.seed}
+                {data?.per_polygon.map((r, i) => (
+                  <tr key={i}
                     style={{ borderBottom: "1px solid rgba(26,48,64,0.4)" }}>
                     <td style={{ padding: "5px 8px", color: "var(--text2)" }}>{r.seed}</td>
                     <td style={{ padding: "5px 8px", color: "var(--text)" }}>{r.material}</td>
-                    <td style={{ padding: "5px 8px", color: "var(--text)" }}>{r.heuristic.dumps}</td>
-                    <td style={{ padding: "5px 8px", color: "var(--text)" }}>{r.heuristic.volume.toFixed(0)}</td>
-                    <td style={{ padding: "5px 8px", color: "var(--acid)" }}>{r.heuristic.coverage_pct}%</td>
                     <td style={{ padding: "5px 8px",
-                      color: r.heuristic.efficiency > 0 ? "var(--acid)" : "var(--ore)",
+                      color: r.policy === "heuristic" ? "var(--acid)" : r.policy === "ml_ppo" ? "#7B68EE" : "var(--ore)",
                       fontWeight: 600 }}>
-                      {r.heuristic.efficiency > 0 ? `${r.heuristic.efficiency}%` : `${r.heuristic.coverage_pct}%`}
+                      {r.policy === "heuristic" ? "ADIOS" : r.policy === "static_grid" ? "Static" : "ML"}
                     </td>
-                    <td style={{ padding: "5px 8px", color: "var(--text2)" }}>{r.heuristic.uniformity}</td>
+                    <td style={{ padding: "5px 8px", color: "var(--text)" }}>{r.dumps_succeeded}</td>
+                    <td style={{ padding: "5px 8px", color: "var(--text)" }}>{r.volume_m3.toFixed(0)}</td>
+                    <td style={{ padding: "5px 8px", color: "var(--acid)" }}>{r.coverage_pct}%</td>
+                    <td style={{ padding: "5px 8px", color: "var(--text2)" }}>{r.mean_spacing_m}</td>
+                    <td style={{ padding: "5px 8px", color: "var(--text2)" }}>{r.latency_ms.toFixed(3)}</td>
                   </tr>
                 ))}
               </tbody>

@@ -305,11 +305,18 @@ async def tune_weights(cfg: TuneConfig):
 
 @app.get("/benchmark")
 def get_benchmark():
-    path = os.path.join(os.path.dirname(__file__), "..", "data", "benchmark", "benchmark_baseline.json")
-    if os.path.exists(path):
-        with open(path) as f:
+    base = os.path.join(os.path.dirname(__file__), "..", "data", "benchmark")
+    # Prefer full results (has both heuristic + static_grid per seed + summaries)
+    full_path = os.path.join(base, "benchmark_results.json")
+    if os.path.exists(full_path):
+        with open(full_path) as f:
             return _sanitize_for_json(json.load(f))
-    return _sanitize_for_json({"error": "Benchmark not generated yet. Run: python ml/data_gen.py"})
+    # Fall back to baseline (legacy: only heuristic rows in simplified format)
+    baseline_path = os.path.join(base, "benchmark_baseline.json")
+    if os.path.exists(baseline_path):
+        with open(baseline_path) as f:
+            return _sanitize_for_json(json.load(f))
+    return _sanitize_for_json({"error": "Benchmark not generated yet. Run: python evaluation/benchmark.py"})
 
 @app.get("/audit")
 def get_audit():
@@ -354,9 +361,10 @@ def get_schedule(n_trucks: int = 4, n_dumps: int = 40, seed: int = 42):
         return _sanitize_for_json({"timeline": [], "queue": [],
                                    "n_trucks": n_trucks, "total_ticks": 0})
 
+    validator = IsolationValidator(terrain, terrain.entry, 0.85)
+
     timeline = []
     truck_free_at = [0] * n_trucks
-    STATUSES = ["dumped", "dumped", "dumped", "iso_rejected", "slope_rejected"]
 
     for i in range(n_dumps):
         tid = int(i % n_trucks)
@@ -367,6 +375,8 @@ def get_schedule(n_trucks: int = 4, n_dumps: int = 40, seed: int = 42):
         # pick a random valid cell
         cell_idx = int(rng.integers(0, len(valid_cells)))
         r, c = int(valid_cells[cell_idx, 0]), int(valid_cells[cell_idx, 1])
+
+        payload = round(float(payloads[tid]) * float(rng.uniform(0.9, 1.1)), 1)
 
         # Route path using actual A* instead of dummy cell
         from planning.pathfinder import find_path
@@ -391,12 +401,21 @@ def get_schedule(n_trucks: int = 4, n_dumps: int = 40, seed: int = 42):
             for stuck in scheduler.livelock_trucks(thresh=8):
                 scheduler.release(stuck)
 
-        status_idx = int(rng.integers(0, len(STATUSES)))
-        status = STATUSES[status_idx]
+        # Real validation instead of random status
+        safe, reach = validator.validate(r, c, payload)
+        if safe:
+            ok, reason = terrain.apply_dump(r, c, payload)
+            if ok:
+                validator.record_dump(r, c)
+                status = "dumped"
+            else:
+                status = reason
+        else:
+            status = "iso_rejected"
 
         timeline.append({
             "truck_id":   truck_names[tid],
-            "payload_t":  round(float(payloads[tid]) * float(rng.uniform(0.9, 1.1)), 1),
+            "payload_t":  payload,
             "start_tick": t_start,
             "end_tick":   t_end,
             "status":     status,
@@ -428,70 +447,51 @@ async def ws_simulate(ws: WebSocket):
         weights = cfg.weights or dict(DEFAULT_WEIGHTS)
         fleet = make_fleet(cfg.fleet_models)
 
-        # FIX: use ScoringEngine for intelligent cell selection
-        from planning.scorer import ScoringEngine
-        eng = ScoringEngine(terrain, terrain.entry, weights)
-        val = IsolationValidator(terrain, terrain.entry, cfg.iso_threshold)
+        orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH)
+        orch.validator.reach_thresh = cfg.iso_threshold
 
         dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
         dispatches = dispatches[:cfg.n_dumps]
-        reserved: set = set()
+
         success_count = 0
         reject_count  = 0
 
-        for i, (truck_id, payload_t) in enumerate(dispatches):
-            placed = False
-
-            for _attempt in range(30):
-                r, c, _ = eng.score_all(reserved_cells=reserved)
-
-                if r is None:
-                    await ws.send_json(_sanitize_for_json({
-                        "type": "skip", "dump": i
-                    }))
-                    break
-
-                safe, reach = val.validate(r, c, payload_t)
-                if not safe:
-                    reserved.add((r, c))
-                    reject_count += 1
-                    await ws.send_json(_sanitize_for_json({
-                        "type": "rejected", "dump": i, "r": r, "c": c, "reach": reach
-                    }))
-                    continue
-
-                ok, _ = terrain.apply_dump(r, c, payload_t)
-                if ok:
-                    val.record_dump(r, c)
-                    success_count += 1
-                    await ws.send_json(_sanitize_for_json({
-                        "type":         "dump",
-                        "dump":         i,
-                        "truck":        truck_id,
-                        "r":            r,
-                        "c":            c,
-                        "payload_t":    payload_t,
-                        "volume":       terrain.total_volume(),
-                        "coverage":     terrain.coverage_fraction(),
-                        "efficiency":   terrain.packing_efficiency(),
-                        "full_surface": terrain.to_json_surface(),
-                        "policy":       "heuristic",
-                    }))
-                    placed = True
-                    break
-                else:
-                    reserved.add((r, c))
-
-            if not placed:
-                reserved.add((r, c) if r is not None else (0, 0))
+        for event in orch.run_iter(dispatches):
+            status = event.get("status", "")
+            if status == "dumped":
+                success_count += 1
+                await ws.send_json(_sanitize_for_json({
+                    "type":         "dump",
+                    "dump":         event["t"],
+                    "truck":        event["truck"],
+                    "r":            event["r"],
+                    "c":            event["c"],
+                    "payload_t":    event["payload_t"],
+                    "volume":       event.get("volume", 0),
+                    "coverage":     event.get("coverage", 0),
+                    "efficiency":   event.get("efficiency", 0),
+                    "full_surface": event.get("full_surface"),
+                    "policy":       event.get("policy", "heuristic"),
+                }))
+            elif "iso" in status:
+                reject_count += 1
+                await ws.send_json(_sanitize_for_json({
+                    "type": "rejected", "dump": event["t"],
+                    "r": event["r"], "c": event["c"],
+                    "reach": event.get("reach"),
+                }))
+            elif status == "no_space":
+                await ws.send_json(_sanitize_for_json({
+                    "type": "skip", "dump": event["t"],
+                }))
 
         # completion summary
         summary = {
-            "total_dispatched":  len(dispatches),
-            "successful_dumps":  success_count,
-            "rejected":          reject_count,
-            "total_volume":      terrain.total_volume(),
-            "coverage_pct":      round(terrain.coverage_fraction() * 100, 2),
+            "total_dispatched":   len(dispatches),
+            "successful_dumps":   success_count,
+            "rejected":           reject_count,
+            "total_volume":       terrain.total_volume(),
+            "coverage_pct":       round(terrain.coverage_fraction() * 100, 2),
             "packing_efficiency": round(terrain.packing_efficiency() * 100, 2),
         }
         await ws.send_json(_sanitize_for_json({"type": "done", "summary": summary}))
@@ -503,3 +503,4 @@ async def ws_simulate(ws: WebSocket):
             await ws.send_json(_sanitize_for_json({"type": "error", "msg": str(e)}))
         except Exception:
             pass
+
