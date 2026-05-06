@@ -28,16 +28,19 @@ class TerrainCNNExtractor(BaseFeaturesExtractor):
       FC: 5184 → 256
     """
 
-    def __init__(self, observation_space: gym.Space, features_dim: int = 256):
+    def __init__(self, observation_space: gym.Space, features_dim: int = 512):
         super().__init__(observation_space, features_dim)
         n_input_channels = observation_space.shape[0]  # type: ignore
 
         self.cnn = nn.Sequential(
             nn.Conv2d(n_input_channels, 32, kernel_size=8, stride=4, padding=0),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
             nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=0),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
             nn.Flatten(),
         )
@@ -49,6 +52,7 @@ class TerrainCNNExtractor(BaseFeaturesExtractor):
 
         self.linear = nn.Sequential(
             nn.Linear(n_flat, features_dim),
+            nn.BatchNorm1d(features_dim),
             nn.ReLU(),
         )
 
