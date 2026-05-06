@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 const Scene3D = dynamic(() => import("@/components/three/Scene3D"), { ssr: false });
 
-// Pre-baked demo terrain (simple synthetic ellipse fill)
 function makeDemoTerrain(frame: number) {
   const N = 100;
   const surface: number[][] = Array.from({ length: N }, () => Array(N).fill(0));
@@ -15,7 +14,6 @@ function makeDemoTerrain(frame: number) {
       return dr * dr + dc * dc <= 1.0;
     })
   );
-  // simulate cone dumps up to `frame`
   const n = Math.min(frame, 60);
   for (let i = 0; i < n; i++) {
     const seed = i * 1234567 + 42;
@@ -45,7 +43,6 @@ export default function LandingPage() {
     setTimeout(() => setVisible(true), 100);
   }, []);
 
-  // animate terrain filling
   useEffect(() => {
     const id = setInterval(() => {
       setFrame((f) => {
@@ -58,11 +55,10 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div style={{ width: "100vw", height: "100vh", position: "relative",
-      overflow: "hidden", background: "#050A0F" }}>
-
-      {/* 3D background */}
-      <div style={{ position: "absolute", inset: 0, opacity: 0.7 }}>
+    <div className="w-screen h-screen relative overflow-hidden bg-gray-50 dark:bg-[#050608] font-sans selection:bg-[#FFC000] selection:text-black">
+      
+      {/* 3D Background */}
+      <div className="absolute inset-0 opacity-40">
         <Suspense fallback={null}>
           <Scene3D
             surface={terrain.surface}
@@ -74,90 +70,55 @@ export default function LandingPage() {
         </Suspense>
       </div>
 
-      {/* Overlay gradient */}
-      <div style={{ position: "absolute", inset: 0,
-        background: "radial-gradient(ellipse at 50% 80%, transparent 20%, #050A0F 80%)",
-        pointerEvents: "none" }} />
+      {/* Cinematic Overlays */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_#050608_100%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10 pointer-events-none" />
 
-      {/* Content */}
-      <div style={{
-        position: "absolute", inset: 0, display: "flex",
-        flexDirection: "column", alignItems: "center", justifyContent: "center",
-        gap: 24, padding: "0 24px",
-        opacity: visible ? 1 : 0, transform: visible ? "none" : "translateY(20px)",
-        transition: "all 0.8s cubic-bezier(0.16, 1, 0.3, 1)",
-      }}>
+      {/* Content Container */}
+      <div className={`absolute inset-0 flex flex-col items-center justify-center p-6 transition-all duration-1000 cubic-bezier(0.16, 1, 0.3, 1) ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        
         {/* Logo */}
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontFamily: "Syncopate", fontSize: "clamp(3rem,8vw,7rem)",
-            fontWeight: 700, letterSpacing: "0.25em", lineHeight: 1,
-            color: "#C8FF00", textShadow: "0 0 40px rgba(200,255,0,0.5)" }}>
-            ADI<span style={{ color: "#FF6B35", textShadow: "0 0 40px rgba(255,107,53,0.5)" }}>O</span>S
-          </div>
-          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem",
-            letterSpacing: "0.35em", textTransform: "uppercase", color: "#3A6070",
-            marginTop: 8 }}>
+        <div className="text-center">
+          <h1 className="font-syncopate text-[clamp(3rem,8vw,7rem)] font-bold tracking-[0.25em] leading-none text-black dark:text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+            ADI<span className="text-[#FFC000] drop-shadow-[0_0_30px_rgba(245,166,35,0.4)]">O</span>S
+          </h1>
+          <p className="font-mono text-sm tracking-[0.35em] uppercase text-gray-600 dark:text-[#9ca3af] mt-4">
             Adaptive Dump Intelligence & Orchestration System
-          </div>
+          </p>
         </div>
 
         {/* Tagline */}
-        <div style={{ maxWidth: 520, textAlign: "center" }}>
-          <p style={{ fontFamily: "DM Sans", fontWeight: 300, fontSize: "1.05rem",
-            color: "#7AA8BC", lineHeight: 1.7 }}>
-            Real-time adaptive dump packing powered by deep reinforcement learning.
-            Every truck dispatch re-evaluated against live terrain state.
+        <div className="max-w-2xl text-center mt-6">
+          <p className="font-light text-lg text-gray-800 dark:text-[#d1d5db] leading-relaxed">
+            Real-time adaptive dump packing powered by deep reinforcement learning. 
+            Every truck dispatch is evaluated against the live terrain state.
           </p>
         </div>
 
         {/* Stats */}
-        <div style={{ display: "flex", gap: 32, marginTop: 8 }}>
+        <div className="flex gap-12 mt-10">
           {[
-            ["7.38m → 3.03m", "Spacing target"],
-            ["< 2s", "Decision latency"],
-            ["100K+ steps", "PPO training"],
+            ["7.38m → 3.03m", "Spacing Target"],
+            ["< 2s", "Decision Latency"],
+            ["100K+ Steps", "PPO Training"],
           ].map(([val, label]) => (
-            <div key={label} style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: "JetBrains Mono", fontSize: "1.2rem",
-                color: "#C8FF00", fontWeight: 600 }}>{val}</div>
-              <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.6rem",
-                color: "#3A6070", letterSpacing: "0.1em", textTransform: "uppercase",
-                marginTop: 2 }}>{label}</div>
+            <div key={label} className="text-center">
+              <div className="font-mono text-xl text-[#FFC000] font-semibold">{val}</div>
+              <div className="font-mono text-[0.85rem] tracking-[0.1em] uppercase text-[#6b7280] mt-1">{label}</div>
             </div>
           ))}
         </div>
 
-        {/* CTA */}
+        {/* CTA Button */}
         <button
           onClick={() => router.push("/dashboard")}
-          style={{
-            marginTop: 16,
-            padding: "14px 48px",
-            background: "#C8FF00",
-            color: "#000",
-            border: "none",
-            fontFamily: "Syncopate",
-            fontSize: "0.85rem",
-            letterSpacing: "0.25em",
-            textTransform: "uppercase",
-            cursor: "pointer",
-            boxShadow: "0 0 30px rgba(200,255,0,0.4)",
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            (e.target as HTMLElement).style.boxShadow = "0 0 60px rgba(200,255,0,0.7)";
-          }}
-          onMouseLeave={(e) => {
-            (e.target as HTMLElement).style.boxShadow = "0 0 30px rgba(200,255,0,0.4)";
-          }}
+          className="mt-12 px-12 py-4 bg-[#FFC000] text-black font-syncopate text-sm tracking-[0.25em] uppercase font-bold rounded-sm shadow-[0_0_20px_rgba(245,166,35,0.3)] hover:shadow-[0_0_40px_rgba(245,166,35,0.6)] hover:-translate-y-0.5 transition-all duration-300"
         >
-          Launch Dashboard →
+          Launch Platform →
         </button>
 
-        {/* Team */}
-        <div style={{ position: "absolute", bottom: 24,
-          fontFamily: "JetBrains Mono", fontSize: "0.6rem",
-          color: "#3A6070", letterSpacing: "0.15em", textTransform: "uppercase" }}>
+        {/* Footer */}
+        <div className="absolute bottom-8 font-mono text-[0.85rem] tracking-[0.15em] uppercase text-[#4b5563]">
           Team Butterfly · Caterpillar Hackathon · Problem Statement 4
         </div>
       </div>

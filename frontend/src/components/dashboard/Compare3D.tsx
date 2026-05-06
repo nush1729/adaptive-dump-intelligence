@@ -60,17 +60,18 @@ function PlotPanel({
         type: "surface",
         z,
         colorscale: [
-          [0,    "#050A0F"],
-          [0.2,  "#0E2A40"],
-          [0.45, "#1A5C3A"],
-          [0.65, "#C8FF00"],
-          [0.85, "#FF6B35"],
+          [0,    "#051420"],
+          [0.15, "#00A3B3"],
+          [0.35, "#00CC66"],
+          [0.55, "#88DD00"],
+          [0.70, "#FFC000"],
+          [0.85, "#FF5722"],
           [1.0,  "#FFFFFF"],
         ],
         showscale: false,
         opacity: 0.96,
         contours: {
-          z: { show: true, usecolormap: true, highlightcolor: "#C8FF00", project: { z: false } },
+          z: { show: true, usecolormap: true, highlightcolor: "#FFC000", project: { z: false } },
         },
       }],
       {
@@ -102,7 +103,7 @@ function PlotPanel({
         <div style={{
           position: "absolute", inset: 0, display: "flex",
           alignItems: "center", justifyContent: "center",
-          fontFamily: "JetBrains Mono", fontSize: "0.62rem", color: "var(--muted)",
+          fontFamily: "JetBrains Mono", fontSize: "0.72rem", color: "var(--muted)",
         }}>
           {!ready ? "Loading Plotly…" : "Run simulation first"}
         </div>
@@ -122,14 +123,14 @@ export default function Compare3D({ adiosSurface, staticSurface, mask }: Compare
         surface={adiosSurface}
         mask={mask}
         title="ADIOS — Adaptive Pack"
-        color="#C8FF00"
+        color="#FFC000"
       />
       <div style={{ width: 1, background: "var(--border)" }} />
       <PlotPanel
         surface={staticSurface}
         mask={mask}
         title="Static Baseline — Grid"
-        color="#FF6B35"
+        color="#FF5722"
       />
     </div>
   );

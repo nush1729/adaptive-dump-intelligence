@@ -24,7 +24,26 @@ class Terrain:
         """Apply a dump at position (r, c) and return (success, reason)"""
         if not self.mask[r, c]:
             return False, "outside_polygon"
-        self.height[r, c] += volume
+        
+        # Physically realistic Gaussian mound distribution
+        radius = 8
+        sigma = radius * 0.45
+        sig_sq2 = 2 * sigma * sigma
+        payload_factor = float(volume) / 200.0  # normalise to ~1.0 for Cat793
+
+        for dr in range(-radius, radius + 1):
+            for dc in range(-radius, radius + 1):
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < self.rows and 0 <= nc < self.cols:
+                    if not self.mask[nr, nc]:
+                        continue
+                    dist_sq = dr * dr + dc * dc
+                    if dist_sq > radius * radius:
+                        continue
+                    # Gaussian falloff — identical to frontend replay
+                    weight = np.exp(-dist_sq / sig_sq2) * 0.6 * payload_factor
+                    self.height[nr, nc] += weight
+
         self.dump_count += 1
         return True, "dumped"
 

@@ -20,8 +20,8 @@ interface GanttChartProps {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  dumped:          "#C8FF00",
-  iso_rejected:    "#FF6B35",
+  dumped:          "#FFC000",
+  iso_rejected:    "#FF5722",
   slope_rejected:  "#FF3366",
   skip:            "#3A6070",
 };
@@ -67,7 +67,7 @@ export default function GanttChart({
     <div style={{ overflowX: "auto", overflowY: "hidden", width: "100%" }}>
       {/* Legend */}
       <div style={{ display: "flex", gap: 16, padding: "8px 0 10px",
-        fontFamily: "JetBrains Mono", fontSize: "0.55rem", letterSpacing: "0.1em",
+        fontFamily: "JetBrains Mono", fontSize: "0.75rem", letterSpacing: "0.1em",
         textTransform: "uppercase" }}>
         {Object.entries(STATUS_LABEL).map(([k, v]) => (
           <div key={k} style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -86,7 +86,7 @@ export default function GanttChart({
           {trucks.map((tid) => (
             <div key={tid} style={{
               height: ROW_H, display: "flex", alignItems: "center",
-              fontFamily: "JetBrains Mono", fontSize: "0.65rem",
+              fontFamily: "JetBrains Mono", fontSize: "0.75rem",
               color: "var(--text)", letterSpacing: "0.08em",
               borderRight: "1px solid var(--border)",
               paddingRight: 8,

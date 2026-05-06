@@ -44,7 +44,7 @@ export async function fetchEvalResult() {
   return r.json();
 }
 
-export function createWebSocket(onMessage: (msg: object) => void, onDone?: () => void) {
+export function createWebSocket(onMessage: (msg: any) => void, onDone?: () => void) {
   const wsBase = BASE.replace(/^http/, "ws");
   const ws = new WebSocket(`${wsBase}/ws/simulate`);
   ws.onmessage = (e) => {

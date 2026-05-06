@@ -368,9 +368,14 @@ def get_schedule(n_trucks: int = 4, n_dumps: int = 40, seed: int = 42):
         cell_idx = int(rng.integers(0, len(valid_cells)))
         r, c = int(valid_cells[cell_idx, 0]), int(valid_cells[cell_idx, 1])
 
-        # build a trivial single-cell path for the scheduler
-        path = [(r, c)]
-        reserved, actual_start = scheduler.try_reserve(truck_names[tid], path, t0=start)
+        # Route path using actual A* instead of dummy cell
+        from planning.pathfinder import find_path
+        start_r, start_c = terrain.entry
+        actual_path = find_path(terrain.height, terrain.mask, (int(start_r), int(start_c)), (r, c))
+        if actual_path is None:
+            actual_path = [(r, c)] # Fallback
+            
+        reserved, actual_start = scheduler.try_reserve(truck_names[tid], actual_path, t0=start)
 
         if reserved:
             t_start = actual_start
@@ -498,139 +503,3 @@ async def ws_simulate(ws: WebSocket):
             await ws.send_json(_sanitize_for_json({"type": "error", "msg": str(e)}))
         except Exception:
             pass
-async def ws_simulate(ws: WebSocket):
-    await ws.accept()
-    try:
-        raw = await ws.receive_text()
-        cfg = SimConfig(**json.loads(raw))
-        terrain = Terrain.make_demo_polygon(cfg.rows, cfg.cols, cfg.material, cfg.seed)
-        weights = cfg.weights or dict(DEFAULT_WEIGHTS)
-        fleet = make_fleet(cfg.fleet_models)
-
-        # FIX: use ScoringEngine for intelligent cell selection
-        from planning.scorer import ScoringEngine
-        eng = ScoringEngine(terrain, terrain.entry, weights)
-        val = IsolationValidator(terrain, terrain.entry, cfg.iso_threshold)
-
-        dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
-        dispatches = dispatches[:cfg.n_dumps]
-        reserved: set = set()
-        success_count = 0
-        reject_count  = 0
-
-        for i, (truck_id, payload_t) in enumerate(dispatches):
-            placed = False
-
-            for _attempt in range(30):
-                r, c, _ = eng.score_all(reserved_cells=reserved)
-
-                if r is None:
-                    await ws.send_json(_sanitize_for_json({
-                        "type": "skip", "dump": i
-                    }))
-                    break
-
-                safe, reach = val.validate(r, c, payload_t)
-                if not safe:
-                    reserved.add((r, c))
-                    reject_count += 1
-                    await ws.send_json(_sanitize_for_json({
-                        "type": "rejected", "dump": i, "r": r, "c": c, "reach": reach
-                    }))
-                    continue
-
-                ok, _ = terrain.apply_dump(r, c, payload_t)
-                if ok:
-                    val.record_dump(r, c)
-                    success_count += 1
-                    await ws.send_json(_sanitize_for_json({
-                        "type":         "dump",
-                        "dump":         i,
-                        "truck":        truck_id,
-                        "r":            r,
-                        "c":            c,
-                        "payload_t":    payload_t,
-                        "volume":       terrain.total_volume(),
-                        "coverage":     terrain.coverage_fraction(),
-                        "efficiency":   terrain.packing_efficiency(),
-                        "full_surface": terrain.to_json_surface(),
-                        "policy":       "heuristic",
-                    }))
-                    placed = True
-                    break
-                else:
-                    reserved.add((r, c))
-
-            if not placed:
-                reserved.add((r, c) if r is not None else (0, 0))
-
-        # completion summary
-        summary = {
-            "total_dispatched":  len(dispatches),
-            "successful_dumps":  success_count,
-            "rejected":          reject_count,
-            "total_volume":      terrain.total_volume(),
-            "coverage_pct":      round(terrain.coverage_fraction() * 100, 2),
-            "packing_efficiency": round(terrain.packing_efficiency() * 100, 2),
-        }
-        await ws.send_json(_sanitize_for_json({"type": "done", "summary": summary}))
-
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        try:
-            await ws.send_json(_sanitize_for_json({"type": "error", "msg": str(e)}))
-        except Exception:
-            pass
-async def ws_simulate(ws: WebSocket):
-    await ws.accept()
-    try:
-        raw = await ws.receive_text()
-        cfg = SimConfig(**json.loads(raw))
-        terrain = Terrain.make_demo_polygon(cfg.rows, cfg.cols, cfg.material, cfg.seed)
-        weights = cfg.weights or dict(DEFAULT_WEIGHTS)
-        fleet = make_fleet(cfg.fleet_models)
-        orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH)
-        orch.validator.reach_thresh = cfg.iso_threshold
-        dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
-        dispatches = dispatches[:cfg.n_dumps]
-        for i, (truck_id, payload_t) in enumerate(dispatches):
-            # Pick random valid cell using terrain mask
-            valid_cells = np.argwhere(terrain.mask)
-            if len(valid_cells) == 0:
-                await ws.send_json(_sanitize_for_json({"type": "skip", "dump": i})); continue
-            idx = np.random.randint(len(valid_cells))
-            r, c = valid_cells[idx]
-            
-            # Validate cell safety
-            safe, reach = orch.validator.validate(r, c, payload_t)
-            if not safe:
-                await ws.send_json(_sanitize_for_json({"type": "rejected", "dump": i, "r": r, "c": c, "reach": reach})); continue
-            
-            # Apply dump
-            ok, _ = terrain.apply_dump(r, c, payload_t)
-            if ok:
-                await ws.send_json(_sanitize_for_json({
-                    "type": "dump", "dump": i, "truck": truck_id,
-                    "r": r, "c": c, "payload_t": payload_t,
-                    "volume": terrain.total_volume(),
-                    "coverage": terrain.coverage_fraction(),
-                    "efficiency": terrain.packing_efficiency(),
-                    "full_surface": terrain.to_json_surface(),
-                    "policy": "heuristic",
-                }))
-        
-        # Send completion summary
-        summary = {
-            "total_dispatched": len(dispatches),
-            "successful_dumps": len([s for s in orch.snapshots if s.get("volume", 0) > 0]),
-            "total_volume": terrain.total_volume(),
-            "coverage_pct": round(terrain.coverage_fraction() * 100, 2),
-            "packing_efficiency": round(terrain.packing_efficiency() * 100, 2),
-        }
-        await ws.send_json(_sanitize_for_json({"type": "done", "summary": summary}))
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        try: await ws.send_json(_sanitize_for_json({"type": "error", "msg": str(e)}))
-        except: pass
