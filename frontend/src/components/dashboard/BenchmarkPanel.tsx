@@ -165,17 +165,6 @@ export default function BenchmarkPanel() {
         </div>
       </div>
 
-      {/* FIX: show which metric is being used when efficiency is 0 */}
-      {agg && allEffZero && (
-        <div style={{ padding: "5px 14px", background: "rgba(255,107,53,0.08)",
-          borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-          <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.75rem",
-            color: "var(--ore)" }}>
-            ⚠ Packing efficiency = 0 (too few dumps to fill grid). Showing Coverage % instead.
-            Run more dumps or regenerate benchmark for efficiency data.
-          </span>
-        </div>
-      )}
 
       {/* Summary KPIs */}
       {agg && (
