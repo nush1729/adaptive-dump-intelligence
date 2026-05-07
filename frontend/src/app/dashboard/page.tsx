@@ -68,7 +68,7 @@ export default function DashboardPage() {
     useML, isRunning, result, liveSurface, liveLog,
     health, setHealth, setResult, setIsRunning, setProgress, resetLive,
     setLiveSurface, appendLog, appendVolume, appendSnapshot,
-    activeView, setActiveView, showStatic, setWeights,
+    activeView, setActiveView, showStatic, setWeights, setLastRunPolicy,
   } = useSimStore();
 
   const [isTuning, setIsTuning] = useState(false);
@@ -89,12 +89,14 @@ export default function DashboardPage() {
     if (isRunning) return;
     setIsRunning(true);
     resetLive();
+    setLastRunPolicy(null);
 
     const cfg = {
       material, n_dumps: nDumps, iso_threshold: isoThreshold, seed,
       fleet_models: selectedFleet, weights, use_ml: useML,
     };
 
+    // Step 1: Stream via WebSocket for live terrain updates
     let wsOk = false;
     try {
       await new Promise<void>((resolve, reject) => {
@@ -124,23 +126,31 @@ export default function DashboardPage() {
       });
     } catch (_) {}
 
-    if (!wsOk || useML) {
-      try {
-        const data = await runSimulation(cfg);
-        setResult(data);
+    // Step 2: Always call HTTP for authoritative final result
+    // (includes surfaces, summary, static baseline — the complete package)
+    try {
+      const data = await runSimulation(cfg);
+      setResult(data);
+      // Set the ACTUAL policy that was used (from backend response)
+      const actualPolicy = data?.summary?.policy;
+      if (actualPolicy === "ml_ppo" || actualPolicy === "heuristic") {
+        setLastRunPolicy(actualPolicy);
+      }
+      // Only append snapshots/logs if WS didn't already stream them
+      if (!wsOk) {
         data.snapshots?.forEach((s: DumpSnapshot) => appendSnapshot(s));
         data.log?.forEach((e: DumpEvent) => appendLog(e));
         data.snapshots?.forEach((s: DumpSnapshot) => appendVolume(s.volume));
-        setProgress(100);
-      } catch (err) {
-        console.error("Simulation failed:", err);
       }
+      setProgress(100);
+    } catch (err) {
+      console.error("Simulation failed:", err);
     }
 
     setIsRunning(false);
   }, [isRunning, material, nDumps, isoThreshold, seed, selectedFleet, weights,
       useML, setIsRunning, resetLive, appendVolume, appendLog, appendSnapshot,
-      setLiveSurface, setProgress, setResult]);
+      setLiveSurface, setProgress, setResult, setLastRunPolicy]);
 
   const handleTune = useCallback(async () => {
     setIsTuning(true);
@@ -225,7 +235,7 @@ export default function DashboardPage() {
               {isRunning ? 'System Active' : 'Standby'}
             </div>
             <div className="px-3 py-1 rounded-sm font-mono text-[0.7rem] tracking-widest uppercase" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text2)" }}>
-              {health?.policy_type === "ppo" ? "ML-PPO" : "HEURISTIC"}
+              {(result?.summary?.policy === "ml_ppo") ? "ML-PPO" : "HEURISTIC"}
             </div>
           </div>
         </header>
@@ -269,6 +279,7 @@ export default function DashboardPage() {
                  adiosSurface={result?.surface ?? null}
                  staticSurface={result?.static_surface ?? null}
                  mask={result?.mask ?? null}
+                 policy={result?.summary?.policy}
                />
              </div>
           </div>

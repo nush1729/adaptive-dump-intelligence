@@ -48,14 +48,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 def parse_args():
     p = argparse.ArgumentParser(description="ADIOS supervised MLP trainer")
-    p.add_argument("--polygons", type=int, default=60,
+    p.add_argument("--polygons", type=int, default=50,
                    help="Number of random polygons to generate expert data from")
-    p.add_argument("--dumps-per", type=int, default=50,
+    p.add_argument("--dumps-per", type=int, default=60,
                    help="Max heuristic dumps per polygon")
-    p.add_argument("--epochs", type=int, default=8,
+    p.add_argument("--epochs", type=int, default=5,
                    help="Training epochs")
-    p.add_argument("--lr", type=float, default=3e-4)
-    p.add_argument("--batch", type=int, default=256)
+    p.add_argument("--lr", type=float, default=5e-4)
+    p.add_argument("--batch", type=int, default=64)
     p.add_argument("--out", type=str, default="ml/weights/ppo_adios",
                    help="Output path prefix (same as PPO so policy.py picks it up)")
     p.add_argument("--device", type=str, default="cpu")
@@ -68,37 +68,28 @@ ROWS, COLS = 100, 100
 N_ACTIONS  = ROWS * COLS   # 10 000
 
 
-class TerrainMLP(nn.Module):
+class TerrainFCN(nn.Module):
     """
-    Lightweight CNN policy network for supervised cell-selection.
-    Input : (B, 3, 100, 100)  — three-channel terrain obs
-    Output: (B, 10000)        — logits over all cells
+    Extremely lightweight Fully Convolutional Network.
+    Preserves spatial dimensions perfectly, running super fast on CPU.
+    Input : (B, 3, 100, 100)
+    Output: (B, 10000) logits over all cells
     """
     def __init__(self):
         super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=8, stride=4, padding=0),   # → 32×24×24
+        self.net = nn.Sequential(
+            nn.Conv2d(3, 16, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=0),  # → 64×11×11
+            nn.Conv2d(16, 16, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),  # → 64×9×9
-            nn.ReLU(),
-            nn.Flatten(),                                            # → 5184
-        )
-        with torch.no_grad():
-            n_flat = self.encoder(torch.zeros(1, 3, ROWS, COLS)).shape[1]
-
-        self.head = nn.Sequential(
-            nn.Linear(n_flat, 512),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, N_ACTIONS),
+            nn.Conv2d(16, 1, kernel_size=1) # (B, 1, 100, 100)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.head(self.encoder(x))
+        out = self.net(x)
+        return out.view(x.size(0), -1)
 
 
 # ── Data collection ──────────────────────────────────────────────────────────
@@ -134,6 +125,7 @@ def collect_expert_data(n_polygons: int, dumps_per: int, verbose: bool = True):
 
 def train(args):
     device = torch.device(args.device)
+    
     print(f"\n{'='*60}")
     print(f"  ADIOS Supervised MLP Training")
     print(f"  Polygons: {args.polygons}  |  Epochs: {args.epochs}  |  Device: {device}")
@@ -151,7 +143,7 @@ def train(args):
 
     # ── model, optimiser, scheduler
     print("\n[2/3] Training …")
-    model = TerrainMLP().to(device)
+    model = TerrainFCN().to(device)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  Model parameters: {n_params:,}")
 
@@ -169,7 +161,13 @@ def train(args):
 
         for obs_b, act_b in loader:
             obs_b, act_b = obs_b.to(device), act_b.to(device)
+            # Obs channel 1 is the terrain mask (100x100)
+            mask_b = obs_b[:, 1, :, :].reshape(obs_b.size(0), -1).bool()
+            
             logits = model(obs_b)
+            # Mask invalid actions with -inf so they don't affect softmax cross-entropy
+            logits[~mask_b] = float("-inf")
+            
             loss   = loss_fn(logits, act_b)
             opt.zero_grad()
             loss.backward()
@@ -204,7 +202,7 @@ def train(args):
         "n_params": n_params,
         "best_acc": best_acc,
         "history": history,
-        "architecture": "TerrainMLP-CNN-256",
+        "architecture": "TerrainFCN-Lightweight",
         "n_actions": N_ACTIONS,
         "rows": ROWS,
         "cols": COLS,
@@ -241,13 +239,13 @@ def train(args):
 
 class SupervisedMLPPolicy:
     """
-    Wraps the trained TerrainMLP so it has the same .predict() interface
+    Wraps the trained TerrainFCN so it has the same .predict() interface
     as MaskableInferenceWrapper / HeuristicFallbackPolicy.
     """
     def __init__(self, ckpt_path: str, device: str = "cpu"):
         self.device = torch.device(device)
-        ckpt = torch.load(ckpt_path, map_location=self.device)
-        self.model = TerrainMLP().to(self.device)
+        ckpt = torch.load(ckpt_path, map_location=self.device, weights_only=False)
+        self.model = TerrainFCN().to(self.device)
         self.model.load_state_dict(ckpt["model_state_dict"])
         self.model.eval()
 

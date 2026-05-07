@@ -30,18 +30,22 @@ class TimeSpaceScheduler:
         Returns (success: bool, actual_start_time: int).
         """
         blockers = set()
+        path_len = len(path)
         for delay in range(25):
             t = t0 + delay
-            slots = [(r, c, t + i) for i, (r, c) in enumerate(path)
-                     if t + i < self.T]
-            if len(slots) < len(path):
-                continue                        # path exceeds horizon
+            if t + path_len > self.T:
+                break
+            
             conflict = False
-            for s in slots:
+            for i, (r, c) in enumerate(path):
+                s = (r, c, t + i)
                 if s in self.reserved:
                     blockers.add(self.reserved[s])
                     conflict = True
+                    break
+            
             if not conflict:
+                slots = [(r, c, t + i) for i, (r, c) in enumerate(path)]
                 for s in slots:
                     self.reserved[s] = tid
                 self.truck_paths[tid] = slots
