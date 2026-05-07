@@ -148,7 +148,7 @@ function LogEntry({ e }: { e: { t: number; truck: string | null; r: number | nul
 
 // ── Main MetricsPanel ─────────────────────────────────────────────────────────
 export default function MetricsPanel() {
-  const { result, volumeHistory, liveLog, health } = useSimStore();
+  const { result, volumeHistory, liveLog, health, lastRunPolicy } = useSimStore();
   const summary = result?.summary;
   const staticS = result?.static_summary;
 
@@ -158,6 +158,10 @@ export default function MetricsPanel() {
   );
 
   const lastLog = liveLog.slice(0, 15);
+
+  // Determine the ACTUAL policy used: prefer result's summary, then store tracking
+  const actualPolicy = result?.summary?.policy ?? lastRunPolicy ?? health?.policy_type ?? "heuristic";
+  const isPPO = actualPolicy === "ml_ppo" || actualPolicy === "ppo";
 
   return (
     <div style={{
@@ -177,15 +181,15 @@ export default function MetricsPanel() {
         flexDirection: "column",
         gap: 8,
       }}>
-        {/* Model badge */}
+        {/* Model badge — shows ACTUAL last-run mode, not server config */}
         <div style={{
           display: "flex", alignItems: "center", gap: 6,
           padding: "4px 0",
         }}>
           <div style={{
             width: 7, height: 7, borderRadius: "50%",
-            background: health?.policy_type === "ppo" ? "var(--acid)" : "var(--ore)",
-            boxShadow: health?.policy_type === "ppo" ? "var(--glow-acid)" : "var(--glow-ore)",
+            background: isPPO ? "var(--acid)" : "var(--ore)",
+            boxShadow: isPPO ? "var(--glow-acid)" : "var(--glow-ore)",
             flexShrink: 0,
           }} />
           <span style={{
@@ -196,7 +200,8 @@ export default function MetricsPanel() {
             letterSpacing: "0.1em",
             whiteSpace: "nowrap",
           }}>
-            {health?.policy_type === "ppo" ? "PPO Policy Active" : "Heuristic Mode"}
+            {isPPO ? "ML Policy (PPO)" : "Heuristic Mode"}
+            {result ? "" : " · awaiting run"}
           </span>
         </div>
 

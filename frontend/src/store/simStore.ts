@@ -26,6 +26,8 @@ interface SimStore {
   // results
   result: SimResult | null;
   setResult: (r: SimResult) => void;
+  lastRunPolicy: "heuristic" | "ml_ppo" | null;
+  setLastRunPolicy: (p: "heuristic" | "ml_ppo" | null) => void;
 
   // live streaming
   liveSurface: number[][] | null;
@@ -80,6 +82,8 @@ export const useSimStore = create<SimStore>((set) => ({
 
   result: null,
   setResult: (r) => set({ result: r }),
+  lastRunPolicy: null,
+  setLastRunPolicy: (p) => set({ lastRunPolicy: p }),
 
   liveSurface: null,
   liveDumps: [],

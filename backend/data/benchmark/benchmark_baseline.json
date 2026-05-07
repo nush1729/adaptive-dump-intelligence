@@ -4,10 +4,10 @@
     "material": "rock",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.44,
-      "efficiency": 0.0,
-      "uniformity": -8.0734
+      "volume": 1151.97705078125,
+      "coverage_pct": 99.83,
+      "efficiency": 85.75,
+      "uniformity": 0.857
     }
   },
   {
@@ -15,43 +15,43 @@
     "material": "ore",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.56,
-      "efficiency": 0.0,
-      "uniformity": -7.7286
+      "volume": 1169.5030517578125,
+      "coverage_pct": 99.74,
+      "efficiency": 73.37000274658203,
+      "uniformity": 0.734
     }
   },
   {
     "seed": 8002,
-    "material": "overburden",
+    "material": "rock",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.47,
-      "efficiency": 0.0,
-      "uniformity": -7.9889
+      "volume": 1170.9365234375,
+      "coverage_pct": 99.9,
+      "efficiency": 81.2300033569336,
+      "uniformity": 0.812
     }
   },
   {
     "seed": 8003,
-    "material": "default",
+    "material": "rock",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.59,
-      "efficiency": 0.0,
-      "uniformity": -7.6535
+      "volume": 1159.435546875,
+      "coverage_pct": 99.58,
+      "efficiency": 77.4000015258789,
+      "uniformity": 0.774
     }
   },
   {
     "seed": 8004,
-    "material": "rock",
+    "material": "ore",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.65,
-      "efficiency": 0.0,
-      "uniformity": -7.4862
+      "volume": 1160.7138671875,
+      "coverage_pct": 99.62,
+      "efficiency": 73.30999755859375,
+      "uniformity": 0.733
     }
   },
   {
@@ -59,54 +59,54 @@
     "material": "ore",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.43,
-      "efficiency": 0.0,
-      "uniformity": -8.1164
+      "volume": 1160.03173828125,
+      "coverage_pct": 99.74,
+      "efficiency": 85.3499984741211,
+      "uniformity": 0.853
     }
   },
   {
     "seed": 8006,
-    "material": "overburden",
+    "material": "default",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.61,
-      "efficiency": 0.0,
-      "uniformity": -7.5942
+      "volume": 1156.4140625,
+      "coverage_pct": 99.73,
+      "efficiency": 77.98999786376953,
+      "uniformity": 0.78
     }
   },
   {
     "seed": 8007,
-    "material": "default",
+    "material": "overburden",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.43,
-      "efficiency": 0.0,
-      "uniformity": -8.1219
+      "volume": 1162.000244140625,
+      "coverage_pct": 99.76,
+      "efficiency": 88.30999755859375,
+      "uniformity": 0.883
     }
   },
   {
     "seed": 8008,
-    "material": "rock",
+    "material": "default",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.49,
-      "efficiency": 0.0,
-      "uniformity": -7.9251
+      "volume": 1154.7491455078125,
+      "coverage_pct": 99.5,
+      "efficiency": 81.8499984741211,
+      "uniformity": 0.818
     }
   },
   {
     "seed": 8009,
-    "material": "ore",
+    "material": "default",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.43,
-      "efficiency": 0.0,
-      "uniformity": -8.1164
+      "volume": 1183.7762451171875,
+      "coverage_pct": 99.52,
+      "efficiency": 83.19999694824219,
+      "uniformity": 0.832
     }
   },
   {
@@ -114,10 +114,10 @@
     "material": "overburden",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.43,
-      "efficiency": 0.0,
-      "uniformity": -8.1274
+      "volume": 1167.4686279296875,
+      "coverage_pct": 99.79,
+      "efficiency": 85.2300033569336,
+      "uniformity": 0.852
     }
   },
   {
@@ -125,54 +125,54 @@
     "material": "default",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.44,
-      "efficiency": 0.0,
-      "uniformity": -8.0844
+      "volume": 1170.91552734375,
+      "coverage_pct": 99.86,
+      "efficiency": 84.33999633789062,
+      "uniformity": 0.843
     }
   },
   {
     "seed": 8012,
-    "material": "rock",
+    "material": "ore",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.45,
-      "efficiency": 0.0,
-      "uniformity": -8.0678
+      "volume": 1154.419189453125,
+      "coverage_pct": 100.0,
+      "efficiency": 90.16000366210938,
+      "uniformity": 0.902
     }
   },
   {
     "seed": 8013,
-    "material": "ore",
+    "material": "default",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.49,
-      "efficiency": 0.0,
-      "uniformity": -7.9262
+      "volume": 1147.74365234375,
+      "coverage_pct": 99.8,
+      "efficiency": 83.08999633789062,
+      "uniformity": 0.831
     }
   },
   {
     "seed": 8014,
-    "material": "overburden",
+    "material": "rock",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.43,
-      "efficiency": 0.0,
-      "uniformity": -8.1328
+      "volume": 1162.9432373046875,
+      "coverage_pct": 99.64,
+      "efficiency": 87.81999969482422,
+      "uniformity": 0.878
     }
   },
   {
     "seed": 8015,
-    "material": "default",
+    "material": "ore",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.42,
-      "efficiency": 0.0,
-      "uniformity": -8.1394
+      "volume": 1186.465576171875,
+      "coverage_pct": 99.29,
+      "efficiency": 78.70999908447266,
+      "uniformity": 0.787
     }
   },
   {
@@ -180,43 +180,43 @@
     "material": "rock",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.49,
-      "efficiency": 0.0,
-      "uniformity": -7.942
+      "volume": 1143.634033203125,
+      "coverage_pct": 99.98,
+      "efficiency": 88.44000244140625,
+      "uniformity": 0.884
     }
   },
   {
     "seed": 8017,
-    "material": "ore",
+    "material": "overburden",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.64,
-      "efficiency": 0.0,
-      "uniformity": -7.4968
+      "volume": 1175.133056640625,
+      "coverage_pct": 99.7,
+      "efficiency": 75.16000366210938,
+      "uniformity": 0.752
     }
   },
   {
     "seed": 8018,
-    "material": "overburden",
+    "material": "default",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.67,
-      "efficiency": 0.0,
-      "uniformity": -7.4245
+      "volume": 1156.2421875,
+      "coverage_pct": 99.69,
+      "efficiency": 73.94999694824219,
+      "uniformity": 0.74
     }
   },
   {
     "seed": 8019,
-    "material": "default",
+    "material": "overburden",
     "heuristic": {
       "dumps": 60,
-      "volume": 14100.0,
-      "coverage_pct": 1.35,
-      "efficiency": 0.0,
-      "uniformity": -8.3745
+      "volume": 1192.5985107421875,
+      "coverage_pct": 98.94,
+      "efficiency": 85.05999755859375,
+      "uniformity": 0.851
     }
   }
 ]
