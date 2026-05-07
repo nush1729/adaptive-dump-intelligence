@@ -34,7 +34,7 @@ ML_AVAILABLE = False
 _policy_cache = {}
 WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), "..", "ml", "weights", "ppo_adios")
 
-def _load_policy_cached(device="cpu"):
+def _load_policy_cached(device="cpu", raise_on_fail=False):
     if "policy" not in _policy_cache:
         try:
             from ml.policy import load_policy
@@ -42,9 +42,13 @@ def _load_policy_cached(device="cpu"):
             _policy_cache["type"] = "ppo"
             print("  ML policy loaded from weights")
         except Exception as e:
-            print(f"  ML weights not found ({e}), using heuristic fallback")
+            print(f"  ML weights not found ({e})")
+            if raise_on_fail:
+                raise RuntimeError(f"ML policy load failed: {e}")
             _policy_cache["policy"] = None
             _policy_cache["type"] = "heuristic"
+    elif raise_on_fail and _policy_cache["policy"] is None:
+        raise RuntimeError("ML policy was not found previously.")
     return _policy_cache["policy"], _policy_cache["type"]
 
 try:
@@ -137,29 +141,26 @@ def _terrain_payload(terrain: Terrain, weights: Optional[dict] = None) -> dict:
         "score_map": sm,
     })
 
+def _build_obs(t):
+    from scipy.ndimage import distance_transform_edt
+    import numpy as np
+    h = t.height
+    mask = t.mask.astype(np.float32)
+    max_h = h[t.mask].max() if t.mask.any() else 1.0
+    h_norm = (h / max(max_h, 1e-6)).astype(np.float32)
+    dist_arr = distance_transform_edt(t.mask)  # type: ignore
+    if isinstance(dist_arr, tuple):
+        dist_arr = dist_arr[0]
+    dist = np.asarray(dist_arr, dtype=np.float32)
+    dist_norm = dist / (dist.max() or 1.0)
+    return np.stack([h_norm, mask, dist_norm], axis=0)
+
 def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float) -> tuple:
     """Run one episode with the PPO policy. Returns (log, snapshots)."""
-    policy, ptype = _load_policy_cached()
-    if policy is None:
-        # fallback to heuristic
+    try:
+        policy, ptype = _load_policy_cached(raise_on_fail=True)
+    except RuntimeError as e:
         return None, None
-
-    from ml.environment import DumpPackingEnv
-    import numpy as np
-    from scipy.ndimage import distance_transform_edt
-
-    def _obs(t):
-        from scipy.ndimage import distance_transform_edt
-        h = t.height
-        mask = t.mask.astype(np.float32)
-        max_h = h[t.mask].max() if t.mask.any() else 1.0
-        h_norm = (h / max(max_h, 1e-6)).astype(np.float32)
-        dist_arr = distance_transform_edt(t.mask)  # type: ignore
-        if isinstance(dist_arr, tuple):
-            dist_arr = dist_arr[0]
-        dist = np.asarray(dist_arr, dtype=np.float32)
-        dist_norm = dist / (dist.max() or 1.0)
-        return np.stack([h_norm, mask, dist_norm], axis=0)
 
     val = IsolationValidator(terrain, terrain.entry, iso_threshold)
     log, snapshots = [], []
@@ -170,7 +171,7 @@ def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float)
     dispatches = dispatches[:n_dumps]
 
     for i, (truck_id, payload_t) in enumerate(dispatches):
-        obs = _obs(terrain)
+        obs = _build_obs(terrain)
         masks_arr = mask_flat.copy()
         action = policy.predict(obs, masks_arr)
         r, c = divmod(int(action), COLS)
@@ -229,18 +230,27 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
 
     fleet = make_fleet(cfg.fleet_models)
 
+    actual_policy = "heuristic"  # Track what was ACTUALLY used
     if cfg.use_ml:
-        log, snapshots = _run_ml_episode(terrain, fleet, cfg.n_dumps, cfg.iso_threshold)
-        if log is None:  # fallback
+        try:
+            log, snapshots = _run_ml_episode(terrain, fleet, cfg.n_dumps, cfg.iso_threshold)
+            if log is not None:
+                actual_policy = "ml_ppo"
+            else:
+                # ML returned None — fall back
+                cfg.use_ml = False
+        except RuntimeError:
             cfg.use_ml = False
+            log = None
 
-    if not cfg.use_ml:
+    if not cfg.use_ml or log is None:
         orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH)
         orch.validator.reach_thresh = cfg.iso_threshold
         dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
         dispatches = dispatches[:cfg.n_dumps]
         log = orch.run(dispatches)
         snapshots = orch.snapshots
+        actual_policy = "heuristic"
 
     summary = {
         "total_dispatched": len(log),
@@ -250,10 +260,10 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
         "coverage_pct": round(terrain.coverage_fraction() * 100, 2),
         "packing_efficiency": round(terrain.packing_efficiency() * 100, 2),
         "mean_height": round(terrain.mean_height(), 3),
-        "height_uniformity": round(1 - terrain.height_std() / max(terrain.mean_height(), 0.01), 3),
+        "height_uniformity": round(terrain.packing_efficiency(), 3),
         "isolation_events": sum(1 for x in log if "iso" in str(x.get("status", ""))),
         "latency_ms": round((time.time() - t0) * 1000, 1),
-        "policy": "ml_ppo" if cfg.use_ml else "heuristic",
+        "policy": actual_policy,
     }
 
     # static baseline
@@ -338,87 +348,80 @@ def get_eval_result():
 @app.get("/schedule")
 def get_schedule(n_trucks: int = 4, n_dumps: int = 40, seed: int = 42):
     """
-    Build a truck dispatch timeline using the real TimeSpaceScheduler.
-
-    Each entry: { truck_id, start_tick, end_tick, payload_t, status, r, c, dump_seq }
+    Build a truck dispatch timeline using the real TimeSpaceScheduler
+    and the actual ADIOSOrchestrator log to map physical paths to time.
     """
     import numpy as np
     from planning.scheduler import TimeSpaceScheduler
+    from planning.pathfinder import find_path
 
     rng = np.random.default_rng(seed)
 
-    # ── terrain + fleet ──────────────────────────────────────────────────────
+    # ── terrain + fleet + orchestrator ───────────────────────────────────────
     terrain = Terrain.make_demo_polygon(100, 100, "default", seed)
     truck_names = [f"T{i+1}" for i in range(n_trucks)]
     payloads = rng.choice([50.0, 100.0, 240.0, 400.0], size=n_trucks, replace=True)
+    
+    orch = ADIOSOrchestrator(terrain)
+    dispatches = []
+    for i in range(n_dumps):
+        tid = i % n_trucks
+        p = round(float(payloads[tid]) * float(rng.uniform(0.9, 1.1)), 1)
+        dispatches.append((truck_names[tid], p))
+        
+    log = orch.run(dispatches)
 
     # ── scheduler ───────────────────────────────────────────────────────────
-    total_ticks = n_dumps * 8 + 20
+    total_ticks = n_dumps * 8 + 50
     scheduler = TimeSpaceScheduler(rows=terrain.rows, cols=terrain.cols, T=total_ticks)
-
-    valid_cells = np.argwhere(terrain.mask)
-    if len(valid_cells) == 0:
-        return _sanitize_for_json({"timeline": [], "queue": [],
-                                   "n_trucks": n_trucks, "total_ticks": 0})
-
-    validator = IsolationValidator(terrain, terrain.entry, 0.85)
 
     timeline = []
     truck_free_at = [0] * n_trucks
 
-    for i in range(n_dumps):
+    start_r, start_c = terrain.entry
+    
+    for i, event in enumerate(log):
         tid = int(i % n_trucks)
+        truck = truck_names[tid]
+        p = event["payload_t"]
+        status = event["status"]
+        r, c = event["r"], event["c"]
+        
         start = int(truck_free_at[tid])
-        duration = int(rng.integers(3, 9))
-        end = start + duration
-
-        # pick a random valid cell
-        cell_idx = int(rng.integers(0, len(valid_cells)))
-        r, c = int(valid_cells[cell_idx, 0]), int(valid_cells[cell_idx, 1])
-
-        payload = round(float(payloads[tid]) * float(rng.uniform(0.9, 1.1)), 1)
-
-        # Route path using actual A* instead of dummy cell
-        from planning.pathfinder import find_path
-        start_r, start_c = terrain.entry
-        actual_path = find_path(terrain.height, terrain.mask, (int(start_r), int(start_c)), (r, c))
-        if actual_path is None:
-            actual_path = [(r, c)] # Fallback
+        
+        if status == "dumped" or status.startswith("iso_rejected") or status.startswith("slope"):
+            # find actual path
+            actual_path = find_path(terrain.height, terrain.mask, (int(start_r), int(start_c)), (r, c))
+            if not actual_path:
+                actual_path = [(r, c)]
             
-        reserved, actual_start = scheduler.try_reserve(truck_names[tid], actual_path, t0=start)
-
-        if reserved:
-            t_start = actual_start
-            t_end   = actual_start + duration
+            # approximate travel duration based on path length (e.g. 1 tick per 2 cells) + dump time
+            travel_ticks = max(1, len(actual_path) // 2)
+            duration = travel_ticks + int(rng.integers(2, 5))
+            
+            reserved, actual_start = scheduler.try_reserve(truck, actual_path, t0=start)
+            
+            t_start = actual_start if reserved else start
+            t_end = t_start + duration
         else:
+            # no space / invalid
             t_start = start
-            t_end   = end
-
-        truck_free_at[tid] = t_end + int(rng.integers(1, 4))
-
-        # detect deadlocks and reset livelock trucks
+            duration = int(rng.integers(1, 3))
+            t_end = t_start + duration
+            
+        truck_free_at[tid] = t_end + int(rng.integers(1, 3))
+        
+        # Deadlock check
         if scheduler.has_cycle():
             for stuck in scheduler.livelock_trucks(thresh=8):
                 scheduler.release(stuck)
 
-        # Real validation instead of random status
-        safe, reach = validator.validate(r, c, payload)
-        if safe:
-            ok, reason = terrain.apply_dump(r, c, payload)
-            if ok:
-                validator.record_dump(r, c)
-                status = "dumped"
-            else:
-                status = reason
-        else:
-            status = "iso_rejected"
-
         timeline.append({
-            "truck_id":   truck_names[tid],
-            "payload_t":  payload,
+            "truck_id": truck,
+            "payload_t": p,
             "start_tick": t_start,
-            "end_tick":   t_end,
-            "status":     status,
+            "end_tick": t_end,
+            "status": status,
             "r": r, "c": c,
             "dump_seq": i,
         })
@@ -447,52 +450,68 @@ async def ws_simulate(ws: WebSocket):
         weights = cfg.weights or dict(DEFAULT_WEIGHTS)
         fleet = make_fleet(cfg.fleet_models)
 
-        orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH)
-        orch.validator.reach_thresh = cfg.iso_threshold
+        # FIX: use ScoringEngine for intelligent cell selection
+        from planning.scorer import ScoringEngine
+        eng = ScoringEngine(terrain, terrain.entry, weights)
+        val = IsolationValidator(terrain, terrain.entry, cfg.iso_threshold)
 
         dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
         dispatches = dispatches[:cfg.n_dumps]
-
         success_count = 0
         reject_count  = 0
 
-        for event in orch.run_iter(dispatches):
-            status = event.get("status", "")
-            if status == "dumped":
+        policy = None
+        ptype = "heuristic"
+        if cfg.use_ml:
+            policy, ptype = _load_policy_cached(raise_on_fail=True)
+            
+        orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH)
+        orch.validator.reach_thresh = cfg.iso_threshold
+        
+        success_count = 0
+        reject_count = 0
+        
+        for log_entry, snapshot, placed, r, c in orch.run_generator(dispatches, policy=policy, ptype=ptype):
+            if log_entry["status"] == "no_space":
+                await ws.send_json(_sanitize_for_json({
+                    "type": "skip", "dump": log_entry["t"]
+                }))
+                continue
+                
+            if log_entry["status"].startswith("iso_rejected"):
+                reject_count += 1
+                reach = float(log_entry["status"].split("(")[1].strip(")")) if "(" in log_entry["status"] else 0.0
+                await ws.send_json(_sanitize_for_json({
+                    "type": "rejected", "dump": log_entry["t"], "r": r, "c": c, "reach": reach
+                }))
+                continue
+                
+            if placed and log_entry["status"] == "dumped":
                 success_count += 1
                 await ws.send_json(_sanitize_for_json({
                     "type":         "dump",
-                    "dump":         event["t"],
-                    "truck":        event["truck"],
-                    "r":            event["r"],
-                    "c":            event["c"],
-                    "payload_t":    event["payload_t"],
-                    "volume":       event.get("volume", 0),
-                    "coverage":     event.get("coverage", 0),
-                    "efficiency":   event.get("efficiency", 0),
-                    "full_surface": event.get("full_surface"),
-                    "policy":       event.get("policy", "heuristic"),
+                    "dump":         log_entry["t"],
+                    "truck":        log_entry["truck"],
+                    "r":            r,
+                    "c":            c,
+                    "payload_t":    log_entry["payload_t"],
+                    "volume":       terrain.total_volume(),
+                    "coverage":     terrain.coverage_fraction(),
+                    "efficiency":   terrain.packing_efficiency(),
+                    "full_surface": terrain.to_json_surface(),
+                    "policy":       ptype,
                 }))
-            elif "iso" in status:
-                reject_count += 1
-                await ws.send_json(_sanitize_for_json({
-                    "type": "rejected", "dump": event["t"],
-                    "r": event["r"], "c": event["c"],
-                    "reach": event.get("reach"),
-                }))
-            elif status == "no_space":
-                await ws.send_json(_sanitize_for_json({
-                    "type": "skip", "dump": event["t"],
-                }))
+                await asyncio.sleep(0)  # Yield control to the event loop
 
         # completion summary
         summary = {
-            "total_dispatched":   len(dispatches),
-            "successful_dumps":   success_count,
-            "rejected":           reject_count,
-            "total_volume":       terrain.total_volume(),
-            "coverage_pct":       round(terrain.coverage_fraction() * 100, 2),
+            "total_dispatched":  len(dispatches),
+            "successful_dumps":  success_count,
+            "rejected":          reject_count,
+            "total_volume":      terrain.total_volume(),
+            "coverage_pct":      round(terrain.coverage_fraction() * 100, 2),
             "packing_efficiency": round(terrain.packing_efficiency() * 100, 2),
+            "policy":            ptype,
         }
         await ws.send_json(_sanitize_for_json({"type": "done", "summary": summary}))
 
@@ -503,4 +522,3 @@ async def ws_simulate(ws: WebSocket):
             await ws.send_json(_sanitize_for_json({"type": "error", "msg": str(e)}))
         except Exception:
             pass
-

@@ -115,13 +115,13 @@ def build_benchmark_suite(n_polygons: int = 20, out_dir: str = "data/benchmark")
             "seed": seed,
             "material": terrain_h.material,
             "heuristic": {
-                "dumps": h_dumps,
-                "volume": terrain_h.total_volume(),
-                "coverage_pct": round(terrain_h.coverage_fraction() * 100, 2),
-                "efficiency": round(terrain_h.packing_efficiency() * 100, 2),
-                "uniformity": round(
+                "dumps": int(h_dumps),
+                "volume": float(terrain_h.total_volume()),
+                "coverage_pct": float(round(terrain_h.coverage_fraction() * 100, 2)),
+                "efficiency": float(round(terrain_h.packing_efficiency() * 100, 2)),
+                "uniformity": float(round(
                     1 - terrain_h.height_std() / max(terrain_h.mean_height(), 0.01), 3
-                ),
+                )),
             },
         })
 

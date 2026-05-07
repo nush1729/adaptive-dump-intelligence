@@ -16,6 +16,7 @@ interface Compare3DProps {
   adiosSurface: number[][] | null;
   staticSurface: number[][] | null;
   mask: boolean[][] | null;
+  policy?: string;
 }
 
 const PLOTLY_CDN =
@@ -54,47 +55,59 @@ function PlotPanel({
       row.map((h, c) => (mask[r]?.[c] ? h : null))
     );
 
-    window.Plotly.react(
-      ref.current,
-      [{
-        type: "surface",
-        z,
-        colorscale: [
-          [0,    "#051420"],
-          [0.15, "#00A3B3"],
-          [0.35, "#00CC66"],
-          [0.55, "#88DD00"],
-          [0.70, "#FFC000"],
-          [0.85, "#FF5722"],
-          [1.0,  "#FFFFFF"],
-        ],
-        showscale: false,
-        opacity: 0.96,
-        contours: {
-          z: { show: true, usecolormap: true, highlightcolor: "#FFC000", project: { z: false } },
+    // Auto-scale Z based on actual height range
+    let zMax = 1;
+    for (const row of surface) {
+      for (const h of row) {
+        if (h != null && isFinite(h) && h > zMax) zMax = h;
+      }
+    }
+
+    try {
+      window.Plotly.react(
+        ref.current,
+        [{
+          type: "surface",
+          z,
+          colorscale: [
+            [0,    "#051420"],
+            [0.15, "#00A3B3"],
+            [0.35, "#00CC66"],
+            [0.55, "#88DD00"],
+            [0.70, "#FFC000"],
+            [0.85, "#FF5722"],
+            [1.0,  "#FFFFFF"],
+          ],
+          showscale: false,
+          opacity: 0.96,
+          contours: {
+            z: { show: true, usecolormap: true, highlightcolor: "#FFC000", project: { z: false } },
+          },
+        }],
+        {
+          paper_bgcolor: "#050A0F",
+          plot_bgcolor:  "#050A0F",
+          margin: { l: 0, r: 0, t: 32, b: 0 },
+          title: {
+            text: title,
+            font: { family: "JetBrains Mono", size: 11, color },
+            x: 0.5,
+          },
+          scene: {
+            bgcolor: "#050A0F",
+            xaxis: { showgrid: false, zeroline: false, showticklabels: false },
+            yaxis: { showgrid: false, zeroline: false, showticklabels: false },
+            zaxis: { showgrid: false, zeroline: false, showticklabels: false },
+            aspectmode: "manual",
+            aspectratio: { x: 1.4, y: 1.4, z: Math.max(0.3, Math.min(0.8, zMax / Math.max(ROWS, COLS) * 8)) },
+            camera: { eye: { x: 1.5, y: 1.5, z: 1.0 } },
+          },
         },
-      }],
-      {
-        paper_bgcolor: "#050A0F",
-        plot_bgcolor:  "#050A0F",
-        margin: { l: 0, r: 0, t: 32, b: 0 },
-        title: {
-          text: title,
-          font: { family: "JetBrains Mono", size: 11, color },
-          x: 0.5,
-        },
-        scene: {
-          bgcolor: "#050A0F",
-          xaxis: { showgrid: false, zeroline: false, showticklabels: false },
-          yaxis: { showgrid: false, zeroline: false, showticklabels: false },
-          zaxis: { showgrid: false, zeroline: false, showticklabels: false },
-          aspectmode: "manual",
-          aspectratio: { x: 1.4, y: 1.4, z: 0.5 },
-          camera: { eye: { x: 1.5, y: 1.5, z: 1.0 } },
-        },
-      },
-      { responsive: true, displayModeBar: false }
-    );
+        { responsive: true, displayModeBar: false }
+      );
+    } catch (err) {
+      console.error("Plotly render failed:", err);
+    }
   }, [ready, surface, mask, title, color]);
 
   return (
@@ -113,7 +126,8 @@ function PlotPanel({
   );
 }
 
-export default function Compare3D({ adiosSurface, staticSurface, mask }: Compare3DProps) {
+export default function Compare3D({ adiosSurface, staticSurface, mask, policy }: Compare3DProps) {
+  const adiosLabel = policy === "ml_ppo" ? "ADIOS — ML Policy (PPO)" : "ADIOS — Adaptive Pack";
   return (
     <div style={{
       display: "flex", height: "100%", gap: 2,
@@ -122,7 +136,7 @@ export default function Compare3D({ adiosSurface, staticSurface, mask }: Compare
       <PlotPanel
         surface={adiosSurface}
         mask={mask}
-        title="ADIOS — Adaptive Pack"
+        title={adiosLabel}
         color="#FFC000"
       />
       <div style={{ width: 1, background: "var(--border)" }} />

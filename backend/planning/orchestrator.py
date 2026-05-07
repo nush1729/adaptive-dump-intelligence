@@ -19,41 +19,60 @@ class ADIOSOrchestrator:
         self.validator = IsolationValidator(terrain, terrain.entry)
         self.reach_thresh = 0.85          # kept for compat
 
-    def run_iter(self, dispatches):
-        """Generator: yields one dispatch event dict per truck.
-
-        This is the single-source-of-truth dispatch loop used by both
-        the REST /simulate endpoint and the WebSocket /ws/simulate handler.
+    def run(self, dispatches) -> list:
+        """Run simulation with dispatch sequence.
 
         Args:
             dispatches: List of (truck_id, payload_tonnes) tuples
-        Yields:
-            dict with keys: t, truck, r, c, status, payload_t, volume,
-            coverage, efficiency, policy, full_surface (optional)
+        Returns:
+            Log of dispatch events
         """
+        log = []
+        for _log_entry, _snapshot, _placed, _r, _c in self.run_generator(dispatches):
+            log.append(_log_entry)
+        return log
+
+    def run_generator(self, dispatches, policy=None, ptype="heuristic"):
+        """Generator that yields after each dispatch step, used for streaming."""
+        log = []
         reserved = set()
 
         for i, (truck_id, payload_t) in enumerate(dispatches):
             placed = False
+            # retry with expanding reserved set until a safe cell is found
             for _attempt in range(50):
-                r, c, _ = self.engine.score_all(reserved_cells=reserved)
+                if policy is not None:
+                    # ML inference provided from outside to avoid circular dependency
+                    import numpy as np
+                    from scipy.ndimage import distance_transform_edt
+                    h = self.terrain.height
+                    mask = self.terrain.mask.astype(np.float32)
+                    max_h = h[self.terrain.mask].max() if self.terrain.mask.any() else 1.0
+                    h_norm = (h / max(max_h, 1e-6)).astype(np.float32)
+                    dist_arr = distance_transform_edt(self.terrain.mask)
+                    dist = np.asarray(dist_arr[0] if isinstance(dist_arr, tuple) else dist_arr, dtype=np.float32)
+                    dist_norm = dist / (dist.max() or 1.0)
+                    obs = np.stack([h_norm, mask, dist_norm], axis=0)
+                    
+                    action = policy.predict(obs, self.terrain.mask.ravel().copy())
+                    r, c = divmod(int(action), self.terrain.cols)
+                else:
+                    r, c, _ = self.engine.score_all(reserved_cells=reserved)
 
                 if r is None:
-                    yield {"t": i, "truck": truck_id,
-                           "r": 0, "c": 0,
-                           "status": "no_space",
-                           "payload_t": payload_t}
+                    log_entry = {"t": i, "truck": truck_id,
+                                "r": 0, "c": 0,
+                                "status": "no_space",
+                                "payload_t": payload_t}
+                    log.append(log_entry)
+                    yield log_entry, None, placed, None, None
                     break
 
                 safe, reach = self.validator.validate(r, c, payload_t)
                 if not safe:
                     reserved.add((r, c))
-                    yield {"t": i, "truck": truck_id,
-                           "r": int(r), "c": int(c),
-                           "status": f"iso_rejected({reach:.2f})",
-                           "payload_t": payload_t,
-                           "reach": reach}
-                    continue
+                    yield {"t": i, "truck": truck_id, "r": int(r), "c": int(c), "status": f"iso_rejected({reach:.2f})", "payload_t": payload_t}, None, False, r, c
+                    continue  # try next best cell
 
                 ok, reason = self.terrain.apply_dump(r, c, payload_t)
                 status = "dumped" if ok else reason
@@ -61,43 +80,33 @@ class ADIOSOrchestrator:
                 if ok:
                     self.validator.record_dump(r, c)
 
-                vol = self.terrain.total_volume()
-                cov = self.terrain.coverage_fraction()
-                eff = self.terrain.packing_efficiency()
+                log_entry = {"t": i, "truck": truck_id,
+                            "r": int(r), "c": int(c),
+                            "status": status, "payload_t": payload_t,
+                            "volume": self.terrain.total_volume(),
+                            "coverage": self.terrain.coverage_fraction()}
+                log.append(log_entry)
 
-                self.snapshots.append({
+                snapshot = {
                     "dump_n": i, "truck": truck_id,
                     "r": int(r), "c": int(c),
-                    "volume": vol,
-                    "coverage": cov,
-                    "efficiency": eff,
-                    "policy": "heuristic",
-                })
-
-                yield {"t": i, "truck": truck_id,
-                       "r": int(r), "c": int(c),
-                       "status": status, "payload_t": payload_t,
-                       "volume": vol,
-                       "coverage": cov,
-                       "efficiency": eff,
-                       "policy": "heuristic",
-                       "full_surface": self.terrain.to_json_surface()}
+                    "volume": self.terrain.total_volume(),
+                    "coverage": self.terrain.coverage_fraction(),
+                    "efficiency": self.terrain.packing_efficiency(),
+                    "policy": ptype,
+                }
+                self.snapshots.append(snapshot)
                 placed = True
+                yield log_entry, snapshot, placed, r, c
                 break
 
-            if not placed and (not self.snapshots or self.snapshots[-1].get("dump_n") != i):
-                # Already yielded a no_space or iso_rejected event above
-                pass
-
-    def run(self, dispatches) -> list:
-        """Run simulation with dispatch sequence.
-
-        Args:
-            dispatches: List of (truck_id, payload_tonnes) tuples
-        Returns:
-            Log of dispatch events (only successful dumps + no_space events)
-        """
-        log = []
-        for event in self.run_iter(dispatches):
-            log.append(event)
-        return log
+            if not placed and (not log or log[-1]["t"] != i):
+                log_entry = {"t": i, "truck": truck_id,
+                            "r": 0, "c": 0,
+                            "status": "no_space",
+                            "payload_t": payload_t}
+                log.append(log_entry)
+                yield log_entry, None, placed, None, None
+            
+            if not placed:
+                reserved.add((r, c) if r is not None else (0, 0))
