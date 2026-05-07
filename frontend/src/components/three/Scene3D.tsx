@@ -138,7 +138,10 @@ function TerrainMesh({ surface, mask, heightScale = 4.0, showWireframe = false }
     let maxH = 0;
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
-        if (mask[r][c] && surface[r][c] > maxH) maxH = surface[r][c];
+        if (mask[r][c]) {
+          const h = surface[r][c];
+          if (isFinite(h) && h > maxH) maxH = h;
+        }
       }
     }
     const hRange = Math.max(maxH, 0.01);
@@ -147,11 +150,15 @@ function TerrainMesh({ surface, mask, heightScale = 4.0, showWireframe = false }
       for (let c = 0; c < COLS; c++) {
         if (!mask[r][c]) continue;
         const idx = remap[r * COLS + c];
-        const h = surface[r][c];
+        let h = surface[r][c];
+        
+        // Guard: NaN/Inf → 0
+        if (!isFinite(h)) h = 0;
         
         posAttr.setY(idx, h * heightScale);
 
         if (h <= 0.001) {
+          // Visible dark teal base instead of invisible black
           colAttr.setXYZ(idx, 0.03, 0.14, 0.22);
         } else {
           const t = Math.min(1, h / hRange);

@@ -36,6 +36,18 @@ from planning.scorer import ScoringEngine, DEFAULT_WEIGHTS
 from planning.isolation_validator import IsolationValidator
 
 
+class NumpyEncoder(json.JSONEncoder):
+    """JSON encoder that handles numpy types."""
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 def parse_args():
@@ -164,13 +176,13 @@ def run_static(terrain: Terrain, payload_t: float = 100.0, step: int = 8) -> dic
     return {
         "policy":             "static_grid",
         "dumps_succeeded":    len(positions),
-        "volume_m3":          round(vol, 2),
-        "coverage_pct":       round(cov * 100, 2),
-        "packing_efficiency": round(eff * 100, 2),
-        "height_uniformity":  round(uni, 4),
+        "volume_m3":          round(float(vol), 2),
+        "coverage_pct":       round(float(cov) * 100, 2),
+        "packing_efficiency": round(float(eff) * 100, 2),
+        "height_uniformity":  round(float(uni), 4),
         "rejection_rate":     0.0,
         "mean_spacing_m":     round(float(step), 3),
-        "latency_ms":         round(latency_ms, 3),
+        "latency_ms":         round(float(latency_ms), 3),
     }
 
 
@@ -335,6 +347,22 @@ def main():
     print(f"Seeds {args.seed_start} – {args.seed_start + args.polygons - 1}")
     print("─" * 60)
 
+    # Always try to load ML policy for evaluation (graceful if missing)
+    ml_available = False
+    if not args.use_ml:
+        # Even without --use-ml flag, attempt ML for baseline generation
+        try:
+            from ml.policy import load_policy
+            _test_policy = load_policy(args.ml_weights)
+            ml_available = True
+            if not args.quiet:
+                print(f"  ML policy found — including ML evaluation")
+        except Exception as e:
+            if not args.quiet:
+                print(f"  ML policy not available ({e}) — heuristic + static only")
+    else:
+        ml_available = True
+
     for i in range(args.polygons):
         seed = args.seed_start + i
         mat  = MATERIALS[i % len(MATERIALS)]
@@ -353,8 +381,8 @@ def main():
         s_kpis.update({"seed": seed, "material": mat})
         results.append(s_kpis)
 
-        # ── ML (optional)
-        if args.use_ml:
+        # ── ML (always attempt if weights exist)
+        if ml_available or args.use_ml:
             t_m = Terrain.make_demo_polygon(100, 100, mat, seed)
             m_kpis = run_ml(t_m, fleet, args.dumps, args.ml_weights)
             m_kpis.update({"seed": seed, "material": mat})
@@ -364,8 +392,10 @@ def main():
     print(f"\n  Completed {args.polygons} polygons in {elapsed:.1f}s")
 
     # ── Summaries
+    # Determine which policies have results
+    found_policies = set(r.get("policy") for r in results)
     policies = ["heuristic", "static_grid"]
-    if args.use_ml:
+    if "ml_ppo" in found_policies:
         policies.append("ml_ppo")
     summaries = [summarise(results, p) for p in policies]
 
@@ -386,7 +416,7 @@ def main():
     out_path = os.path.join(os.path.dirname(__file__), "..", args.out)
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
-        json.dump(out, f, indent=2)
+        json.dump(out, f, indent=2, cls=NumpyEncoder)
     print(f"  Results written → {out_path}\n")
 
     # ── Also write the "baseline" file that the frontend reads from /benchmark
@@ -395,23 +425,32 @@ def main():
     )
     Path(baseline_path).parent.mkdir(parents=True, exist_ok=True)
     # Reshape to the format BenchmarkPanel.tsx expects:
-    # [ { seed, material, heuristic: { dumps, volume, coverage_pct, efficiency, uniformity } } ]
-    baseline = []
+    # [ { seed, material, heuristic: {...}, ml: {...} (optional) } ]
+    # Group results by seed
+    by_seed = {}
     for r in results:
-        if r.get("policy") == "heuristic":
-            baseline.append({
-                "seed":     r["seed"],
-                "material": r["material"],
-                "heuristic": {
-                    "dumps":        r.get("dumps_succeeded", 0),
-                    "volume":       r.get("volume_m3", 0),
-                    "coverage_pct": r.get("coverage_pct", 0),
-                    "efficiency":   r.get("packing_efficiency", 0),
-                    "uniformity":   r.get("height_uniformity", 0),
-                },
-            })
+        seed = r.get("seed")
+        if seed is None:
+            continue
+        if seed not in by_seed:
+            by_seed[seed] = {"seed": seed, "material": r.get("material", "default")}
+        policy = r.get("policy")
+        row_data = {
+            "dumps":        r.get("dumps_succeeded", 0),
+            "volume":       r.get("volume_m3", 0),
+            "coverage_pct": r.get("coverage_pct", 0),
+            "efficiency":   r.get("packing_efficiency", 0),
+            "uniformity":   r.get("height_uniformity", 0),
+        }
+        if policy == "heuristic":
+            by_seed[seed]["heuristic"] = row_data
+        elif policy == "ml_ppo":
+            by_seed[seed]["ml"] = row_data
+        elif policy == "static_grid":
+            by_seed[seed]["static"] = row_data
+    baseline = list(by_seed.values())
     with open(baseline_path, "w") as f:
-        json.dump(baseline, f, indent=2)
+        json.dump(baseline, f, indent=2, cls=NumpyEncoder)
     print(f"  Frontend baseline → {baseline_path}")
 
 

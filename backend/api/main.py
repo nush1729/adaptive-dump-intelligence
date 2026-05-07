@@ -230,20 +230,27 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
 
     fleet = make_fleet(cfg.fleet_models)
 
+    actual_policy = "heuristic"  # Track what was ACTUALLY used
     if cfg.use_ml:
         try:
             log, snapshots = _run_ml_episode(terrain, fleet, cfg.n_dumps, cfg.iso_threshold)
+            if log is not None:
+                actual_policy = "ml_ppo"
+            else:
+                # ML returned None — fall back
+                cfg.use_ml = False
         except RuntimeError:
             cfg.use_ml = False
             log = None
 
-    if not cfg.use_ml:
+    if not cfg.use_ml or log is None:
         orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH)
         orch.validator.reach_thresh = cfg.iso_threshold
         dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
         dispatches = dispatches[:cfg.n_dumps]
         log = orch.run(dispatches)
         snapshots = orch.snapshots
+        actual_policy = "heuristic"
 
     summary = {
         "total_dispatched": len(log),
@@ -256,7 +263,7 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
         "height_uniformity": round(terrain.packing_efficiency(), 3),
         "isolation_events": sum(1 for x in log if "iso" in str(x.get("status", ""))),
         "latency_ms": round((time.time() - t0) * 1000, 1),
-        "policy": "ml_ppo" if cfg.use_ml else "heuristic",
+        "policy": actual_policy,
     }
 
     # static baseline
@@ -497,6 +504,7 @@ async def ws_simulate(ws: WebSocket):
             "total_volume":      terrain.total_volume(),
             "coverage_pct":      round(terrain.coverage_fraction() * 100, 2),
             "packing_efficiency": round(terrain.packing_efficiency() * 100, 2),
+            "policy":            ptype,
         }
         await ws.send_json(_sanitize_for_json({"type": "done", "summary": summary}))
 

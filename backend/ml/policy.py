@@ -70,15 +70,17 @@ def load_policy(weights_path: str, device: str = "cpu"):
     """
     import pathlib
     
-    # Try supervised MLP first
-    _sup = pathlib.Path(weights_path).parent / "supervised_mlp.pt"
-    if _sup.exists():
-        try:
-            from ml.train_supervised import load_supervised_policy
-            print(f"  Loading supervised MLP from {_sup}")
-            return load_supervised_policy(str(_sup), device)
-        except Exception as _e:
-            print(f"  Supervised weights found but failed to load: {_e}")
+    wp = pathlib.Path(weights_path)
+    
+    # Try supervised MLP first — check both inside the dir and as a sibling
+    for _sup in [wp / "supervised_mlp.pt", wp.parent / "supervised_mlp.pt"]:
+        if _sup.exists():
+            try:
+                from ml.train_supervised import load_supervised_policy
+                print(f"  Loading supervised MLP from {_sup}")
+                return load_supervised_policy(str(_sup), device)
+            except Exception as _e:
+                print(f"  Supervised weights found but failed to load: {_e}")
     
     # Try MaskablePPO
     try:
