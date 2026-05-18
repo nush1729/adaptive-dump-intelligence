@@ -1,192 +1,28 @@
 {
   "meta": {
-    "n_polygons": 10,
+    "n_polygons": 1,
     "n_dumps_per_polygon": 60,
-    "seed_start": 8000,
+    "seed_start": 8004,
     "fleet": [
       "Cat793",
       "Cat777",
       "Cat797",
       "Cat793"
     ],
-    "elapsed_s": 14.0
+    "elapsed_s": 3.3
   },
   "per_polygon": [
     {
       "policy": "heuristic",
       "dumps_attempted": 60,
-      "dumps_succeeded": 8,
-      "volume_m3": 355.47,
-      "coverage_pct": 16.13,
-      "packing_efficiency": 0.0,
-      "height_uniformity": -1.5502,
-      "rejection_rate": 0.8667,
-      "mean_spacing_m": 9.115,
-      "latency_ms": 30.548,
-      "seed": 8000,
-      "material": "rock"
-    },
-    {
-      "policy": "static_grid",
-      "dumps_succeeded": 64,
-      "volume_m3": 1325.33,
-      "coverage_pct": 97.71,
-      "packing_efficiency": 79.09,
-      "height_uniformity": 0.7909,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.0,
-      "latency_ms": 0.214,
-      "seed": 8000,
-      "material": "rock"
-    },
-    {
-      "policy": "ml_ppo",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 4,
-      "volume_m3": 165.26,
-      "coverage_pct": 8.4,
-      "packing_efficiency": 0.0,
-      "height_uniformity": -2.7746,
-      "rejection_rate": 0.9333,
-      "mean_spacing_m": 9.208,
-      "latency_ms": 2.389,
-      "seed": 8000,
-      "material": "rock"
-    },
-    {
-      "policy": "heuristic",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2817.84,
-      "coverage_pct": 99.95,
-      "packing_efficiency": 67.38999938964844,
-      "height_uniformity": 0.6739,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 7.554,
-      "latency_ms": 0.246,
-      "seed": 8001,
-      "material": "ore"
-    },
-    {
-      "policy": "static_grid",
-      "dumps_succeeded": 58,
-      "volume_m3": 1211.14,
-      "coverage_pct": 97.22,
-      "packing_efficiency": 77.38,
-      "height_uniformity": 0.7738,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.0,
-      "latency_ms": 0.215,
-      "seed": 8001,
-      "material": "ore"
-    },
-    {
-      "policy": "ml_ppo",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2915.39,
-      "coverage_pct": 28.27,
-      "packing_efficiency": 0.0,
-      "height_uniformity": -1.1441,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 0.162,
-      "latency_ms": 2.062,
-      "seed": 8001,
-      "material": "ore"
-    },
-    {
-      "policy": "heuristic",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2773.65,
-      "coverage_pct": 99.71,
-      "packing_efficiency": 64.30000305175781,
-      "height_uniformity": 0.643,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.102,
-      "latency_ms": 0.246,
-      "seed": 8002,
-      "material": "overburden"
-    },
-    {
-      "policy": "static_grid",
-      "dumps_succeeded": 62,
-      "volume_m3": 1291.39,
-      "coverage_pct": 97.06,
-      "packing_efficiency": 77.66,
-      "height_uniformity": 0.7766,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.0,
-      "latency_ms": 0.214,
-      "seed": 8002,
-      "material": "overburden"
-    },
-    {
-      "policy": "ml_ppo",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 10,
-      "volume_m3": 416.26,
-      "coverage_pct": 15.6,
-      "packing_efficiency": 0.0,
-      "height_uniformity": -1.623,
-      "rejection_rate": 0.8333,
-      "mean_spacing_m": 3.616,
-      "latency_ms": 1.963,
-      "seed": 8002,
-      "material": "overburden"
-    },
-    {
-      "policy": "heuristic",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2815.66,
-      "coverage_pct": 99.55,
-      "packing_efficiency": 62.79999923706055,
-      "height_uniformity": 0.628,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 7.455,
-      "latency_ms": 0.25,
-      "seed": 8003,
-      "material": "default"
-    },
-    {
-      "policy": "static_grid",
-      "dumps_succeeded": 59,
-      "volume_m3": 1212.08,
-      "coverage_pct": 98.68,
-      "packing_efficiency": 80.66,
-      "height_uniformity": 0.8066,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.0,
-      "latency_ms": 0.218,
-      "seed": 8003,
-      "material": "default"
-    },
-    {
-      "policy": "ml_ppo",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2885.54,
-      "coverage_pct": 60.88,
-      "packing_efficiency": 0.0,
-      "height_uniformity": -0.1601,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 1.143,
-      "latency_ms": 2.032,
-      "seed": 8003,
-      "material": "default"
-    },
-    {
-      "policy": "heuristic",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2725.43,
-      "coverage_pct": 99.81,
-      "packing_efficiency": 64.37999725341797,
-      "height_uniformity": 0.6438,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 7.388,
-      "latency_ms": 0.297,
+      "dumps_succeeded": 7,
+      "volume_m3": 317.48,
+      "coverage_pct": 16.92,
+      "packing_efficiency": 0.58,
+      "height_uniformity": 0.0,
+      "rejection_rate": 0.8833,
+      "mean_spacing_m": 9.054,
+      "latency_ms": 49.6,
       "seed": 8004,
       "material": "rock"
     },
@@ -195,311 +31,92 @@
       "dumps_succeeded": 54,
       "volume_m3": 1135.78,
       "coverage_pct": 97.55,
-      "packing_efficiency": 76.94,
+      "packing_efficiency": 2.08,
       "height_uniformity": 0.7694,
       "rejection_rate": 0.0,
       "mean_spacing_m": 8.0,
-      "latency_ms": 0.262,
+      "latency_ms": 0.648,
       "seed": 8004,
       "material": "rock"
-    },
-    {
-      "policy": "ml_ppo",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 25,
-      "volume_m3": 1108.93,
-      "coverage_pct": 24.37,
-      "packing_efficiency": 0.0,
-      "height_uniformity": -1.1008,
-      "rejection_rate": 0.5833,
-      "mean_spacing_m": 1.202,
-      "latency_ms": 2.023,
-      "seed": 8004,
-      "material": "rock"
-    },
-    {
-      "policy": "heuristic",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2858.0,
-      "coverage_pct": 99.09,
-      "packing_efficiency": 59.0099983215332,
-      "height_uniformity": 0.5901,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 7.943,
-      "latency_ms": 0.233,
-      "seed": 8005,
-      "material": "ore"
-    },
-    {
-      "policy": "static_grid",
-      "dumps_succeeded": 68,
-      "volume_m3": 1371.57,
-      "coverage_pct": 99.38,
-      "packing_efficiency": 83.9,
-      "height_uniformity": 0.839,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.0,
-      "latency_ms": 0.217,
-      "seed": 8005,
-      "material": "ore"
-    },
-    {
-      "policy": "ml_ppo",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 3044.95,
-      "coverage_pct": 41.45,
-      "packing_efficiency": 0.0,
-      "height_uniformity": -0.9522,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 0.433,
-      "latency_ms": 2.045,
-      "seed": 8005,
-      "material": "ore"
-    },
-    {
-      "policy": "heuristic",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2784.94,
-      "coverage_pct": 99.92,
-      "packing_efficiency": 66.25,
-      "height_uniformity": 0.6625,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 7.56,
-      "latency_ms": 0.246,
-      "seed": 8006,
-      "material": "overburden"
-    },
-    {
-      "policy": "static_grid",
-      "dumps_succeeded": 56,
-      "volume_m3": 1176.5,
-      "coverage_pct": 97.67,
-      "packing_efficiency": 77.89,
-      "height_uniformity": 0.7789,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.0,
-      "latency_ms": 0.223,
-      "seed": 8006,
-      "material": "overburden"
-    },
-    {
-      "policy": "ml_ppo",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2865.34,
-      "coverage_pct": 66.88,
-      "packing_efficiency": 11.729999542236328,
-      "height_uniformity": 0.1173,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 1.522,
-      "latency_ms": 2.215,
-      "seed": 8006,
-      "material": "overburden"
-    },
-    {
-      "policy": "heuristic",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 9,
-      "volume_m3": 370.53,
-      "coverage_pct": 17.2,
-      "packing_efficiency": 0.0,
-      "height_uniformity": -1.4872,
-      "rejection_rate": 0.85,
-      "mean_spacing_m": 9.042,
-      "latency_ms": 23.327,
-      "seed": 8007,
-      "material": "default"
-    },
-    {
-      "policy": "static_grid",
-      "dumps_succeeded": 64,
-      "volume_m3": 1331.78,
-      "coverage_pct": 97.26,
-      "packing_efficiency": 78.08,
-      "height_uniformity": 0.7808,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.0,
-      "latency_ms": 0.268,
-      "seed": 8007,
-      "material": "default"
-    },
-    {
-      "policy": "ml_ppo",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 21,
-      "volume_m3": 956.91,
-      "coverage_pct": 22.22,
-      "packing_efficiency": 0.0,
-      "height_uniformity": -1.121,
-      "rejection_rate": 0.65,
-      "mean_spacing_m": 0.426,
-      "latency_ms": 2.265,
-      "seed": 8007,
-      "material": "default"
-    },
-    {
-      "policy": "heuristic",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2763.51,
-      "coverage_pct": 99.3,
-      "packing_efficiency": 62.63999938964844,
-      "height_uniformity": 0.6264,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 7.993,
-      "latency_ms": 0.281,
-      "seed": 8008,
-      "material": "rock"
-    },
-    {
-      "policy": "static_grid",
-      "dumps_succeeded": 63,
-      "volume_m3": 1294.03,
-      "coverage_pct": 98.81,
-      "packing_efficiency": 81.41,
-      "height_uniformity": 0.8141,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.0,
-      "latency_ms": 0.32,
-      "seed": 8008,
-      "material": "rock"
-    },
-    {
-      "policy": "ml_ppo",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2913.22,
-      "coverage_pct": 63.52,
-      "packing_efficiency": 3.059999942779541,
-      "height_uniformity": 0.0306,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 1.411,
-      "latency_ms": 2.19,
-      "seed": 8008,
-      "material": "rock"
-    },
-    {
-      "policy": "heuristic",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 60,
-      "volume_m3": 2792.31,
-      "coverage_pct": 99.57,
-      "packing_efficiency": 63.869998931884766,
-      "height_uniformity": 0.6387,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.369,
-      "latency_ms": 0.255,
-      "seed": 8009,
-      "material": "ore"
-    },
-    {
-      "policy": "static_grid",
-      "dumps_succeeded": 65,
-      "volume_m3": 1344.66,
-      "coverage_pct": 98.02,
-      "packing_efficiency": 79.99,
-      "height_uniformity": 0.7999,
-      "rejection_rate": 0.0,
-      "mean_spacing_m": 8.0,
-      "latency_ms": 0.224,
-      "seed": 8009,
-      "material": "ore"
-    },
-    {
-      "policy": "ml_ppo",
-      "dumps_attempted": 60,
-      "dumps_succeeded": 7,
-      "volume_m3": 300.58,
-      "coverage_pct": 10.97,
-      "packing_efficiency": 0.0,
-      "height_uniformity": -2.208,
-      "rejection_rate": 0.8833,
-      "mean_spacing_m": 3.707,
-      "latency_ms": 2.662,
-      "seed": 8009,
-      "material": "ore"
     }
   ],
   "summaries": [
     {
       "policy": "heuristic",
-      "n_polygons": 10,
+      "n_polygons": 1,
       "kpis": {
         "volume_m3": {
-          "mean": 2305.734,
-          "std": 971.95,
-          "min": 355.47,
-          "max": 2858.0
+          "mean": 317.48,
+          "std": 0.0,
+          "min": 317.48,
+          "max": 317.48
         },
         "coverage_pct": {
-          "mean": 83.023,
-          "std": 33.181,
-          "min": 16.13,
-          "max": 99.95
+          "mean": 16.92,
+          "std": 0.0,
+          "min": 16.92,
+          "max": 16.92
         },
         "packing_efficiency": {
+          "mean": 0.58,
+          "std": 0.0,
+          "min": 0.58,
+          "max": 0.58
+        },
+        "height_uniformity": {
           "mean": 0.0,
           "std": 0.0,
           "min": 0.0,
           "max": 0.0
         },
-        "height_uniformity": {
-          "mean": 0.207,
-          "std": 0.863,
-          "min": -1.55,
-          "max": 0.674
-        },
         "rejection_rate": {
-          "mean": 0.172,
-          "std": 0.343,
-          "min": 0.0,
-          "max": 0.867
+          "mean": 0.883,
+          "std": 0.0,
+          "min": 0.883,
+          "max": 0.883
         },
         "mean_spacing_m": {
-          "mean": 8.052,
-          "std": 0.593,
-          "min": 7.388,
-          "max": 9.115
+          "mean": 9.054,
+          "std": 0.0,
+          "min": 9.054,
+          "max": 9.054
         },
         "latency_ms": {
-          "mean": 5.593,
-          "std": 10.794,
-          "min": 0.233,
-          "max": 30.548
+          "mean": 49.6,
+          "std": 0.0,
+          "min": 49.6,
+          "max": 49.6
         },
-        "generalisation_delta": 25.62
+        "generalisation_delta": 0.0
       }
     },
     {
       "policy": "static_grid",
-      "n_polygons": 10,
+      "n_polygons": 1,
       "kpis": {
         "volume_m3": {
-          "mean": 1269.426,
-          "std": 75.748,
+          "mean": 1135.78,
+          "std": 0.0,
           "min": 1135.78,
-          "max": 1371.57
+          "max": 1135.78
         },
         "coverage_pct": {
-          "mean": 97.936,
-          "std": 0.736,
-          "min": 97.06,
-          "max": 99.38
+          "mean": 97.55,
+          "std": 0.0,
+          "min": 97.55,
+          "max": 97.55
         },
         "packing_efficiency": {
-          "mean": 79.3,
-          "std": 2.083,
-          "min": 76.94,
-          "max": 83.9
+          "mean": 2.08,
+          "std": 0.0,
+          "min": 2.08,
+          "max": 2.08
         },
         "height_uniformity": {
-          "mean": 0.793,
-          "std": 0.021,
+          "mean": 0.769,
+          "std": 0.0,
           "min": 0.769,
-          "max": 0.839
+          "max": 0.769
         },
         "rejection_rate": {
           "mean": 0.0,
@@ -514,61 +131,12 @@
           "max": 8.0
         },
         "latency_ms": {
-          "mean": 0.237,
-          "std": 0.033,
-          "min": 0.214,
-          "max": 0.32
-        },
-        "generalisation_delta": 2.083
-      }
-    },
-    {
-      "policy": "ml_ppo",
-      "n_polygons": 10,
-      "kpis": {
-        "volume_m3": {
-          "mean": 1757.238,
-          "std": 1198.001,
-          "min": 165.26,
-          "max": 3044.95
-        },
-        "coverage_pct": {
-          "mean": 34.256,
-          "std": 21.257,
-          "min": 8.4,
-          "max": 66.88
-        },
-        "packing_efficiency": {
-          "mean": 0.0,
+          "mean": 0.648,
           "std": 0.0,
-          "min": 0.0,
-          "max": 0.0
+          "min": 0.648,
+          "max": 0.648
         },
-        "height_uniformity": {
-          "mean": -1.094,
-          "std": 0.893,
-          "min": -2.775,
-          "max": 0.117
-        },
-        "rejection_rate": {
-          "mean": 0.388,
-          "std": 0.4,
-          "min": 0.0,
-          "max": 0.933
-        },
-        "mean_spacing_m": {
-          "mean": 2.283,
-          "std": 2.587,
-          "min": 0.162,
-          "max": 9.208
-        },
-        "latency_ms": {
-          "mean": 2.185,
-          "std": 0.203,
-          "min": 1.963,
-          "max": 2.662
-        },
-        "generalisation_delta": 3.537
+        "generalisation_delta": 0.0
       }
     }
   ]

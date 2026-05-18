@@ -134,11 +134,12 @@ def run_heuristic(terrain: Terrain, fleet, n_dumps: int) -> dict:
         latencies.append(latency_ms if 'latency_ms' in dir() else 0)
         if not placed:
             rejected += 1
+            print(f"TRUCK REJECTED: last r, c = {r}, {c}")
 
     vol  = terrain.total_volume()
     cov  = terrain.coverage_fraction()
     eff  = terrain.packing_efficiency()
-    uni  = 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01)
+    uni  = max(0.0, min(1.0, 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01)))
     rej  = rejected / max(total, 1)
     spac = mean_spacing(dump_positions)
     lat  = float(np.mean(latencies)) if latencies else 0.0
@@ -172,7 +173,7 @@ def run_static(terrain: Terrain, payload_t: float = 100.0, step: int = 8) -> dic
     vol = terrain.total_volume()
     cov = terrain.coverage_fraction()
     eff = terrain.packing_efficiency()
-    uni = 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01)
+    uni = max(0.0, min(1.0, 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01)))
     return {
         "policy":             "static_grid",
         "dumps_succeeded":    len(positions),
@@ -236,7 +237,7 @@ def run_ml(terrain: Terrain, fleet, n_dumps: int, weights_path: str) -> dict:
     vol = terrain.total_volume()
     cov = terrain.coverage_fraction()
     eff = terrain.packing_efficiency()
-    uni = 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01)
+    uni = max(0.0, min(1.0, 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01)))
     rej = rejected / max(total, 1)
 
     return {

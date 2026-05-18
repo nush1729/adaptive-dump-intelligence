@@ -69,17 +69,13 @@ class Terrain:
         return filled / max(total, 1)
 
     def packing_efficiency(self) -> float:
-        """Roughness metric: how uniformly filled is the polygon"""
+        """Volume of material placed compared to theoretical max capacity"""
         if not self.mask.any():
             return 0.0
-        heights_in_mask = self.height[self.mask]
-        if heights_in_mask.size == 0:
+        max_vol = np.sum(self.mask) * 15.0
+        if max_vol == 0:
             return 0.0
-        mean_h = heights_in_mask.mean()
-        if mean_h < 0.01:
-            return 0.0
-        std_h = heights_in_mask.std()
-        return max(0.0, 1.0 - (std_h / (mean_h + 1e-6)))
+        return float(self.total_volume() / max_vol)
 
     def mean_height(self) -> float:
         if not self.mask.any():
@@ -119,18 +115,17 @@ class Terrain:
         height = np.zeros((rows, cols), dtype=np.float32)
 
         # ── dynamic entry: bottom-centre of polygon ──
+        # ── dynamic entry: lowest stable width ──
+        # Find the lowest row that is wide enough to prevent trapped corners
         mc = np.argwhere(mask)
+        entry_r = int(mc[0, 0])
         col_mid = int(np.mean(mc[:, 1]))
-        entry_r = int(mc[0, 0])          # fallback
+        
         for rr in range(rows - 1, -1, -1):
-            if mask[rr, col_mid]:
+            if np.sum(mask[rr, :]) >= 15:
+                cols_in_row = np.where(mask[rr, :])[0]
                 entry_r = rr
+                col_mid = int(cols_in_row[len(cols_in_row) // 2])
                 break
-        # safety: if col_mid missed, pick nearest mask cell in bottom row
-        if not mask[entry_r, col_mid]:
-            bot = mc[mc[:, 0] == mc[:, 0].max()]
-            col_mid = int(bot[len(bot) // 2, 1])
-            entry_r = int(bot[0, 0])
-
         entry = (entry_r, col_mid)
         return Terrain(height, mask, entry, material)

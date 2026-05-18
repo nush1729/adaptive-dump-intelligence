@@ -125,8 +125,7 @@ class DumpPackingEnv(gym.Env):
     def _obs(self) -> np.ndarray:
         h = self.terrain.height
         mask = self.terrain.mask.astype(np.float32)
-        max_h = h[self.terrain.mask].max() if self.terrain.mask.any() else 1.0
-        h_norm = (h / max(max_h, 1e-6)).astype(np.float32)
+        h_norm = np.clip(h / 15.0, 0.0, 1.0).astype(np.float32)
         dist = distance_transform_edt(self.terrain.mask).astype(np.float32)
         max_d = dist.max() or 1.0
         dist_norm = dist / max_d
@@ -134,7 +133,15 @@ class DumpPackingEnv(gym.Env):
 
     def action_masks(self) -> np.ndarray:
         """Returns bool array of valid actions for masked PPO."""
-        return self._valid_mask_flat.copy()
+        mask = self._valid_mask_flat.copy().reshape((ROWS, COLS))
+        if self._dump_count > 0 and self.validator is not None:
+            for r in range(ROWS):
+                for c in range(COLS):
+                    if mask[r, c]:
+                        # dynamically mask out cells that violate spacing or exceed absolute max height
+                        if not self.validator._spacing_ok(r, c) or self.terrain.height[r, c] >= 15.0:
+                            mask[r, c] = 0
+        return mask.ravel()
 
     def render(self):
         pass

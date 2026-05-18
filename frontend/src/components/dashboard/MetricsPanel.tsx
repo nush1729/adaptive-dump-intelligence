@@ -233,11 +233,6 @@ export default function MetricsPanel() {
             sub="polygon area"
           />
           <KPICard
-            label="Packing"
-            value={summary ? `${summary.packing_efficiency.toFixed(1)}%` : "—"}
-            sub="efficiency"
-          />
-          <KPICard
             label="Uniformity"
             value={summary ? `${(summary.height_uniformity * 100).toFixed(1)}%` : "—"}
             sub="1 − σ/μ"
@@ -281,7 +276,7 @@ export default function MetricsPanel() {
                 fmt={(v) => Math.round(v).toLocaleString()}
               />
               <DeltaRow label="Cov%" adios={summary.coverage_pct} stat={staticS.coverage_pct} />
-              <DeltaRow label="Eff%" adios={summary.packing_efficiency} stat={staticS.packing_efficiency} />
+              <DeltaRow label="Uni%" adios={summary.packing_efficiency} stat={staticS.packing_efficiency} />
             </div>
           </>
         )}

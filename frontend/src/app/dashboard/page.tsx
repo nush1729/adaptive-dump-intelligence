@@ -39,10 +39,10 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
           const t = (v - mn) / rng;
           if (t < 0.5) {
             const f = t / 0.5;
-            img.data[idx] = Math.round(255 * (1-f)); img.data[idx+1] = 0; img.data[idx+2] = 0;
+            img.data[idx] = 255; img.data[idx+1] = Math.round(255 * f); img.data[idx+2] = 0;
           } else {
             const f = (t - 0.5) / 0.5;
-            img.data[idx] = Math.round(245 * f); img.data[idx+1] = Math.round(166 * f); img.data[idx+2] = Math.round(35 * f);
+            img.data[idx] = Math.round(255 * (1-f)); img.data[idx+1] = 255; img.data[idx+2] = 0;
           }
           img.data[idx+3] = 255;
         }
@@ -245,6 +245,11 @@ export default function DashboardPage() {
           
           {/* Subtle Grid Overlay */}
           <div className="absolute inset-0 pointer-events-none bg-[url('/grid.svg')] opacity-5" />
+
+          {/* Mode Watermark Overlay */}
+          <div className="absolute bottom-6 right-8 font-black tracking-tighter text-[5rem] text-white/[0.03] uppercase z-50 pointer-events-none select-none leading-none text-right">
+             {((result?.summary?.policy === "ml_ppo") || lastRunPolicy === "ml_ppo") ? "ML-PPO\nACTIVE" : "HEURISTIC\nACTIVE"}
+          </div>
 
           {/* 3D Scene Layer */}
           <div className={`absolute inset-0 transition-opacity duration-700 ${activeView === '3d' ? 'opacity-100 z-10' : 'opacity-0 -z-10'}`}>
