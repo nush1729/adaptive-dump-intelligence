@@ -4,6 +4,7 @@ ADIOSOrchestrator — uses ScoringEngine + IsolationValidator for dispatch.
 import numpy as np
 from planning.scorer import ScoringEngine, DEFAULT_WEIGHTS
 from planning.isolation_validator import IsolationValidator
+from planning.scheduler import TimeSpaceScheduler
 
 
 class ADIOSOrchestrator:
@@ -36,6 +37,7 @@ class ADIOSOrchestrator:
         """Generator that yields after each dispatch step, used for streaming."""
         log = []
         reserved = set()
+        scheduler = TimeSpaceScheduler(self.terrain.rows, self.terrain.cols, T=len(dispatches) + 100)
 
         for i, (truck_id, payload_t) in enumerate(dispatches):
             placed = False
@@ -74,11 +76,19 @@ class ADIOSOrchestrator:
                     yield {"t": i, "truck": truck_id, "r": int(r), "c": int(c), "status": f"iso_rejected({reach:.2f})", "payload_t": payload_t}, None, False, r, c
                     continue  # try next best cell
 
+                # TimeSpaceScheduler Deadlock & Conflict Check
+                sched_ok, start_t = scheduler.try_reserve(truck_id, [(r, c)], t0=i)
+                if not sched_ok:
+                    reserved.add((r, c))
+                    yield {"t": i, "truck": truck_id, "r": int(r), "c": int(c), "status": "sched_rejected", "payload_t": payload_t}, None, False, r, c
+                    continue
+
                 ok, reason = self.terrain.apply_dump(r, c, payload_t)
                 status = "dumped" if ok else reason
 
                 if ok:
                     self.validator.record_dump(r, c)
+                    scheduler.release(truck_id)
 
                 log_entry = {"t": i, "truck": truck_id,
                             "r": int(r), "c": int(c),

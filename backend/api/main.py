@@ -146,8 +146,8 @@ def _build_obs(t):
     import numpy as np
     h = t.height
     mask = t.mask.astype(np.float32)
-    max_h = h[t.mask].max() if t.mask.any() else 1.0
-    h_norm = (h / max(max_h, 1e-6)).astype(np.float32)
+    max_h = 15.0
+    h_norm = np.clip(h / max_h, 0.0, 1.0).astype(np.float32)
     dist_arr = distance_transform_edt(t.mask)  # type: ignore
     if isinstance(dist_arr, tuple):
         dist_arr = dist_arr[0]
@@ -171,24 +171,38 @@ def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float)
     dispatches = dispatches[:n_dumps]
 
     for i, (truck_id, payload_t) in enumerate(dispatches):
-        obs = _build_obs(terrain)
-        masks_arr = mask_flat.copy()
-        action = policy.predict(obs, masks_arr)
-        r, c = divmod(int(action), COLS)
+        placed = False
+        masks_arr = mask_flat.copy().reshape((ROWS, COLS))
+        
+        for _attempt in range(50):
+            obs = _build_obs(terrain)
+            action = policy.predict(obs, masks_arr.ravel())
+            r, c = divmod(int(action), COLS)
 
-        safe, reach = val.validate(r, c, payload_t)
-        if not safe:
-            log.append({"t": i, "truck": truck_id, "r": r, "c": c,
-                        "status": f"iso_rejected({reach:.2f})", "payload_t": payload_t,
+            safe, reach = val.validate(r, c, payload_t)
+            if not safe:
+                masks_arr[r, c] = 0  # mask out and retry
+                log.append({"t": i, "truck": truck_id, "r": r, "c": c,
+                            "status": f"iso_rejected({reach:.2f})", "payload_t": payload_t,
+                            "volume": terrain.total_volume(), "coverage": terrain.coverage_fraction()})
+                continue
+
+            ok, reason = terrain.apply_dump(r, c, payload_t)
+            status = "dumped" if ok else reason
+            log.append({"t": i, "truck": truck_id, "r": r, "c": c, "status": status,
+                        "payload_t": payload_t, "reach": reach if ok else None,
                         "volume": terrain.total_volume(), "coverage": terrain.coverage_fraction()})
-            continue
+            
+            if ok:
+                val.record_dump(r, c)
+                placed = True
+            else:
+                masks_arr[r, c] = 0
+                continue
+            
+            break
 
-        ok, reason = terrain.apply_dump(r, c, payload_t)
-        status = "dumped" if ok else reason
-        log.append({"t": i, "truck": truck_id, "r": r, "c": c, "status": status,
-                    "payload_t": payload_t, "reach": reach if ok else None,
-                    "volume": terrain.total_volume(), "coverage": terrain.coverage_fraction()})
-        if ok:
+        if placed:
             snapshots.append({
                 "dump_n": terrain.dump_count, "truck": truck_id, "r": r, "c": c,
                 "volume": terrain.total_volume(),

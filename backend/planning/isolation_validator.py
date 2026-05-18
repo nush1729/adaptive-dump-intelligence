@@ -75,7 +75,7 @@ class IsolationValidator:
 
         # fast: spacing constraint
         if not self._spacing_ok(r, c):
-            return False, 0.0
+            return False, -1.0
 
         # dry-run simulation (never mutate real terrain)
         sim_h = self.terrain.height.copy()
