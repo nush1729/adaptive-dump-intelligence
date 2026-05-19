@@ -3,76 +3,29 @@ import React, { useEffect, useState, Suspense } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 
-const Scene3D = dynamic(() => import("@/components/three/Scene3D"), { ssr: false });
-
-function makeDemoTerrain(frame: number) {
-  const N = 100;
-  const surface: number[][] = Array.from({ length: N }, () => Array(N).fill(0));
-  const mask: boolean[][] = Array.from({ length: N }, (_, r) =>
-    Array.from({ length: N }, (_, c) => {
-      const dr = (r - 50) / 36, dc = (c - 50) / 40;
-      return dr * dr + dc * dc <= 1.0;
-    })
-  );
-  const n = Math.min(frame, 60);
-  for (let i = 0; i < n; i++) {
-    const seed = i * 1234567 + 42;
-    const r = 28 + (seed % 44);
-    const c = 20 + ((seed * 3) % 60);
-    if (!mask[r][c]) continue;
-    const radius = 5 + (i % 4);
-    for (let rr = 0; rr < N; rr++) {
-      for (let cc = 0; cc < N; cc++) {
-        if (!mask[rr][cc]) continue;
-        const d = Math.sqrt((rr - r) ** 2 + (cc - c) ** 2);
-        const cone = Math.max(0, 1 - d / radius);
-        surface[rr][cc] += cone * 0.7;
-      }
-    }
-  }
-  return { surface, mask };
-}
+const LandingHeroScene = dynamic(() => import("@/components/landing/LandingHeroScene"), { ssr: false });
 
 export default function LandingPage() {
   const router = useRouter();
-  const [frame, setFrame] = useState(0);
-  const [terrain, setTerrain] = useState(() => makeDemoTerrain(0));
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     setTimeout(() => setVisible(true), 100);
   }, []);
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setFrame((f) => {
-        const next = f >= 60 ? 0 : f + 1;
-        setTerrain(makeDemoTerrain(next));
-        return next;
-      });
-    }, 200);
-    return () => clearInterval(id);
-  }, []);
-
   return (
     <div className="w-screen h-screen relative overflow-hidden bg-gray-50 dark:bg-[#050608] font-sans selection:bg-[#FFC000] selection:text-black">
       
       {/* 3D Background */}
-      <div className="absolute inset-0 opacity-40">
+      <div className="absolute inset-0 opacity-75">
         <Suspense fallback={null}>
-          <Scene3D
-            surface={terrain.surface}
-            mask={terrain.mask}
-            entry={[85, 50]}
-            heightScale={4}
-            camPreset="iso"
-          />
+          <LandingHeroScene />
         </Suspense>
       </div>
 
       {/* Cinematic Overlays */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_#050608_100%)] pointer-events-none" />
-      <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10 pointer-events-none" />
+      <div className="absolute inset-0 adios-grid-overlay opacity-10 pointer-events-none" />
 
       {/* Content Container */}
       <div className={`absolute inset-0 flex flex-col items-center justify-center p-6 transition-all duration-1000 cubic-bezier(0.16, 1, 0.3, 1) ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
