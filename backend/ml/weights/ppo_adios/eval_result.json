@@ -1,9 +1,69 @@
 {
-  "ml_efficiency": 73.0,
-  "heuristic_efficiency": 72.4,
-  "delta": 0.6,
-  "model_type": "supervised_mlp",
-  "top1_accuracy": 7.7,
-  "n_params": 2817,
-  "training_polygons": 50
+  "heuristic_efficiency": 11.98,
+  "heuristic_coverage": 99.62,
+  "heuristic_volume": 2767.73,
+  "heuristic_uniformity": 0.65,
+  "heuristic_stats": {
+    "efficiency": {
+      "mean": 11.98,
+      "std": 0.51,
+      "min": 11.22,
+      "max": 12.9
+    },
+    "coverage": {
+      "mean": 99.62,
+      "std": 0.69,
+      "min": 97.61,
+      "max": 100.0
+    },
+    "volume": {
+      "mean": 2767.73,
+      "std": 41.24,
+      "min": 2679.28,
+      "max": 2819.55
+    },
+    "uniformity": {
+      "mean": 0.65,
+      "std": 0.03,
+      "min": 0.59,
+      "max": 0.68
+    }
+  },
+  "n_seeds": 10,
+  "seed_start": 9000,
+  "dumps_per_episode": 60,
+  "computed_at": "2026-05-21T02:21:46Z",
+  "ml_efficiency": 10.29,
+  "ml_coverage": 99.07,
+  "ml_volume": 2377.96,
+  "ml_uniformity": 0.49,
+  "ml_stats": {
+    "efficiency": {
+      "mean": 10.29,
+      "std": 0.39,
+      "min": 9.71,
+      "max": 11.0
+    },
+    "coverage": {
+      "mean": 99.07,
+      "std": 0.48,
+      "min": 98.13,
+      "max": 99.85
+    },
+    "volume": {
+      "mean": 2377.96,
+      "std": 53.04,
+      "min": 2290.17,
+      "max": 2452.31
+    },
+    "uniformity": {
+      "mean": 0.49,
+      "std": 0.05,
+      "min": 0.39,
+      "max": 0.56
+    }
+  },
+  "delta": -1.69,
+  "delta_coverage": -0.55,
+  "model_type": "supervised_mlp"
 }

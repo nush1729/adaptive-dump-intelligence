@@ -23,8 +23,9 @@ from gymnasium import spaces
 import sys, os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from environment.terrain import Terrain
-from planning.isolation_validator import IsolationValidator
+from environment.terrain import Terrain  # type: ignore
+from planning.isolation_validator import IsolationValidator  # type: ignore
+
 from scipy.ndimage import distance_transform_edt
 
 ROWS, COLS = 100, 100
