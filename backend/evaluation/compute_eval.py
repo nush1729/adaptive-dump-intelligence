@@ -91,13 +91,16 @@ def run_ml_episode(terrain, fleet, n_dumps, policy):
     for _, payload_t in dispatches:
         h = terrain.height
         mask = terrain.mask.astype(np.float32)
-        max_h = h[terrain.mask].max() if terrain.mask.any() else 1.0
-        h_norm = (h / max(max_h, 1e-6)).astype(np.float32)
+        # ERROR 2-B fix: use same normalisation as training (h/15.0, not h/max(h))
+        h_norm = np.clip(h / 15.0, 0.0, 1.0).astype(np.float32)
         dist = distance_transform_edt(terrain.mask).astype(np.float32)
         dist_norm = dist / (dist.max() or 1.0)
         obs = np.stack([h_norm, mask, dist_norm], axis=0)
 
-        action = policy.predict(obs, mask_flat.copy())
+        # BUG 1-E fix: rebuild mask each step — exclude height-saturated cells
+        mf = terrain.mask.copy()
+        mf[terrain.height >= 15.0] = False
+        action = policy.predict(obs, mf.ravel())
         r, c = divmod(int(action), COLS)
 
         safe, _ = val.validate(r, c, payload_t)

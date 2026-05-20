@@ -205,8 +205,8 @@ def run_ml(terrain: Terrain, fleet, n_dumps: int, weights_path: str) -> dict:
     def _obs(t: Terrain) -> np.ndarray:
         h     = t.height
         mask  = t.mask.astype(np.float32)
-        max_h = h[t.mask].max() if t.mask.any() else 1.0
-        h_n   = (h / max(max_h, 1e-6)).astype(np.float32)
+        # ERROR 2-B fix: use same normalisation as training (h/15.0, not h/max(h))
+        h_n   = np.clip(h / 15.0, 0.0, 1.0).astype(np.float32)
         dist  = distance_transform_edt(t.mask).astype(np.float32)
         d_n   = dist / (dist.max() or 1.0)
         return np.stack([h_n, mask, d_n], axis=0)
@@ -218,7 +218,10 @@ def run_ml(terrain: Terrain, fleet, n_dumps: int, weights_path: str) -> dict:
         total += 1
         obs   = _obs(terrain)
         t0    = time.perf_counter()
-        action = policy.predict(obs, mask_flat.copy())
+        # BUG 1-E fix: rebuild mask each step — exclude height-saturated cells
+        mf = terrain.mask.copy()
+        mf[terrain.height >= 15.0] = False
+        action = policy.predict(obs, mf.ravel())
         latency_ms = (time.perf_counter() - t0) * 1000
         latencies.append(latency_ms)
 

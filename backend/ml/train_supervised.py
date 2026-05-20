@@ -215,9 +215,9 @@ def train(args):
     # estimate efficiency boost: supervised MLP typically adds ~6-10% over heuristic
     import json
     eval_data = {
-        "ml_efficiency":        round(72.4 + best_acc * 0.08, 1),
-        "heuristic_efficiency": 72.4,
-        "delta":                round(best_acc * 0.08, 1),
+        "ml_efficiency":        None,
+        "heuristic_efficiency": None,
+        "delta":                None,
         "model_type":           "supervised_mlp",
         "top1_accuracy":        round(best_acc, 2),
         "n_params":             n_params,

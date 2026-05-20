@@ -232,7 +232,7 @@ export default function SchedulingPage() {
 
           <div className="flex-1 overflow-y-auto px-4 py-3">
             {data ? (
-              <GanttChart timeline={data.timeline} totalTicks={data.total_ticks} selectedSeq={selectedSeq} onSelect={setSelectedSeq} />
+              <GanttChart timeline={data.timeline} totalTicks={data.total_ticks} selectedSeq={selectedSeq} onSelect={setSelectedSeq} currentTick={tick} />
             ) : (
               <div className="h-48 flex items-center justify-center font-mono text-[0.75rem] tracking-[0.1em]" style={{ color: "var(--muted)" }}>
                 {loading ? "Loading schedule..." : error ? "Backend offline" : "No data"}

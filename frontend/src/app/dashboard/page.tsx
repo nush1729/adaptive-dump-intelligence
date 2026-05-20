@@ -60,13 +60,14 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
             Score Map
           </div>
           <div className="font-mono text-[0.68rem] mt-1" style={{ color: "var(--text2)" }}>
-            Higher intensity cells indicate stronger dispatch candidates.
+            Yellow-green = top dispatch candidates (near gate, low accumulated height).
+            Orange = avoid (far from gate or already tall).
           </div>
         </div>
         <div className="hidden sm:flex items-center gap-2 font-mono text-[0.58rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
           <span>Low</span>
-          <span className="h-2 w-32 rounded-full" style={{ background: "linear-gradient(90deg, #101820, #FF5722, #FFC000, #E8FFF1)" }} />
-          <span>High</span>
+          <span className="h-2 w-32 rounded-full" style={{ background: "linear-gradient(90deg, #FF5722, #FFC000, #80FF00)" }} />
+          <span>High (near entry, low fill)</span>
         </div>
       </div>
       <div className="relative flex-1 flex items-center justify-center overflow-hidden">
@@ -124,7 +125,7 @@ export default function DashboardPage() {
     let wsOk = false;
     try {
       await new Promise<void>((resolve, reject) => {
-        const ws = createWebSocket((msg: WsMessage) => {
+        const ws = createWebSocket(cfg, (msg: WsMessage) => {
           if (msg.type === "dump") {
             appendVolume(msg.volume!);
             if (msg.full_surface) setLiveSurface(msg.full_surface);

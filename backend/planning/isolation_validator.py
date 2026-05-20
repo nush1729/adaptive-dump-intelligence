@@ -99,7 +99,14 @@ class IsolationValidator:
         return True
 
     def _pass_thresh(self):
+        """Return BFS passability ceiling.
+
+        ERROR 2-E fix: use 97th-percentile of heights instead of mean+2σ.
+        Early in simulation, mean+2σ ≈ 0.5, blocking cells with even slight
+        Gaussian deposition and causing ISO_REJECTED(0.00).  The 97th-percentile
+        correctly identifies only genuinely tall mounds as obstacles.
+        """
         h = self.terrain.height[self.terrain.mask]
         if len(h) == 0:
-            return 0.5
-        return max(float(h.mean() + 2.0 * h.std()), 0.5)
+            return 8.0
+        return float(max(np.percentile(h, 97), 1.0))

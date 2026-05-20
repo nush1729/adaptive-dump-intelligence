@@ -17,6 +17,7 @@ interface GanttChartProps {
   totalTicks: number;
   selectedSeq?: number | null;
   onSelect?: (seq: number) => void;
+  currentTick?: number;
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -38,7 +39,7 @@ function statusColor(s: string): string {
 }
 
 export default function GanttChart({
-  timeline, totalTicks, selectedSeq, onSelect,
+  timeline, totalTicks, selectedSeq, onSelect, currentTick = -1,
 }: GanttChartProps) {
   const trucks = useMemo(
     () => Array.from(new Set(timeline.map((e) => e.truck_id))).sort(),
@@ -181,6 +182,7 @@ export default function GanttChart({
               const bh = ROW_H - 10;
               const col = statusColor(entry.status);
               const isSelected = selectedSeq === entry.dump_seq;
+              const isActive = currentTick >= entry.start_tick && currentTick <= entry.end_tick;
               return (
                 <g
                   key={entry.dump_seq}
@@ -196,6 +198,16 @@ export default function GanttChart({
                       stroke="#FFC000"
                       strokeWidth={1.2}
                       strokeDasharray="4 3"
+                    />
+                  )}
+                  {isActive && (
+                    <rect
+                      x={x - 2} y={y - 2} width={bw + 4} height={bh + 4}
+                      rx={5}
+                      fill="none"
+                      stroke="#00FFCC"
+                      strokeWidth={2}
+                      opacity={0.9}
                     />
                   )}
                   <rect

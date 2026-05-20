@@ -22,7 +22,7 @@ class TimeSpaceScheduler:
 
     # ── reservation ──────────────────────────────────────────────────────
 
-    def try_reserve(self, tid, path, t0=0):
+    def try_reserve(self, tid, path, t0=0, _depth=0):
         """Try to reserve *path* for truck *tid* starting at *t0*.
 
         Searches up to 25 time-step delays for a conflict-free slot.
@@ -57,6 +57,13 @@ class TimeSpaceScheduler:
         # record who blocked this truck (for cycle detection)
         if blockers:
             self.wait_for[tid] = blockers
+            # ERROR 2-F fix: detect and break deadlock cycles at dispatch time
+            if self.has_cycle() and _depth < 3:
+                # Break cycle: release the blocker with the highest starvation count
+                worst = max(blockers, key=lambda x: self.starvation.get(x, 0))
+                self.release(worst)
+                # Retry once with the freed slot
+                return self.try_reserve(tid, path, t0, _depth + 1)
         return False, -1
 
     def release(self, tid):
@@ -64,6 +71,12 @@ class TimeSpaceScheduler:
         for s in self.truck_paths.pop(tid, []):
             self.reserved.pop(s, None)
         self.wait_for.pop(tid, None)
+        # Bug B2 fix: remove tid from all other trucks' wait sets
+        # (prevents phantom cycle detection on already-resolved trucks)
+        for other in list(self.wait_for):
+            self.wait_for[other].discard(tid)
+            if not self.wait_for[other]:
+                del self.wait_for[other]
 
     # ── deadlock detection ───────────────────────────────────────────────
 

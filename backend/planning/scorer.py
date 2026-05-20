@@ -44,7 +44,10 @@ class ScoringEngine:
         height_norm = terrain.height / (np.max(terrain.height) + 1e-6)
 
         # vectorised score
-        scores = 1.0 / (1.0 + dist_penalty + slope_penalty + height_norm)
+        w_dist = self.weights.get('coverage', 1.0)
+        w_slope = self.weights.get('slope', 0.5)
+        w_height = self.weights.get('volume', 1.0)
+        scores = 1.0 / (1.0 + w_dist * dist_penalty + w_slope * slope_penalty + w_height * height_norm)
         score_map = np.where(mask, scores, np.nan)
 
         # normalise to [0, 1]

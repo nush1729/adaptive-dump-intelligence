@@ -75,6 +75,25 @@ export default function AuditPage() {
   const [seed, setSeed] = useState(42);
   const [material, setMaterial] = useState("default");
   const [nDumps, setNDumps] = useState(60);
+  const [useML, setUseML] = useState(false);
+
+  const loadAuditLog = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await fetch(`${API}/audit`);
+      if (!r.ok) throw new Error(`HTTP ${r.status} - ${r.statusText}`);
+      const d = await r.json();
+      if (Array.isArray(d) && d.length > 0) {
+        // Just load the log, the backend will generate snapshots when we click runSim
+        // but for now let's just let runSim do the work with the correct ML flag.
+      }
+    } catch (e: any) {
+      setError("No previous audit log found. Run a simulation first.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const runSim = useCallback(async () => {
     setLoading(true);
@@ -91,7 +110,7 @@ export default function AuditPage() {
           fleet_models: ["Cat793", "Cat777", "Cat797", "Cat793"],
           iso_threshold: 0.85,
           seed,
-          use_ml: false,
+          use_ml: useML,
           auto_tune: false,
         }),
       });
@@ -103,9 +122,9 @@ export default function AuditPage() {
     } finally {
       setLoading(false);
     }
-  }, [seed, material, nDumps]);
+  }, [seed, material, nDumps, useML]);
 
-  useEffect(() => { runSim(); }, []);
+  useEffect(() => { loadAuditLog(); runSim(); }, []);
 
   useEffect(() => {
     if (!playing || !simResult) return;
@@ -169,6 +188,13 @@ export default function AuditPage() {
       <label className="flex flex-col gap-1 font-mono text-[0.72rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
         Seed
         <input type="number" value={seed} min={0} max={9999} onChange={(e) => setSeed(Number(e.target.value))} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
+      </label>
+      <label className="flex flex-col gap-1 font-mono text-[0.72rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
+        Policy
+        <select value={useML ? "ml" : "heuristic"} onChange={(e) => setUseML(e.target.value === "ml")} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
+          <option value="heuristic">Heuristic</option>
+          <option value="ml">ML-PPO</option>
+        </select>
       </label>
       <button onClick={runSim} disabled={loading} className="rounded py-3 font-syncopate text-[0.72rem] uppercase tracking-[0.18em] font-bold disabled:opacity-60" style={{ background: loading ? "var(--muted)" : "var(--acid)", color: "#000" }}>
         {loading ? "Simulating..." : "Run Simulation"}
@@ -262,6 +288,9 @@ export default function AuditPage() {
       <div className="h-full flex flex-col overflow-hidden">
         <div className="flex items-center gap-4 px-4 lg:px-5 py-3 border-b" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
           <span className="font-syncopate text-[0.75rem] tracking-[0.2em] uppercase font-bold" style={{ color: "var(--acid)" }}>Audit Replay</span>
+          <span className="ml-2 rounded px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-[0.1em]" style={{ background: "rgba(255,192,0,0.15)", color: "var(--acid)", border: "1px solid var(--acid)" }}>
+            {simResult?.summary?.policy ?? "—"}
+          </span>
           <div className="ml-auto font-mono text-[0.7rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
             {simResult ? `${cursor + 1}/${simResult.log.length}` : loading ? "Simulating" : "Awaiting run"}
           </div>
@@ -298,7 +327,7 @@ export default function AuditPage() {
               ["Volume", `${Number(simResult.summary.total_volume ?? 0).toFixed(1)}m3`],
               ["Coverage", `${simResult.summary.coverage_pct}%`],
               ["Efficiency", `${simResult.summary.packing_efficiency}%`],
-              ["Uniformity", `${simResult.summary.height_uniformity}`],
+              ["Uniformity", `${(Number(simResult.summary.height_uniformity) * 100).toFixed(1)}%`],
               ["Iso Events", `${simResult.summary.isolation_events}`],
               ["Latency", `${simResult.summary.latency_ms}ms`],
               ["Policy", String(simResult.summary.policy ?? "--").toUpperCase()],

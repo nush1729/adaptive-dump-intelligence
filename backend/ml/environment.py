@@ -97,14 +97,17 @@ class DumpPackingEnv(gym.Env):
         # safety check
         safe, reach = self.validator.validate(r, c, self.payload_t)
         if not safe:
-            reward -= 3.0
+            reward -= 1.0   # ERROR 2-C fix: was -3.0, reduced to match vol reward scale
         else:
             ok, reason = self.terrain.apply_dump(r, c, self.payload_t)
             if ok:
                 new_vol = self.terrain.total_volume()
                 new_cov = self.terrain.coverage_fraction()
-                reward += (new_vol - self._prev_vol) * 0.008
-                reward += (new_cov - self._prev_cov) * 5.0
+                # ERROR 2-C fix: raise vol reward 6x (was 0.008), halve cov reward (was 5.0)
+                # Previously iso penalty (-3.0) was 64x the vol reward (0.047) making
+                # the policy pathologically conservative.
+                reward += (new_vol - self._prev_vol) * 0.05
+                reward += (new_cov - self._prev_cov) * 2.0
                 self._prev_vol = new_vol
                 self._prev_cov = new_cov
             else:

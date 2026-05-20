@@ -155,7 +155,8 @@ def _build_obs(t):
     dist_norm = dist / (dist.max() or 1.0)
     return np.stack([h_norm, mask, dist_norm], axis=0)
 
-def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float) -> tuple:
+def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float,
+                    audit_path: str = AUDIT_PATH) -> tuple:
     """Run one episode with the PPO policy. Returns (log, snapshots)."""
     try:
         policy, ptype = _load_policy_cached(raise_on_fail=True)
@@ -165,6 +166,7 @@ def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float)
     val = IsolationValidator(terrain, terrain.entry, iso_threshold)
     log, snapshots = [], []
     mask_flat = terrain.mask.ravel()
+    ROWS = terrain.rows
     COLS = terrain.cols
 
     dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // len(fleet) + 1)
@@ -210,6 +212,14 @@ def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float)
                 "efficiency": terrain.packing_efficiency(),
                 "policy": ptype,
             })
+    # BUG 1-C: write audit log so Audit Replay page reflects ML runs
+    try:
+        with open(audit_path, "w") as _af:
+            import json as _json
+            _json.dump(log, _af, indent=2)
+    except Exception:
+        pass
+
     return log, snapshots
 
 # ── routes ────────────────────────────────────────────────────────────────────
@@ -247,7 +257,7 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
     actual_policy = "heuristic"  # Track what was ACTUALLY used
     if cfg.use_ml:
         try:
-            log, snapshots = _run_ml_episode(terrain, fleet, cfg.n_dumps, cfg.iso_threshold)
+            log, snapshots = _run_ml_episode(terrain, fleet, cfg.n_dumps, cfg.iso_threshold, AUDIT_PATH)
             if log is not None:
                 actual_policy = "ml_ppo"
             else:
@@ -274,7 +284,9 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
         "coverage_pct": round(terrain.coverage_fraction() * 100, 2),
         "packing_efficiency": round(terrain.packing_efficiency() * 100, 2),
         "mean_height": round(terrain.mean_height(), 3),
-        "height_uniformity": round(terrain.packing_efficiency(), 3),
+        "height_uniformity": round(
+            max(0.0, 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01)), 3
+        ),
         "isolation_events": sum(1 for x in log if "iso" in str(x.get("status", ""))),
         "latency_ms": round((time.time() - t0) * 1000, 1),
         "policy": actual_policy,

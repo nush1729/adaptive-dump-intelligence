@@ -144,4 +144,4 @@ class HeuristicFallbackPolicy:
                 r, c = int(rc[0]), int(rc[1])
             else:
                 return 0
-        return int(r) * 100 + int(c)
+        return int(r) * self._terrain.cols + int(c)

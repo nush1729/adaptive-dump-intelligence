@@ -49,8 +49,8 @@ class ADIOSOrchestrator:
                     from scipy.ndimage import distance_transform_edt
                     h = self.terrain.height
                     mask = self.terrain.mask.astype(np.float32)
-                    max_h = h[self.terrain.mask].max() if self.terrain.mask.any() else 1.0
-                    h_norm = (h / max(max_h, 1e-6)).astype(np.float32)
+                    # ERROR 2-B fix: use same normalisation as training (h/15.0)
+                    h_norm = np.clip(h / 15.0, 0.0, 1.0).astype(np.float32)
                     dist_arr = distance_transform_edt(self.terrain.mask)
                     dist = np.asarray(dist_arr[0] if isinstance(dist_arr, tuple) else dist_arr, dtype=np.float32)
                     dist_norm = dist / (dist.max() or 1.0)
@@ -89,6 +89,7 @@ class ADIOSOrchestrator:
                 if ok:
                     self.validator.record_dump(r, c)
                     scheduler.release(truck_id)
+                    reserved.discard((r, c))  # 4-E fix: un-blacklist cells that succeeded
 
                 log_entry = {"t": i, "truck": truck_id,
                             "r": int(r), "c": int(c),
