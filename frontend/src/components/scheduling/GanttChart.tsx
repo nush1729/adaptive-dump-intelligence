@@ -65,6 +65,24 @@ export default function GanttChart({
 
   return (
     <div style={{ overflowX: "auto", overflowY: "hidden", width: "100%" }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        padding: "2px 0 8px",
+        fontFamily: "JetBrains Mono",
+        fontSize: "0.72rem",
+        color: "var(--text2)",
+        letterSpacing: "0.08em",
+      }}>
+        <span>Click any Gantt chart block to inspect dispatch event.</span>
+        {selectedSeq != null && (
+          <span style={{ color: "var(--acid)", textTransform: "uppercase", fontWeight: 700 }}>
+            Selected #{selectedSeq}
+          </span>
+        )}
+      </div>
       {/* Legend */}
       <div style={{ display: "flex", gap: 16, padding: "8px 0 10px",
         fontFamily: "JetBrains Mono", fontSize: "0.75rem", letterSpacing: "0.1em",
@@ -103,6 +121,28 @@ export default function GanttChart({
             height={chartH + 20}
             style={{ display: "block" }}
           >
+            <defs>
+              <filter id="selected-glow" x="-45%" y="-120%" width="190%" height="340%">
+                <feGaussianBlur stdDeviation="3.2" result="blur" />
+                <feColorMatrix
+                  in="blur"
+                  type="matrix"
+                  values="1 0 0 0 1  0 0.78 0 0 0.63  0 0 0 0 0  0 0 0 0.85 0"
+                  result="glow"
+                />
+                <feMerge>
+                  <feMergeNode in="glow" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <filter id="bar-hover-glow" x="-25%" y="-80%" width="150%" height="260%">
+                <feGaussianBlur stdDeviation="1.8" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
             {/* Tick header */}
             {ticks.map((t) => (
               <g key={t}>
@@ -144,16 +184,29 @@ export default function GanttChart({
               return (
                 <g
                   key={entry.dump_seq}
+                  className="gantt-bar-group"
                   style={{ cursor: "pointer" }}
                   onClick={() => onSelect?.(entry.dump_seq)}
                 >
+                  {isSelected && (
+                    <rect
+                      x={x - 4} y={y - 4} width={bw + 8} height={bh + 8}
+                      rx={6}
+                      fill="rgba(255,192,0,0.14)"
+                      stroke="#FFC000"
+                      strokeWidth={1.2}
+                      strokeDasharray="4 3"
+                    />
+                  )}
                   <rect
+                    className="gantt-bar"
                     x={x} y={y} width={bw} height={bh}
                     rx={3}
                     fill={col}
-                    opacity={isSelected ? 1 : 0.72}
-                    stroke={isSelected ? "#fff" : "transparent"}
-                    strokeWidth={isSelected ? 1.5 : 0}
+                    opacity={isSelected ? 1 : 0.78}
+                    stroke={isSelected ? "#FFFFFF" : "rgba(255,255,255,0.22)"}
+                    strokeWidth={isSelected ? 2.4 : 0.6}
+                    filter={isSelected ? "url(#selected-glow)" : undefined}
                   />
                   {bw > 24 && (
                     <text
@@ -161,6 +214,7 @@ export default function GanttChart({
                       fill={entry.status === "dumped" ? "#000" : "#fff"}
                       fontFamily="JetBrains Mono" fontSize={7}
                       fontWeight={600}
+                      pointerEvents="none"
                     >
                       #{entry.dump_seq} · {entry.payload_t}t
                     </text>

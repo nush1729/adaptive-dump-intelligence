@@ -6,7 +6,8 @@ import BenchmarkPanel from "@/components/dashboard/BenchmarkPanel";
 import Compare3D from "@/components/dashboard/Compare3D";
 import ControlPanel from "@/components/dashboard/ControlPanel";
 import MetricsPanel from "@/components/dashboard/MetricsPanel";
-import NavBar from "@/components/NavBar";
+import PageShell from "@/components/layout/PageShell";
+import { RailItem } from "@/components/layout/CollapsedRail";
 import { runSimulation, tuneWeights, fetchHealth, createWebSocket } from "@/lib/api";
 import type { WsMessage, DumpSnapshot, DumpEvent } from "@/types/adios";
 
@@ -52,12 +53,35 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
   }, [scoreMap, mask]);
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-gray-50 dark:bg-[#050608]">
+    <div className="absolute inset-0 flex flex-col bg-[#050608]">
+      <div className="flex items-center justify-between gap-4 px-6 py-4 border-b" style={{ background: "rgba(10,12,15,0.78)", borderColor: "var(--border)" }}>
+        <div>
+          <div className="font-syncopate text-[0.68rem] uppercase tracking-[0.2em]" style={{ color: "var(--acid)" }}>
+            Score Map
+          </div>
+          <div className="font-mono text-[0.68rem] mt-1" style={{ color: "var(--text2)" }}>
+            Higher intensity cells indicate stronger dispatch candidates.
+          </div>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 font-mono text-[0.58rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+          <span>Low</span>
+          <span className="h-2 w-32 rounded-full" style={{ background: "linear-gradient(90deg, #101820, #FF5722, #FFC000, #E8FFF1)" }} />
+          <span>High</span>
+        </div>
+      </div>
+      <div className="relative flex-1 flex items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 adios-grid-overlay opacity-10" />
+        <div className="absolute inset-10 rounded" style={{ background: "radial-gradient(circle at center, rgba(255,192,0,0.08), transparent 58%)" }} />
       {scoreMap ? (
-        <canvas ref={canvasRef} className="w-[min(90vw,90vh)] h-[min(90vw,90vh)] [image-rendering:pixelated]" />
+          <div className="relative rounded border p-3 shadow-2xl" style={{ background: "rgba(14,17,21,0.82)", borderColor: "rgba(255,192,0,0.24)", boxShadow: "0 24px 80px rgba(0,0,0,0.42)" }}>
+            <canvas ref={canvasRef} className="block w-[min(68vw,70vh)] h-[min(68vw,70vh)] rounded [image-rendering:pixelated]" style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)" }} />
+          </div>
       ) : (
-        <span className="text-[#6b7280] font-mono text-sm">Run simulation to see score heatmap</span>
+          <div className="adios-panel px-6 py-5 text-center">
+            <span className="text-[#6b7280] font-mono text-sm">Run simulation to see score heatmap</span>
+          </div>
       )}
+      </div>
     </div>
   );
 }
@@ -68,7 +92,7 @@ export default function DashboardPage() {
     useML, isRunning, result, liveSurface, liveLog,
     health, setHealth, setResult, setIsRunning, setProgress, resetLive,
     setLiveSurface, appendLog, appendVolume, appendSnapshot,
-    activeView, setActiveView, showStatic, setWeights, setLastRunPolicy,
+    activeView, setActiveView, showStatic, setWeights, lastRunPolicy, setLastRunPolicy,
   } = useSimStore();
 
   const [isTuning, setIsTuning] = useState(false);
@@ -169,51 +193,51 @@ export default function DashboardPage() {
 
 
   return (
-    <div className="flex flex-col h-[100dvh] overflow-hidden font-sans selection:bg-[#FFC000] selection:text-black" style={{ background: "var(--void)", color: "var(--text)" }}>
-      <NavBar />
-      {/* Content below nav */}
-      <div className="flex flex-1 overflow-hidden pt-11">
-      
-      {/* LEFT SIDEBAR: Control Panel */}
-      <aside className="w-[280px] h-full flex flex-col shadow-2xl z-20" style={{ background: "var(--surface)", borderRight: "1px solid var(--border)" }}>
-        <div className="p-5" style={{ borderBottom: "1px solid var(--border)" }}>
-          <h1 className="font-syncopate font-bold tracking-widest text-xl flex items-center gap-2" style={{ color: "var(--text)" }}>
-            ADI<span className="text-[#FFC000]">O</span>S
-          </h1>
-          <p className="font-mono text-[0.7rem] text-[#6b7280] uppercase tracking-widest mt-1">
-            Industrial Intelligence
-          </p>
-        </div>
-        
-        {/* Scrollable controls wrapper managed inside ControlPanel now */}
-        <div className="flex-1 overflow-hidden min-h-0">
-           <ControlPanel onRun={handleRun} onTune={handleTune} isTuning={isTuning} />
-        </div>
-      </aside>
-
-      {/* MAIN VIEWPORT */}
-      <main className="flex-1 flex flex-col relative h-full">
+    <PageShell
+      leftTitle="ADIOS"
+      leftSubtitle="Industrial Intelligence"
+      leftContent={<ControlPanel onRun={handleRun} onTune={handleTune} isTuning={isTuning} />}
+      leftRail={
+        <>
+          <RailItem label="Dumps" value={String(nDumps)} accent />
+          <RailItem label="Iso" value={isoThreshold.toFixed(2)} />
+          <RailItem label="Fleet" value={String(selectedFleet.length)} />
+          <RailItem label="ML" value={useML ? "On" : "Off"} />
+        </>
+      }
+      rightTitle="Live Metrics"
+      rightContent={<MetricsPanel />}
+      rightRail={
+        <>
+          <RailItem label="Vol" value={result ? `${Math.round(result.summary.total_volume / 1000)}k` : "--"} accent />
+          <RailItem label="Cov" value={result ? `${Math.round(result.summary.coverage_pct)}%` : "--"} />
+          <RailItem label="Run" value={isRunning ? "On" : "Idle"} />
+        </>
+      }
+    >
+      <div className="flex flex-col relative h-full">
         {/* Top Navigation */}
-        <header className="h-14 flex items-center justify-between px-6 backdrop-blur-md z-10 shrink-0"
+        <header className="h-14 flex items-center justify-between gap-4 px-4 lg:px-6 backdrop-blur-md z-10 shrink-0 overflow-x-auto"
           style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-          <div className="flex gap-6">
+          <div className="flex gap-3 lg:gap-6">
             {['3d', 'heatmap', 'compare', 'plotly'].map(tab => (
               <button 
                 key={tab}
                 onClick={() => setActiveView(tab as any)}
                 className={`font-mono uppercase tracking-widest text-[0.85rem] transition-all duration-300 pb-1 border-b-2 
-                  ${activeView === tab ? 'border-[#FFC000] text-[#FFC000]' : 'border-transparent text-[#6b7280] hover:text-black dark:text-white'}`}
+                  ${activeView === tab ? 'border-[#FFC000] text-[#FFC000]' : 'border-transparent text-[var(--muted)] hover:text-[var(--text)]'}`}
               >
                 {tab === '3d' ? 'Live Terrain' : tab === 'heatmap' ? 'Score Map' : tab === 'compare' ? 'Benchmark VS' : 'Plotly 3D'}
               </button>
             ))}
           </div>
           
-          <div className="flex items-center gap-4">
+          {activeView === '3d' && (
+          <div className="flex items-center gap-3">
             {(["iso","top","front"] as const).map((p) => (
               <button key={p} onClick={() => setCamPreset(p)}
                 className={`font-mono px-2 py-1 text-[0.7rem] uppercase rounded border ${
-                  camPreset === p ? 'border-[#FFC000] text-[#FFC000]' : 'border-gray-200 dark:border-[#2a2d35] text-[#6b7280]'
+                  camPreset === p ? 'border-[#FFC000] text-[#FFC000]' : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]'
                 }`}
               >
                 {p}
@@ -223,33 +247,20 @@ export default function DashboardPage() {
             <button 
               onClick={() => setWireframe(w => !w)}
               className={`font-mono px-2 py-1 text-[0.7rem] uppercase rounded border ${
-                wireframe ? 'border-[#FFC000] text-[#FFC000]' : 'border-gray-200 dark:border-[#2a2d35] text-[#6b7280] hover:text-black dark:hover:text-white transition-colors'
+                wireframe ? 'border-[#FFC000] text-[#FFC000]' : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] transition-colors'
               }`}
             >
               Wire
             </button>
-
-            <div className={`px-3 py-1 rounded-sm font-mono text-[0.7rem] tracking-widest uppercase border ${
-              isRunning ? 'bg-[#FF5722]/10 border-[#FF5722] text-[#FF5722]' : 'bg-[#FFC000]/10 border-[#FFC000] text-[#FFC000]'
-            }`}>
-              {isRunning ? 'System Active' : 'Standby'}
-            </div>
-            <div className="px-3 py-1 rounded-sm font-mono text-[0.7rem] tracking-widest uppercase" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text2)" }}>
-              {(result?.summary?.policy === "ml_ppo") ? "ML-PPO" : "HEURISTIC"}
-            </div>
           </div>
+          )}
         </header>
 
         {/* Cinematic Workspace */}
         <div className="flex-1 relative min-h-0" style={{ background: "var(--void)" }}>
           
           {/* Subtle Grid Overlay */}
-          <div className="absolute inset-0 pointer-events-none bg-[url('/grid.svg')] opacity-5" />
-
-          {/* Mode Watermark Overlay */}
-          <div className="absolute bottom-6 right-8 font-black tracking-tighter text-[5rem] text-white/[0.03] uppercase z-50 pointer-events-none select-none leading-none text-right">
-             {((result?.summary?.policy === "ml_ppo") || lastRunPolicy === "ml_ppo") ? "ML-PPO\nACTIVE" : "HEURISTIC\nACTIVE"}
-          </div>
+          <div className="absolute inset-0 pointer-events-none adios-grid-overlay opacity-10" />
 
           {/* 3D Scene Layer */}
           <div className={`absolute inset-0 transition-opacity duration-700 ${activeView === '3d' ? 'opacity-100 z-10' : 'opacity-0 -z-10'}`}>
@@ -272,14 +283,14 @@ export default function DashboardPage() {
 
           {/* Benchmark Panel Layer */}
           <div className={`absolute inset-0 p-6 transition-opacity duration-700 ${activeView === 'compare' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 -z-10 pointer-events-none'}`}>
-             <div className="h-full w-full bg-white dark:bg-[#111317]/90 backdrop-blur-xl border border-gray-200 dark:border-[#2a2d35] rounded-sm overflow-hidden shadow-2xl">
+             <div className="h-full w-full adios-panel backdrop-blur-xl overflow-hidden shadow-2xl">
                <BenchmarkPanel />
              </div>
           </div>
 
           {/* Plotly Layer */}
           <div className={`absolute inset-0 p-6 transition-opacity duration-700 ${activeView === 'plotly' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 -z-10 pointer-events-none'}`}>
-             <div className="h-full w-full bg-white dark:bg-[#111317]/90 backdrop-blur-xl border border-gray-200 dark:border-[#2a2d35] rounded-sm overflow-hidden shadow-2xl">
+             <div className="h-full w-full adios-panel backdrop-blur-xl overflow-hidden shadow-2xl">
                <Compare3D
                  adiosSurface={result?.surface ?? null}
                  staticSurface={result?.static_surface ?? null}
@@ -290,15 +301,8 @@ export default function DashboardPage() {
           </div>
 
         </div>
-      </main>
-
-      {/* RIGHT SIDEBAR: Live Metrics */}
-      <aside className="w-[280px] h-full flex flex-col z-20" style={{ background: "var(--surface)", borderLeft: "1px solid var(--border)" }}>
-        <MetricsPanel />
-      </aside>
-
-      </div>{/* end content row */}
-    </div>
+      </div>
+    </PageShell>
   );
 }
 

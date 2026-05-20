@@ -60,14 +60,14 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
   } = useSimStore();
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-[#111317] text-gray-700 dark:text-gray-300">
+    <div className="flex flex-col h-full" style={{ background: "var(--surface)", color: "var(--text)" }}>
       
       {/* Scrollable Body */}
       <div className="flex-1 overflow-y-auto min-h-0 p-4 flex flex-col gap-4 scrollbar-thin scrollbar-thumb-[#2a2d35]">
         
         {/* Simulation Section */}
         <div>
-          <div className="text-[0.85rem] tracking-[0.25em] text-gray-500 dark:text-gray-500 uppercase border-b border-gray-200 dark:border-[#2a2d35] pb-1 mb-3 font-syncopate">
+          <div className="text-[0.78rem] tracking-[0.22em] uppercase border-b pb-1 mb-3 font-syncopate" style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
             Simulation
           </div>
           
@@ -76,7 +76,8 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
             <select
               value={material}
               onChange={(e) => setMaterial(e.target.value)}
-              className="bg-gray-100 dark:bg-[#1a1c23] border border-gray-200 dark:border-[#2a2d35] text-gray-200 p-1.5 rounded text-sm font-mono w-full focus:outline-none focus:border-[#FFC000]"
+              className="p-1.5 rounded text-sm font-mono w-full focus:outline-none transition-colors"
+              style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
             >
               <option value="default">Default</option>
               <option value="rock">Rock (40°)</option>
@@ -93,7 +94,8 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
             <input
               type="number" value={seed} min={1} max={9999}
               onChange={(e) => setSeed(parseInt(e.target.value) || 42)}
-              className="bg-gray-100 dark:bg-[#1a1c23] border border-gray-200 dark:border-[#2a2d35] text-gray-200 p-1.5 rounded text-sm font-mono w-full focus:outline-none focus:border-[#FFC000]"
+              className="p-1.5 rounded text-sm font-mono w-full focus:outline-none transition-colors"
+              style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
             />
           </div>
 
@@ -113,7 +115,7 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
 
         {/* Fleet Section */}
         <div>
-          <div className="text-[0.85rem] tracking-[0.25em] text-gray-500 dark:text-gray-500 uppercase border-b border-gray-200 dark:border-[#2a2d35] pb-1 mb-3 font-syncopate">
+          <div className="text-[0.78rem] tracking-[0.22em] uppercase border-b pb-1 mb-3 font-syncopate" style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
             Fleet
           </div>
           <div className="flex flex-wrap gap-2">
@@ -134,7 +136,7 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
 
         {/* Weights Section */}
         <div>
-          <div className="text-[0.85rem] tracking-[0.25em] text-gray-500 dark:text-gray-500 uppercase border-b border-gray-200 dark:border-[#2a2d35] pb-1 mb-3 font-syncopate">
+          <div className="text-[0.78rem] tracking-[0.22em] uppercase border-b pb-1 mb-3 font-syncopate" style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
             Scoring Weights
           </div>
           <div className="flex flex-col gap-3">
@@ -155,11 +157,11 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
       </div>
 
       {/* Pinned Footer Execute Button */}
-      <div className="shrink-0 p-4 border-t border-gray-200 dark:border-[#2a2d35] bg-gray-50 dark:bg-[#0a0c0f]">
+      <div className="shrink-0 p-4 border-t" style={{ borderColor: "var(--border)", background: "var(--void)" }}>
         <button
           onClick={onRun}
           disabled={isRunning}
-          className="w-full py-3 bg-[#FFC000] text-black text-[0.85rem] font-syncopate tracking-[0.2em] uppercase font-bold hover:shadow-[0_0_15px_rgba(245,166,35,0.5)] transition-all rounded disabled:bg-gray-600 disabled:text-gray-600 dark:text-gray-400 disabled:shadow-none"
+          className="w-full py-3 bg-[#FFC000] text-black text-[0.85rem] font-syncopate tracking-[0.2em] uppercase font-bold hover:shadow-[0_0_15px_rgba(245,166,35,0.5)] transition-all rounded disabled:bg-gray-500 disabled:text-gray-700 disabled:shadow-none"
         >
           {isRunning ? "RUNNING…" : "▶ EXECUTE"}
         </button>
