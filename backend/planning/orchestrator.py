@@ -76,8 +76,18 @@ class ADIOSOrchestrator:
                     yield {"t": i, "truck": truck_id, "r": int(r), "c": int(c), "status": f"iso_rejected({reach:.2f})", "payload_t": payload_t}, None, False, r, c
                     continue  # try next best cell
 
-                # TimeSpaceScheduler Deadlock & Conflict Check
-                sched_ok, start_t = scheduler.try_reserve(truck_id, [(r, c)], t0=i)
+                # Adaptive Lane Planning & Collision Avoidance
+                from planning.pathfinder import find_path
+                er, ec = self.terrain.entry
+                actual_path = find_path(self.terrain.height, self.terrain.mask, (int(er), int(ec)), (int(r), int(c)))
+                
+                if not actual_path:
+                    reserved.add((r, c))
+                    yield {"t": i, "truck": truck_id, "r": int(r), "c": int(c), "status": "path_unreachable", "payload_t": payload_t}, None, False, r, c
+                    continue
+
+                # TimeSpaceScheduler Deadlock & Conflict Check over the FULL LANE
+                sched_ok, start_t = scheduler.try_reserve(truck_id, actual_path, t0=i)
                 if not sched_ok:
                     reserved.add((r, c))
                     yield {"t": i, "truck": truck_id, "r": int(r), "c": int(c), "status": "sched_rejected", "payload_t": payload_t}, None, False, r, c
@@ -90,6 +100,10 @@ class ADIOSOrchestrator:
                     self.validator.record_dump(r, c)
                     scheduler.release(truck_id)
                     reserved.discard((r, c))  # 4-E fix: un-blacklist cells that succeeded
+                    
+                    # Dynamic Terrain SLAM Simulation
+                    if self.terrain.dump_count % 10 == 0 and hasattr(self.terrain, 'simulate_slam_update'):
+                        self.terrain.simulate_slam_update()
 
                 log_entry = {"t": i, "truck": truck_id,
                             "r": int(r), "c": int(c),

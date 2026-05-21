@@ -291,10 +291,31 @@ export default function AuditPage() {
           <span className="ml-2 rounded px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-[0.1em]" style={{ background: "rgba(255,192,0,0.15)", color: "var(--acid)", border: "1px solid var(--acid)" }}>
             {simResult?.summary?.policy ?? "—"}
           </span>
-          <div className="ml-auto font-mono text-[0.7rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
+          <div className="ml-auto flex items-center gap-3 font-mono text-[0.7rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
             {simResult ? `${cursor + 1}/${simResult.log.length}` : loading ? "Simulating" : "Awaiting run"}
+            {simResult && (
+              <button 
+                onClick={() => window.print()}
+                className="ml-2 rounded px-3 py-1 bg-[#FFC000] text-black hover:bg-[#E5AC00] transition-colors shadow-[0_0_10px_rgba(255,192,0,0.3)] font-bold print:hidden"
+              >
+                Export PDF
+              </button>
+            )}
           </div>
         </div>
+
+        <style dangerouslySetInnerHTML={{__html: `
+          @media print {
+            body { background: white !important; color: black !important; }
+            .adios-sidebar, .adios-nav, button { display: none !important; }
+            .adios-page-shell, .adios-page-content, .adios-page-main { 
+              height: auto !important; overflow: visible !important; display: block !important;
+            }
+            .adios-panel { border: 1px solid #ccc !important; box-shadow: none !important; }
+            * { text-shadow: none !important; box-shadow: none !important; color: black !important; }
+            .border-b, .border-t { border-color: #ccc !important; }
+          }
+        `}} />
 
         {error && (
           <div className="px-5 py-2 border-b font-mono text-[0.75rem]" style={{ background: "rgba(255,51,102,0.08)", borderColor: "rgba(255,51,102,0.25)", color: "#FF3366" }}>

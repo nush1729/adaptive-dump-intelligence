@@ -56,12 +56,34 @@ class Terrain:
                         continue
                     # Gaussian falloff — identical to frontend replay
                     weight = np.exp(-dist_sq / sig_sq2) * 0.6 * payload_factor
+                    
+                    # Compaction Modeling: heavy payload compacts existing soil
+                    if self.height[nr, nc] > 0.1:
+                        compaction = max(0.85, 1.0 - (weight * 0.15))
+                        self.height[nr, nc] *= compaction
+
                     self.height[nr, nc] += weight
 
         self.dump_count += 1
         # Record material at dump centre for segregation tracking
         self.material_map[r, c] = self.material
         return True, "dumped"
+
+    def simulate_slam_update(self):
+        """Simulate real-world SLAM sensor updates and terrain settling."""
+        if not self.mask.any():
+            return
+            
+        # Minor Gaussian blur to settle sharp peaks
+        h = gaussian_filter1d(self.height, sigma=0.5, axis=0)
+        h = gaussian_filter1d(h, sigma=0.5, axis=1)
+        
+        # Add tiny random noise representing sensor variation
+        noise = np.random.normal(0, 0.05, h.shape)
+        h += noise * self.mask
+        
+        # Ensure height doesn't go below 0
+        self.height = np.maximum(h, 0.0) * self.mask
 
     def to_json_surface(self) -> list:
         """Convert height grid to JSON-serializable format"""
