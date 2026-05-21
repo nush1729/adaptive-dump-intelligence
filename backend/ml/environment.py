@@ -117,11 +117,12 @@ class DumpPackingEnv(gym.Env):
         self._dump_count += 1
         terminated = self._dump_count >= self.max_dumps
 
-        # terminal bonus
+        # terminal bonus (scaled to ≤3× typical step reward to avoid
+        # PPO ignoring per-step placement quality)
         if terminated:
             cov = self.terrain.coverage_fraction()
             uni = 1.0 - self.terrain.height_std() / max(self.terrain.mean_height(), 0.01)
-            reward += cov * 10.0 + uni * 2.0
+            reward += cov * 0.6 + max(0.0, uni) * 0.3
 
         return self._obs(), reward, terminated, False, {}
 
@@ -136,15 +137,25 @@ class DumpPackingEnv(gym.Env):
         return np.stack([h_norm, mask, dist_norm], axis=0)
 
     def action_masks(self) -> np.ndarray:
-        """Returns bool array of valid actions for masked PPO."""
+        """Returns bool array of valid actions for masked PPO.
+
+        Vectorised: height saturation via numpy, spacing via cKDTree.
+        """
         mask = self._valid_mask_flat.copy().reshape((ROWS, COLS))
+        # vectorised height-saturation check
+        mask[self.terrain.height >= 15.0] = False
+        # vectorised spacing check using cKDTree
         if self._dump_count > 0 and self.validator is not None:
-            for r in range(ROWS):
-                for c in range(COLS):
-                    if mask[r, c]:
-                        # dynamically mask out cells that violate spacing or exceed absolute max height
-                        if not self.validator._spacing_ok(r, c) or self.terrain.height[r, c] >= 15.0:
-                            mask[r, c] = 0
+            dumps = np.array(self.validator.dump_history) if self.validator.dump_history else None
+            if dumps is not None and len(dumps) > 0:
+                from scipy.spatial import cKDTree
+                tree = cKDTree(dumps)
+                valid_rc = np.argwhere(mask)
+                if len(valid_rc) > 0:
+                    dists, _ = tree.query(valid_rc, k=1)
+                    min_spacing = getattr(self.validator, 'min_spacing', 3)
+                    too_close = dists < min_spacing
+                    mask[valid_rc[too_close, 0], valid_rc[too_close, 1]] = False
         return mask.ravel()
 
     def render(self):

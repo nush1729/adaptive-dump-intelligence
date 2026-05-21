@@ -64,7 +64,7 @@ app.add_middleware(
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
 
-AUDIT_PATH = "/tmp/adios_audit_v3.json"
+AUDIT_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "audit_log.json")
 
 # ── models ────────────────────────────────────────────────────────────────────
 class SimConfig(BaseModel):

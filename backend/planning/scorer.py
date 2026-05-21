@@ -43,11 +43,24 @@ class ScoringEngine:
         # height penalty (already-filled cells score lower)
         height_norm = terrain.height / (np.max(terrain.height) + 1e-6)
 
+        # material segregation penalty: penalise cells with incompatible existing material
+        segregation_penalty = np.zeros((rows, cols))
+        if hasattr(terrain, 'material_map'):
+            from environment.terrain import MATERIAL_COMPATIBILITY  # type: ignore
+            current_mat = terrain.material
+            for r_idx in range(rows):
+                for c_idx in range(cols):
+                    existing = terrain.material_map[r_idx, c_idx]
+                    if existing and existing != current_mat:
+                        compat = MATERIAL_COMPATIBILITY.get((current_mat, existing), 1.0)
+                        segregation_penalty[r_idx, c_idx] = 1.0 - compat
+
         # vectorised score
         w_dist = self.weights.get('coverage', 1.0)
         w_slope = self.weights.get('slope', 0.5)
         w_height = self.weights.get('volume', 1.0)
-        scores = 1.0 / (1.0 + w_dist * dist_penalty + w_slope * slope_penalty + w_height * height_norm)
+        w_seg = self.weights.get('isolation', 0.8)
+        scores = 1.0 / (1.0 + w_dist * dist_penalty + w_slope * slope_penalty + w_height * height_norm + w_seg * segregation_penalty)
         score_map = np.where(mask, scores, np.nan)
 
         # normalise to [0, 1]

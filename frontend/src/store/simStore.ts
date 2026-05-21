@@ -45,8 +45,8 @@ interface SimStore {
   resetLive: () => void;
 
   // view
-  activeView: "3d" | "heatmap" | "plotly" | "compare";
-  setActiveView: (v: "3d" | "heatmap" | "plotly" | "compare") => void;
+  activeView: "3d" | "heatmap" | "plotly" | "compare" | "trend";
+  setActiveView: (v: "3d" | "heatmap" | "plotly" | "compare" | "trend") => void;
   showStatic: boolean;
   setShowStatic: (b: boolean) => void;
 }

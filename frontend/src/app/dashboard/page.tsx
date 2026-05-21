@@ -6,6 +6,7 @@ import BenchmarkPanel from "@/components/dashboard/BenchmarkPanel";
 import Compare3D from "@/components/dashboard/Compare3D";
 import ControlPanel from "@/components/dashboard/ControlPanel";
 import MetricsPanel from "@/components/dashboard/MetricsPanel";
+import TrendChart from "@/components/dashboard/TrendChart";
 import PageShell from "@/components/layout/PageShell";
 import { RailItem } from "@/components/layout/CollapsedRail";
 import { runSimulation, tuneWeights, fetchHealth, createWebSocket } from "@/lib/api";
@@ -221,14 +222,14 @@ export default function DashboardPage() {
         <header className="h-14 flex items-center justify-between gap-4 px-4 lg:px-6 backdrop-blur-md z-10 shrink-0 overflow-x-auto"
           style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
           <div className="flex gap-3 lg:gap-6">
-            {['3d', 'heatmap', 'compare', 'plotly'].map(tab => (
+            {['3d', 'heatmap', 'trend', 'compare', 'plotly'].map(tab => (
               <button 
                 key={tab}
                 onClick={() => setActiveView(tab as any)}
                 className={`font-mono uppercase tracking-widest text-[0.85rem] transition-all duration-300 pb-1 border-b-2 
                   ${activeView === tab ? 'border-[#FFC000] text-[#FFC000]' : 'border-transparent text-[var(--muted)] hover:text-[var(--text)]'}`}
               >
-                {tab === '3d' ? 'Live Terrain' : tab === 'heatmap' ? 'Score Map' : tab === 'compare' ? 'Benchmark VS' : 'Plotly 3D'}
+                {tab === '3d' ? 'Live Terrain' : tab === 'heatmap' ? 'Score Map' : tab === 'trend' ? 'Trend' : tab === 'compare' ? 'Benchmark VS' : 'Plotly 3D'}
               </button>
             ))}
           </div>
@@ -275,11 +276,45 @@ export default function DashboardPage() {
                 camPreset={camPreset}
               />
             </Suspense>
+
+            {/* Loading spinner overlay */}
+            {isRunning && !liveSurface && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none"
+                style={{ background: "rgba(5,6,8,0.75)", backdropFilter: "blur(4px)" }}>
+                <div className="relative w-16 h-16 mb-4">
+                  <div className="absolute inset-0 rounded-full border-2 border-transparent"
+                    style={{ borderTopColor: "var(--acid)", animation: "spin 1s linear infinite" }} />
+                  <div className="absolute inset-2 rounded-full border-2 border-transparent"
+                    style={{ borderBottomColor: "var(--ore)", animation: "spin 1.5s linear infinite reverse" }} />
+                </div>
+                <div className="font-syncopate text-[0.7rem] uppercase tracking-[0.25em]"
+                  style={{ color: "var(--acid)", animation: "pulse 2s ease-in-out infinite" }}>
+                  Simulating Terrain
+                </div>
+                <div className="font-mono text-[0.6rem] uppercase tracking-widest mt-2" style={{ color: "var(--muted)" }}>
+                  Streaming dump decisions…
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Heatmap Layer */}
           <div className={`absolute inset-0 transition-opacity duration-700 ${activeView === 'heatmap' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 -z-10 pointer-events-none'}`}>
             <HeatmapView scoreMap={result?.score_map ?? null} mask={result?.mask ?? null} />
+          </div>
+
+          {/* Trend Chart Layer */}
+          <div className={`absolute inset-0 p-6 transition-opacity duration-700 ${activeView === 'trend' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 -z-10 pointer-events-none'}`}>
+             <div className="h-full w-full adios-panel backdrop-blur-xl overflow-hidden shadow-2xl">
+               <TrendChart
+                 snapshots={(result?.snapshots ?? []).map((s: any, i: number) => ({
+                   dump: s.dump_n ?? i,
+                   volume: s.volume ?? 0,
+                   coverage: s.coverage ?? 0,
+                   efficiency: s.efficiency ?? 0,
+                 }))}
+               />
+             </div>
           </div>
 
           {/* Benchmark Panel Layer */}

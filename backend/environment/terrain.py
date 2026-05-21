@@ -1,5 +1,6 @@
 import numpy as np
 from typing import Tuple
+
 from scipy.ndimage import gaussian_filter1d
 
 MATERIALS = {
@@ -7,6 +8,15 @@ MATERIALS = {
     "coal": {"density": 1.3, "name": "Coal"},
     "ore": {"density": 2.5, "name": "Ore"},
     "waste": {"density": 1.6, "name": "Waste"},
+}
+
+MATERIAL_COMPATIBILITY = {
+    # (dump_material, existing_material) -> penalty multiplier
+    # 1.0 = no penalty, 0.0 = incompatible (hard block)
+    ("ore", "waste"): 0.0,
+    ("waste", "ore"): 0.0,
+    ("ore", "coal"): 0.3,
+    ("coal", "ore"): 0.3,
 }
 
 class Terrain:
@@ -19,6 +29,10 @@ class Terrain:
         self.dump_count = 0
         self.cols = height.shape[1]
         self.rows = height.shape[0]
+        # Material segregation: track what material was dumped at each cell
+        self.material_map: np.ndarray = np.full((self.rows, self.cols), "", dtype=object)
+        # Material zones: allow defining sub-regions for segregated dumping
+        self.material_zones: dict = {}  # zone_name -> bool mask
 
     def apply_dump(self, r, c, volume):
         """Apply a dump at position (r, c) and return (success, reason)"""
@@ -45,6 +59,8 @@ class Terrain:
                     self.height[nr, nc] += weight
 
         self.dump_count += 1
+        # Record material at dump centre for segregation tracking
+        self.material_map[r, c] = self.material
         return True, "dumped"
 
     def to_json_surface(self) -> list:

@@ -110,7 +110,6 @@ def run_heuristic(terrain: Terrain, fleet, n_dumps: int) -> dict:
         placed = False
         for _attempt in range(50):
             r, c, _ = eng.score_all(reserved_cells=reserved)
-            latency_ms = (time.perf_counter() - t0) * 1000
 
             if r is None:
                 break
@@ -131,7 +130,8 @@ def run_heuristic(terrain: Terrain, fleet, n_dumps: int) -> dict:
                 continue
             break
 
-        latencies.append(latency_ms if 'latency_ms' in dir() else 0)
+        latency_ms = (time.perf_counter() - t0) * 1000
+        latencies.append(latency_ms)
         if not placed:
             rejected += 1
             print(f"TRUCK REJECTED: last r, c = {r}, {c}")
