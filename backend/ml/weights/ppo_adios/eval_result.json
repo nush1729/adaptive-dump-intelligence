@@ -1,69 +1,141 @@
 {
-  "heuristic_efficiency": 11.98,
-  "heuristic_coverage": 99.62,
-  "heuristic_volume": 2767.73,
+  "heuristic_efficiency": 26.12,
+  "heuristic_coverage": 99.8,
+  "heuristic_volume": 6058.88,
   "heuristic_uniformity": 0.65,
   "heuristic_stats": {
     "efficiency": {
-      "mean": 11.98,
-      "std": 0.51,
-      "min": 11.22,
-      "max": 12.9
+      "mean": 26.12,
+      "std": 3.42,
+      "min": 21.72,
+      "max": 31.79
     },
     "coverage": {
-      "mean": 99.62,
-      "std": 0.69,
-      "min": 97.61,
+      "mean": 99.8,
+      "std": 0.43,
+      "min": 98.55,
       "max": 100.0
     },
     "volume": {
-      "mean": 2767.73,
-      "std": 41.24,
-      "min": 2679.28,
-      "max": 2819.55
+      "mean": 6058.88,
+      "std": 972.23,
+      "min": 4605.91,
+      "max": 7366.22
     },
     "uniformity": {
       "mean": 0.65,
       "std": 0.03,
-      "min": 0.59,
-      "max": 0.68
+      "min": 0.58,
+      "max": 0.69
     }
   },
   "n_seeds": 10,
   "seed_start": 9000,
   "dumps_per_episode": 60,
-  "computed_at": "2026-05-21T02:21:46Z",
-  "ml_efficiency": 10.29,
-  "ml_coverage": 99.07,
-  "ml_volume": 2377.96,
-  "ml_uniformity": 0.49,
-  "ml_stats": {
-    "efficiency": {
-      "mean": 10.29,
-      "std": 0.39,
-      "min": 9.71,
-      "max": 11.0
+  "computed_at": "2026-05-22T09:55:19Z",
+  "config": {
+    "site": {
+      "rows": 100,
+      "cols": 100,
+      "cell_area_m2": 1.0,
+      "max_height_m": 15.0,
+      "min_dump_spacing_cells": 3.0,
+      "target_spacing_cells": 8.0,
+      "iso_threshold": 0.85,
+      "dump_radius_cells": 8,
+      "dump_sigma_ratio": 0.45,
+      "payload_reference_t": 200.0,
+      "dump_height_gain_m": 0.6,
+      "compaction_floor": 0.85,
+      "compaction_gain": 0.15,
+      "benchmark_seed_start": 8000,
+      "benchmark_polygons": 20,
+      "benchmark_dumps": 60,
+      "default_seed": 42,
+      "default_fleet": [
+        "Cat793",
+        "Cat777",
+        "Cat797",
+        "Cat793"
+      ],
+      "iso_mask_cell_limit": 600
     },
-    "coverage": {
-      "mean": 99.07,
-      "std": 0.48,
-      "min": 98.13,
-      "max": 99.85
+    "materials": {
+      "default": {
+        "name": "Default",
+        "density_t_per_m3": 1.8,
+        "angle_of_repose_deg": 38.0,
+        "feasible_lift_m": 6.0
+      },
+      "rock": {
+        "name": "Rock",
+        "density_t_per_m3": 1.9,
+        "angle_of_repose_deg": 40.0,
+        "feasible_lift_m": 6.5
+      },
+      "ore": {
+        "name": "Ore",
+        "density_t_per_m3": 2.5,
+        "angle_of_repose_deg": 37.0,
+        "feasible_lift_m": 5.5
+      },
+      "overburden": {
+        "name": "Overburden",
+        "density_t_per_m3": 1.6,
+        "angle_of_repose_deg": 35.0,
+        "feasible_lift_m": 6.0
+      },
+      "coal": {
+        "name": "Coal",
+        "density_t_per_m3": 1.3,
+        "angle_of_repose_deg": 34.0,
+        "feasible_lift_m": 5.0
+      },
+      "waste": {
+        "name": "Waste",
+        "density_t_per_m3": 1.6,
+        "angle_of_repose_deg": 35.0,
+        "feasible_lift_m": 6.0
+      }
     },
-    "volume": {
-      "mean": 2377.96,
-      "std": 53.04,
-      "min": 2290.17,
-      "max": 2452.31
-    },
-    "uniformity": {
-      "mean": 0.49,
-      "std": 0.05,
-      "min": 0.39,
-      "max": 0.56
+    "score_weights": {
+      "volume": 1.0,
+      "coverage": 1.0,
+      "slope": 0.5,
+      "isolation": 0.8
     }
   },
-  "delta": -1.69,
-  "delta_coverage": -0.55,
-  "model_type": "supervised_mlp"
+  "ml_efficiency": 22.57,
+  "ml_coverage": 99.91,
+  "ml_volume": 5231.6,
+  "ml_uniformity": 0.53,
+  "ml_stats": {
+    "efficiency": {
+      "mean": 22.57,
+      "std": 2.92,
+      "min": 18.92,
+      "max": 26.95
+    },
+    "coverage": {
+      "mean": 99.91,
+      "std": 0.08,
+      "min": 99.78,
+      "max": 100.0
+    },
+    "volume": {
+      "mean": 5231.6,
+      "std": 806.86,
+      "min": 4053.8,
+      "max": 6343.55
+    },
+    "uniformity": {
+      "mean": 0.53,
+      "std": 0.02,
+      "min": 0.51,
+      "max": 0.59
+    }
+  },
+  "delta": -3.55,
+  "delta_coverage": 0.11,
+  "model_type": "imitation_bc"
 }

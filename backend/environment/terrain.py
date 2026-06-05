@@ -3,11 +3,13 @@ from typing import Tuple
 
 from scipy.ndimage import gaussian_filter1d
 
+from config import MATERIALS as CONFIG_MATERIALS
+from environment.dump_physics import apply_dump_to_height
+from evaluation.metrics import coverage_fraction, packing_efficiency, site_uniformity, total_volume_m3
+
 MATERIALS = {
-    "default": {"density": 1.8, "name": "Default"},
-    "coal": {"density": 1.3, "name": "Coal"},
-    "ore": {"density": 2.5, "name": "Ore"},
-    "waste": {"density": 1.6, "name": "Waste"},
+    name: {"density": cfg.density_t_per_m3, "name": cfg.name}
+    for name, cfg in CONFIG_MATERIALS.items()
 }
 
 MATERIAL_COMPATIBILITY = {
@@ -35,34 +37,11 @@ class Terrain:
         self.material_zones: dict = {}  # zone_name -> bool mask
 
     def apply_dump(self, r, c, volume):
-        """Apply a dump at position (r, c) and return (success, reason)"""
+        """Apply a dump payload in tonnes at position (r, c)."""
         if not self.mask[r, c]:
             return False, "outside_polygon"
-        
-        # Physically realistic Gaussian mound distribution
-        radius = 8
-        sigma = radius * 0.45
-        sig_sq2 = 2 * sigma * sigma
-        payload_factor = float(volume) / 200.0  # normalise to ~1.0 for Cat793
 
-        for dr in range(-radius, radius + 1):
-            for dc in range(-radius, radius + 1):
-                nr, nc = r + dr, c + dc
-                if 0 <= nr < self.rows and 0 <= nc < self.cols:
-                    if not self.mask[nr, nc]:
-                        continue
-                    dist_sq = dr * dr + dc * dc
-                    if dist_sq > radius * radius:
-                        continue
-                    # Gaussian falloff — identical to frontend replay
-                    weight = np.exp(-dist_sq / sig_sq2) * 0.6 * payload_factor
-                    
-                    # Compaction Modeling: heavy payload compacts existing soil
-                    if self.height[nr, nc] > 0.1:
-                        compaction = max(0.85, 1.0 - (weight * 0.15))
-                        self.height[nr, nc] *= compaction
-
-                    self.height[nr, nc] += weight
+        apply_dump_to_height(self.height, self.mask, int(r), int(c), float(volume), self.material, mutate=True)
 
         self.dump_count += 1
         # Record material at dump centre for segregation tracking
@@ -96,30 +75,15 @@ class Terrain:
 
     def total_volume(self) -> float:
         """Total dumped volume in masked region"""
-        return float(np.sum(self.height[self.mask]))
+        return total_volume_m3(self)
 
     def coverage_fraction(self) -> float:
         """Fraction of polygon with height > 0.1"""
-        if not self.mask.any():
-            return 0.0
-        filled = np.sum(self.height[self.mask] > 0.1)
-        total = np.sum(self.mask)
-        return filled / max(total, 1)
+        return coverage_fraction(self)
 
     def packing_efficiency(self) -> float:
-        """Fraction of realistic maximum volume deposited.
-
-        ERROR 2-A fix: denominator changed from 15.0 (theoretical max) to 6.0
-        (realistic achievable mean height after ~60 Gaussian dumps on a
-        4000-cell polygon).  15.0 was returning 49.5% for a correctly-operating
-        system; 6.0 returns 85-90% which is accurate to real ops.
-        """
-        if not self.mask.any():
-            return 0.0
-        max_vol = np.sum(self.mask) * 6.0
-        if max_vol == 0:
-            return 0.0
-        return float(self.total_volume() / max_vol)
+        """Deposited volume divided by configured feasible site capacity."""
+        return packing_efficiency(self)
 
     def mean_height(self) -> float:
         if not self.mask.any():
@@ -130,6 +94,9 @@ class Terrain:
         if not self.mask.any():
             return 0.0
         return float(np.std(self.height[self.mask]))
+
+    def site_uniformity(self) -> float:
+        return site_uniformity(self)
 
     @staticmethod
     def make_demo_polygon(rows: int, cols: int, material: str, seed: int) -> 'Terrain':

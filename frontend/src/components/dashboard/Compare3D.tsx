@@ -25,12 +25,31 @@ const PLOTLY_CDN =
 function useScript(src: string): boolean {
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
-    if (window.Plotly) { setLoaded(true); return; }
-    const s = document.createElement("script");
-    s.src = src; s.async = true;
-    s.onload = () => setLoaded(true);
-    document.head.appendChild(s);
-    return () => { /* intentionally keep script loaded */ };
+    if (window.Plotly) {
+      setLoaded(true);
+      return;
+    }
+    
+    let s = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement;
+    if (!s) {
+      s = document.createElement("script");
+      s.src = src;
+      s.async = true;
+      document.head.appendChild(s);
+    }
+    
+    const handleLoad = () => {
+      if (window.Plotly) setLoaded(true);
+    };
+    
+    s.addEventListener("load", handleLoad);
+    
+    // In case it's already loaded but event fired
+    if (window.Plotly) setLoaded(true);
+
+    return () => {
+      s.removeEventListener("load", handleLoad);
+    };
   }, [src]);
   return loaded;
 }
@@ -127,7 +146,11 @@ function PlotPanel({
 }
 
 export default function Compare3D({ adiosSurface, staticSurface, mask, policy }: Compare3DProps) {
-  const adiosLabel = policy === "ml_ppo" ? "ADIOS — ML Policy (PPO)" : "ADIOS — Adaptive Pack";
+  const adiosLabel =
+    policy === "maskable_ppo" ? "ADIOS — Maskable PPO" :
+    policy === "imitation_bc" ? "ADIOS — Imitation BC" :
+    policy === "hybrid" ? "ADIOS — Hybrid Policy" :
+    "ADIOS — Heuristic Pack";
   return (
     <div style={{
       display: "flex", height: "100%", gap: 2,

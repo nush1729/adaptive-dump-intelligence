@@ -1,14 +1,12 @@
+<!--
+  README.md — Project overview, architecture, run guide, and ML training instructions for ADIOS.
+  This file is the single source of truth for anyone trying to understand, run, or extend the system.
+  CAT Hackathon submission — Problem Statement 4: Optimal Dump Packing
+-->
+
 <div align="center">
 
-<h1>
-  ADIOS
-</h1>
-
-<h3>
-  Adaptive Dump Intelligence &amp; Orchestration System
-</h3>
-
-```text
+```
   █████╗ ██████╗ ██╗ ██████╗ ███████╗
  ██╔══██╗██╔══██╗██║██╔═══██╗██╔════╝
  ███████║██║  ██║██║██║   ██║███████╗
@@ -17,237 +15,489 @@
  ╚═╝  ╚═╝╚═════╝ ╚═╝ ╚═════╝ ╚══════╝
 ```
 
-<img src="https://readme-typing-svg.demolab.com?font=Orbitron&weight=700&size=24&duration=2600&pause=900&color=FFFFFF&center=true&vCenter=true&multiline=true&repeat=true&width=980&height=90&lines=Caterpillar+Hackathon+Submission;AI-Powered+Dump-Site+Decision+Intelligence;Safer+Placement.+Higher+Capacity.+Smarter+Terrain." alt="Animated tagline" />
+# ADIOS — Adaptive Dump Intelligence & Orchestration System
 
-**Caterpillar Hackathon Submission by Team Butterfly**
+<img src="https://readme-typing-svg.demolab.com?font=Orbitron&weight=700&size=22&duration=2600&pause=900&color=FFB800&center=true&vCenter=true&multiline=true&repeat=true&width=900&height=80&lines=CAT+Hackathon+%7C+Problem+Statement+4%3A+Optimal+Dump+Packing;MaskablePPO+%2B+IoT+Telemetry+%2B+A*+Path+Planning;Safer+Placement.+Higher+Capacity.+Smarter+Terrain." alt="Animated tagline" />
 
-[![Frontend](https://img.shields.io/badge/Frontend-Next.js%2014-111111?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![Frontend](https://img.shields.io/badge/Frontend-Next.js%2015-111111?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![ML Engine](https://img.shields.io/badge/ML%20Engine-PPO%20%2B%20Supervised%20Learning-0F62FE?style=for-the-badge)](#our-usps)
-[![3D Visualization](https://img.shields.io/badge/Visualization-React%20Three%20Fiber-F97316?style=for-the-badge&logo=threedotjs&logoColor=white)](https://docs.pmnd.rs/react-three-fiber/getting-started/introduction)
-[![Operational Focus](https://img.shields.io/badge/Focus-Safety%20%2B%20Efficiency-2E7D32?style=for-the-badge)](#business-impact-for-caterpillar)
-[![License](https://img.shields.io/badge/License-MIT-A31F34?style=for-the-badge)](#mit-license)
+[![ML](https://img.shields.io/badge/ML-MaskablePPO%20160K%20steps-0F62FE?style=for-the-badge&logo=pytorch&logoColor=white)](#ml-training)
+[![3D](https://img.shields.io/badge/3D-React%20Three%20Fiber-F97316?style=for-the-badge&logo=threedotjs&logoColor=white)](https://docs.pmnd.rs/react-three-fiber)
+[![IoT](https://img.shields.io/badge/IoT-Fleet%20Telemetry%20Layer-2E7D32?style=for-the-badge)](#iot-adaptive-weight-modulation)
+
+**Built by Team Butterfly** · Anushka Nair · Arjit Tripathi · Shivani Srivastava · Yashee Hinger
 
 </div>
 
 ---
 
-## What ADIOS Is
+## What ADIOS Does
 
-ADIOS is an intelligent dump-site orchestration system that tells mining operations **where every incoming haul truck should dump next**. It combines live terrain awareness, policy-driven optimization, and visual control into a single operating layer that transforms dump placement from manual judgment into a **fast, repeatable, safety-aware dispatch decision**.
+ADIOS answers one question per incoming haul truck: **where should this load be dumped next?**
 
-At its core, ADIOS is built to do three things exceptionally well: **protect access continuity, improve dump uniformity, and unlock more usable capacity from the same site footprint**.
+Instead of relying on a human spotter or a fixed dump zone grid, ADIOS uses a trained reinforcement learning policy (MaskablePPO, 160K steps) backed by live terrain state, IoT fleet telemetry, constraint-aware action masking, and an A\* path planner to pick the single best cell on the dump site — every dispatch, every truck, in real time.
 
-> **From manual spotting to intelligent orchestration.**
+The result: dump piles are tighter, spacing is more uniform, access lanes stay open, and the site fills closer to a staffed human baseline (target 3.03m mean spacing vs. 7.38m autonomous baseline).
 
-## Architecture
+---
+
+## System Architecture
+
+```mermaid
+flowchart TD
+    subgraph FRONTEND["🖥️  Next.js Frontend (port 3000)"]
+        UI["Mission Control Dashboard\n3D terrain · Score heatmap · Audit log"]
+        LP["Landing Page\nHero truck scene · Metrics panel"]
+        TP["Team / Tech Stack / Impact Pages"]
+    end
+
+    subgraph BACKEND["⚙️  FastAPI Backend (port 8000)"]
+        API["REST + WebSocket API\n/simulate · /dispatch · /health"]
+        ORC["Orchestrator\nheuristic fallback + ML dispatch"]
+        IOT["IoT Telemetry Layer\nfleet_congestion · haul_latency\nutilisation · zone_density"]
+    end
+
+    subgraph PLANNING["🗺️  Planning Core"]
+        SCR["ScoringEngine\nIoT-modulated weights\nvolume · coverage · spacing · isolation"]
+        ISO["IsolationValidator\nBFS flood-fill dry-run\npassability 93rd percentile"]
+        MASK["ConstrainedActionMasker\npolygon boundary · height ceiling\nspacing · path reachability"]
+        PATH["A* Pathfinder\n8-connected · slope-aware\nmax_slope 2.5m · slope_weight 1.5"]
+        SCHED["TimeSpaceScheduler\ndeadlock detection (DFS)\n40-step retry window"]
+    end
+
+    subgraph ML["🤖  ML Engine"]
+        PPO["MaskablePPO Policy\nADIOSMultiInputExtractor\n5-channel terrain + 13-dim context"]
+        BC["BC Imitation Fallback\nEnrichedTerrainFCN\n(used if PPO fails to load)"]
+        ENV["DumpPackingEnv (Gymnasium)\nGaussian dump physics\npile-proximity reward +0.6"]
+    end
+
+    subgraph TERRAIN["🏔️  Terrain and Physics"]
+        TER["Terrain Grid 100x100\nGaussian dump deposition\ncompaction · material density"]
+        SLAM["SLAM Simulation\nheight noise · sensor blur\npile detection @ 0.2m threshold"]
+    end
+
+    UI -->|WebSocket stream| API
+    API --> ORC
+    ORC --> IOT
+    ORC --> SCR
+    ORC --> ISO
+    ORC --> MASK
+    ORC --> PATH
+    ORC --> SCHED
+    ORC -->|policy.predict| PPO
+    PPO -.->|fallback| BC
+    SCR --> TER
+    ISO --> TER
+    MASK --> PATH
+    TER --> SLAM
+
+    classDef fe fill:#1a1a2e,stroke:#FFB800,color:#fff,stroke-width:2px
+    classDef be fill:#0d2137,stroke:#00D4FF,color:#fff,stroke-width:2px
+    classDef plan fill:#1a0a2e,stroke:#FF6B35,color:#fff,stroke-width:2px
+    classDef ml fill:#0a2010,stroke:#22C55E,color:#fff,stroke-width:2px
+    classDef ter fill:#1a1000,stroke:#FFB800,color:#fff,stroke-width:1px
+
+    class UI,LP,TP fe
+    class API,ORC,IOT be
+    class SCR,ISO,MASK,PATH,SCHED plan
+    class PPO,BC,ENV ml
+    class TER,SLAM ter
+```
+
+---
+
+## ML Pipeline — How The Policy Learns
 
 ```mermaid
 flowchart LR
-    A["<b>Next.js Frontend</b><br/>Mission control dashboard<br/>2D analytics panels<br/>Operator controls"] -->|REST + WebSocket| B["<b>FastAPI Decision Layer</b><br/>Simulation API<br/>Live telemetry<br/>Dispatch orchestration"]
-    B --> C["<b>PPO / ML Engine</b><br/>Terrain state encoding<br/>Policy inference<br/>Adaptive cell recommendation"]
-    C --> D["<b>Safety & Planning Core</b><br/>Coverage scoring<br/>Isolation validation<br/>Slope-safe placement logic"]
-    D --> E["<b>R3F 3D Canvas</b><br/>Terrain mesh<br/>Animated dump playback<br/>Heatmap overlays"]
-    E -->|Visual feedback| A
-    D --> F["<b>Audit + KPI Layer</b><br/>Coverage<br/>Uniformity<br/>Capacity utilization"]
-    F --> A
+    A["Expert Heuristic\nGenerates demonstrations\nover 50 polygons"] -->|Stage 1 · Behavioural Cloning| B
 
-    classDef frontend fill:#111111,stroke:#60a5fa,color:#ffffff,stroke-width:2px;
-    classDef backend fill:#0f766e,stroke:#99f6e4,color:#ffffff,stroke-width:2px;
-    classDef ml fill:#1d4ed8,stroke:#93c5fd,color:#ffffff,stroke-width:2px;
-    classDef planning fill:#7c2d12,stroke:#fdba74,color:#ffffff,stroke-width:2px;
-    classDef viz fill:#581c87,stroke:#d8b4fe,color:#ffffff,stroke-width:2px;
-    classDef kpi fill:#365314,stroke:#bef264,color:#ffffff,stroke-width:2px;
+    B["EnrichedTerrainFCN\nLearns to imitate expert\nBC weights: imitation_bc.pt"] -->|Stage 2 · PPO fine-tune| C
 
-    class A frontend;
-    class B backend;
-    class C ml;
-    class D planning;
-    class E viz;
-    class F kpi;
+    C["MaskablePPO\nMultiInputPolicy\n5-chan terrain + 13-dim context\n160K training steps"] -->|Saves to| D
+
+    D["ckpt_160000_steps.zip\n+ metadata.json sidecar\nobs_type: multi_input"] -->|Loaded by| E
+
+    E["load_policy\nReads metadata · probes obs-space\nvalidates dummy forward pass\nserves TruckAgent wrappers"]
+
+    classDef node fill:#111827,stroke:#FFB800,color:#fff,stroke-width:1.5px
+    class A,B,C,D,E node
 ```
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Ops as Operator
-    participant UI as Next.js UI
-    participant API as FastAPI
-    participant ML as PPO / ML Engine
-    participant Viz as R3F 3D Canvas
+**Why two stages?**
+- **Stage 1 (BC)** gives the PPO a warm start — it doesn't have to explore randomly from scratch. The policy already knows roughly where to dump before PPO kicks in.
+- **Stage 2 (PPO)** fine-tunes with real rewards: volume filled, spacing tightness, isolation safety, pile-proximity bonus. It learns to outperform the heuristic on unseen polygons.
 
-    Ops->>UI: Start simulation / dispatch cycle
-    UI->>API: Stream terrain + fleet request
-    API->>ML: Encode state and request best dump cell
-    ML-->>API: Ranked recommendation
-    API->>API: Validate slope, reachability, coverage impact
-    API-->>UI: Dispatch decision + KPI payload
-    UI->>Viz: Animate dump event and heatmap update
-    Viz-->>Ops: 3D terrain feedback in real time
+---
+
+## Observation Space — What The Policy Sees
+
+Each truck gets a **Dict observation** with two components:
+
+```
+{
+  "terrain_map":    shape (5, 100, 100)   ← 5-channel enriched terrain grid
+  "context_vector": shape (13,)            ← per-truck + IoT features
+}
 ```
 
-## Visual Analytics
+| Channel | What It Encodes |
+|---------|----------------|
+| `ch0` — height_norm | Normalised dump height (0–1 over max 18m) |
+| `ch1` — polygon mask | 1 = inside dump zone boundary, 0 = outside |
+| `ch2` — dist_boundary | Distance to nearest boundary wall (normalised) |
+| `ch3` — pile_mask | SLAM pile detection map (threshold 0.2m) |
+| `ch4` — spacing_density | Gaussian density of existing dump centres |
 
-<div align="center">
-<img src="https://capsule-render.vercel.app/api?type=venom&height=140&color=0:0F62FE,50:111111,100:F97316&text=Live%20Operational%20Intelligence&fontSize=34&fontColor=ffffff&stroke=ffffff&animation=twinkling" alt="Live Operational Intelligence" width="100%" />
-</div>
+| Context Index | Feature |
+|--------------|---------|
+| 0–3 | Truck type one-hot (Cat793 / Cat777 / Cat797 / generic) |
+| 4 | Payload (normalised 0–1, ceiling 500t) |
+| 5 | Dump count (normalised by max dumps) |
+| 6 | Local density (normalised) |
+| 7 | Compaction factor |
+| 8 | Slope angle at current position |
+| 9 | Fleet congestion (IoT) |
+| 10 | Haul latency norm (IoT, 20-tick window) |
+| 11 | Fleet utilisation (IoT) |
+| 12 | Zone density (IoT) |
+
+---
+
+## Why The ZIP File? Can I Use The Unzipped Folder?
+
+**Short answer: no — Stable Baselines3 only loads `.zip` files.**
+
+When you call `MaskablePPO.load("ckpt_160000_steps")`, SB3 internally does this:
+
+```python
+# SB3 source (stable_baselines3/common/base_class.py)
+path = str(path) + ".zip"              # always appends .zip
+with zipfile.ZipFile(path, "r") as zf:
+    data   = json.loads(zf.read("data"))           # model config JSON
+    params = th.load(zf.open("policy.pth"))        # policy network weights
+    opt    = th.load(zf.open("policy.optimizer.pth"))
+```
+
+It expects specific entries inside the zip — it does **not** support loading from a plain directory. The `ckpt_160000_steps/` folder is only useful for:
+
+- **Inspecting** individual files (`policy.pth`, `data`, `system_info.txt`)
+- **Reading** `metadata.json` — our custom sidecar that lets `load_policy()` validate the obs-space without a full model load
+- **Debugging** architecture mismatches by reading `data` directly
+
+If you accidentally delete the zip after unzipping, recreate it:
+
+```bash
+cd backend/ml/weights
+zip -j ckpt_160000_steps.zip ckpt_160000_steps/*
+```
+
+---
+
+## Spacing Gap — Before vs. After
 
 ```mermaid
 xychart-beta
-    title "ADIOS Value Impact"
-    x-axis ["Safety", "Capacity", "Speed", "Auditability", "Visualization"]
-    y-axis "Impact Score" 0 --> 35
-    bar [32, 28, 18, 12, 10]
+    title "Mean Nearest-Neighbour Dump Spacing (cells)"
+    x-axis ["Autonomous Baseline", "After Tuning (Heuristic)", "Staffed Target"]
+    y-axis "Spacing (cells)" 0 --> 9
+    bar [7.38, 4.36, 3.03]
 ```
 
 ```mermaid
-mindmap
-  root((ADIOS Visualization Stack))
-    2D Motion Layer
-      Live KPI Cards
-      Heatmap Pulses
-      Dispatch Timeline
-      Coverage Trend
-    3D Terrain Layer
-      Terrain Extrusion
-      Dump Placement Playback
-      Camera Sweep
-      Surface Elevation Storytelling
-    Operator Value
-      Faster situational awareness
-      Easier decision trust
-      Clearer terrain storytelling
+xychart-beta
+    title "Simulation Throughput (successful dumps per 60 dispatches)"
+    x-axis ["Before A* Fix (max_slope 0.5)", "After A* Fix (max_slope 2.5)"]
+    y-axis "Successful Dumps" 0 --> 60
+    bar [1, 38]
 ```
 
-## 3D Object Preview
+---
 
-<div align="center">
-<img src="https://capsule-render.vercel.app/api?type=blur&height=120&color=0:111111,35:1d4ed8,70:7c2d12,100:F97316&text=3D%20Terrain%20Storytelling%20Layer&fontSize=28&fontColor=ffffff&animation=fadeIn" alt="3D Terrain Storytelling Layer" width="100%" />
-</div>
+## IoT Adaptive Weight Modulation
 
-```stl
-solid adios_terrain_mound
-  facet normal 0 0 1
-    outer loop
-      vertex 0 0 0
-      vertex 40 0 0
-      vertex 20 20 18
-    endloop
-  endfacet
-  facet normal 0 0 1
-    outer loop
-      vertex 40 0 0
-      vertex 40 40 0
-      vertex 20 20 18
-    endloop
-  endfacet
-  facet normal 0 0 1
-    outer loop
-      vertex 40 40 0
-      vertex 0 40 0
-      vertex 20 20 18
-    endloop
-  endfacet
-  facet normal 0 0 1
-    outer loop
-      vertex 0 40 0
-      vertex 0 0 0
-      vertex 20 20 18
-    endloop
-  endfacet
-  facet normal 0 0 -1
-    outer loop
-      vertex 0 0 0
-      vertex 40 40 0
-      vertex 40 0 0
-    endloop
-  endfacet
-  facet normal 0 0 -1
-    outer loop
-      vertex 0 0 0
-      vertex 0 40 0
-      vertex 40 40 0
-    endloop
-  endfacet
-endsolid adios_terrain_mound
-```
-
-```mermaid
-quadrantChart
-    title "Why the 3D Layer Matters"
-    x-axis Low Operational Clarity --> High Operational Clarity
-    y-axis Low Decision Confidence --> High Decision Confidence
-    quadrant-1 Trust and Act
-    quadrant-2 Visually Rich but Weak
-    quadrant-3 Manual Guesswork
-    quadrant-4 Data Without Story
-    "ADIOS 3D Terrain": [0.86, 0.91]
-    "Static Site Maps": [0.32, 0.28]
-    "Manual Spotting": [0.18, 0.22]
-    "Raw KPI Dashboards": [0.63, 0.41]
-```
-
-## Our USPs
-
-| USP | Why It Matters |
-| --- | --- |
-| **Adaptive intelligence over static dump rules** | ADIOS reacts to terrain evolution in real time instead of following a rigid placement pattern. |
-| **Safety-aware recommendation engine** | Dump locations are shaped by operational constraints, not just geometric convenience. |
-| **Unified 2D + 3D decision experience** | Operators can understand site behavior through both analytics views and terrain visualization. |
-| **Real-time orchestration stack** | FastAPI, ML inference, and R3F work together as one live decision loop. |
-| **Audit-ready by design** | Every placement can be explained, reviewed, and improved using measurable signals. |
-| **Built for Caterpillar-scale digital mining** | ADIOS aligns machine intelligence with field-ready operational workflows. |
-
-## Impact Snapshot
-
-| Dimension | Traditional Approach | ADIOS Advantage |
-| --- | --- | --- |
-| Placement decisions | Manual and experience-driven | AI-guided and repeatable |
-| Terrain awareness | Fragmented and reactive | Live, model-backed, visual |
-| Access continuity | Risk discovered late | Risk considered before placement |
-| Surface quality | Hard to standardize | More uniform and controllable |
-| Operational insight | Limited post-hoc review | Continuous KPI visibility |
-
-## Business Impact for Caterpillar
-
-| Business Outcome | Caterpillar Value |
-| --- | --- |
-| **Higher dump efficiency** | More usable capacity from existing dump zones means stronger operational performance for customers. |
-| **Safer site execution** | Terrain-aware recommendations support more disciplined, lower-risk dumping behavior. |
-| **Smarter digital product story** | ADIOS demonstrates how Caterpillar can extend beyond hardware into intelligent site orchestration. |
-| **Better customer intelligence** | Every dispatch becomes operational data that can drive optimization, service, and future automation. |
-| **Scalable innovation narrative** | The concept naturally expands toward fleet integration, autonomy support, and enterprise analytics. |
-
-## Why It Wins
+At every heuristic dispatch, live telemetry shifts the scoring weights in real time — no retraining needed:
 
 ```mermaid
 flowchart LR
-    A["Safety"] --> D["ADIOS Advantage"]
-    B["Capacity"] --> D
-    C["Visibility"] --> D
-    D --> E["Stronger Caterpillar Mining Story"]
+    IOT["IoT Telemetry\nfleet_congestion\nhaul_latency_norm\nutilisation\nzone_density"] --> MOD["_iot_modulated_weights"]
 
-    classDef left fill:#1e293b,stroke:#93c5fd,color:#ffffff,stroke-width:2px;
-    classDef center fill:#0f766e,stroke:#99f6e4,color:#ffffff,stroke-width:3px;
-    classDef right fill:#7c2d12,stroke:#fdba74,color:#ffffff,stroke-width:2px;
+    MOD -->|"congestion > 0.7\nspacing weight x(1 + 0.5 x delta)"| W1["Spacing Up\navoid pile-ups"]
+    MOD -->|"utilisation < 0.3\ncoverage weight x1.4"| W2["Coverage Up\nspread trucks out"]
+    MOD -->|"zone_density > 0.6\nisolation weight x(1 + 0.4 x delta)"| W3["Isolation Up\nprotect access lanes"]
+    MOD -->|"latency_norm < 0.2\ncoverage weight x0.85"| W4["Coverage Down\ntrucks moving fast, pack tight"]
 
-    class A,B,C left;
-    class D center;
-    class E right;
+    classDef node fill:#111827,stroke:#00D4FF,color:#fff,stroke-width:1.5px
+    class IOT,MOD,W1,W2,W3,W4 node
 ```
 
-## MIT License
+---
 
-This project is released under the [MIT License](LICENSE).
+## Key Parameter Changes
+
+| Parameter | Before | After | Why |
+|-----------|--------|-------|-----|
+| `min_dump_spacing_cells` | 3.0 | **2.0** | Close gap to staffed 3.03m target |
+| `iso_threshold` | 0.85 | **0.88** | Better balance: safety vs throughput |
+| `dump_radius_cells` | 8 | **6** | Tighter pile footprint |
+| `dump_sigma_ratio` | 0.45 | **0.35** | Higher peak density per pile |
+| `spacing` score weight | 1.5 | **3.0** | Penalise gaps 2x harder |
+| `volume` score weight | 1.0 | **1.5** | Prefer cells that fill more material |
+| `coverage` score weight | 1.0 | **1.8** | Prefer unfilled polygon sections |
+| `passability_percentile` | 97 | **93** | Less restrictive BFS ceiling → more valid paths |
+| `scheduler_max_delay_steps` | 25 | **40** | More scheduler retries → fewer deadlocks |
+| `pile_detection_threshold_m` | 0.3m | **0.2m** | Earlier SLAM pile sensing |
+| `A* max_slope` | 0.5m | **2.5m** | **Critical fix** — 0.5m blocked all paths on real pile heights |
+| `iot_haul_latency_window` | 10 ticks | **20 ticks** | Smoother IoT signal |
+| `max_height_m` | 15m | **18m** | More vertical fill before rejection |
+
+---
+
+## Project Structure
+
+```
+adaptive-dump-intelligence/
+├── backend/
+│   ├── api/
+│   │   └── main.py                    # FastAPI app — REST + WebSocket endpoints
+│   ├── config.py                      # All tunable constants (single source of truth)
+│   ├── environment/
+│   │   ├── terrain.py                 # Terrain grid, Gaussian dump physics, SLAM
+│   │   └── dump_physics.py            # Compaction and material density calculations
+│   ├── evaluation/
+│   │   ├── benchmark.py               # 20-polygon benchmark suite
+│   │   ├── compute_eval.py            # PPO vs heuristic KPI comparison
+│   │   └── metrics.py                 # Coverage, spacing, efficiency metrics
+│   ├── iot/
+│   │   └── telemetry.py               # Fleet IoT telemetry (congestion, latency, etc.)
+│   ├── ml/
+│   │   ├── environment.py             # DumpPackingEnv (Gymnasium, 5-channel obs)
+│   │   ├── policy.py                  # load_policy(), ADIOSMultiInputExtractor, TruckAgent
+│   │   ├── data_gen.py                # Expert demonstration generator (for BC)
+│   │   ├── train_supervised.py        # Stage 1: behavioural cloning trainer
+│   │   └── weights/
+│   │       ├── ckpt_160000_steps/     # Unzipped checkpoint — inspect only
+│   │       │   ├── policy.pth
+│   │       │   ├── policy.optimizer.pth
+│   │       │   ├── pytorch_variables.pth
+│   │       │   ├── data
+│   │       │   └── metadata.json      # Custom obs-space sidecar
+│   │       ├── ckpt_160000_steps.zip  # ← SB3 loads THIS (must exist)
+│   │       └── ppo_adios/
+│   │           ├── imitation_bc.pt    # BC fallback weights
+│   │           └── metadata.json      # Marks as bc_imitation type
+│   ├── planning/
+│   │   ├── orchestrator.py            # Dispatch loop — ML + heuristic paths
+│   │   ├── scorer.py                  # ScoringEngine + IoT weight modulation
+│   │   ├── isolation_validator.py     # BFS flood-fill isolation check
+│   │   ├── action_masker.py           # ConstrainedActionMasker
+│   │   ├── pathfinder.py              # A* slope-aware grid pathfinder
+│   │   ├── scheduler.py               # TimeSpaceScheduler + deadlock detection
+│   │   └── weight_tuner.py            # Random-search weight optimiser
+│   ├── pretrain.py                    # Main training entry point (BC then PPO)
+│   └── requirements.txt
+│
+└── frontend/
+    ├── src/
+    │   ├── app/
+    │   │   ├── page.tsx               # Landing page (hero truck scene + metrics)
+    │   │   ├── dashboard/             # Live simulation dashboard
+    │   │   ├── audit/                 # Audit log replay
+    │   │   ├── scheduling/            # Gantt chart scheduling view
+    │   │   ├── intelligence/          # ML engine explainer
+    │   │   ├── impact/                # Business impact page
+    │   │   ├── team/                  # Team page (4 members)
+    │   │   └── tech-stack/            # Tech stack overview
+    │   ├── components/
+    │   │   ├── landing/               # LandingHeroScene (React Three Fiber)
+    │   │   └── dashboard/             # MetricsPanel, BenchmarkPanel, ControlPanel
+    │   ├── lib/api.ts                 # API client (REST + WebSocket)
+    │   ├── store/simStore.ts          # Zustand simulation state
+    │   └── types/adios.ts             # Shared TypeScript types
+    └── package.json
+```
+
+---
+
+## How To Run
+
+### Prerequisites
+
+- Python 3.11+
+- Node.js 18+
+- ~4 GB RAM (for PPO inference)
+
+---
+
+### Step 1 · Backend Setup
+
+```bash
+# Enter the backend folder
+cd backend
+
+# Create a virtual environment (keeps dependencies isolated)
+python3 -m venv .venv
+
+# Activate it
+source .venv/bin/activate          # Mac / Linux
+# .venv\Scripts\activate           # Windows
+
+# Install all Python dependencies
+pip install -r requirements.txt
+
+# Also install sb3-contrib for MaskablePPO (required for PPO inference)
+pip install sb3-contrib
+```
+
+---
+
+### Step 2 · Start The Backend Server
+
+```bash
+# Make sure you're in backend/ with .venv active
+cd backend
+source .venv/bin/activate
+
+# Start FastAPI (auto-reloads on file changes during development)
+uvicorn api.main:app --reload --port 8000
+```
+
+Expected output:
+```
+INFO:     Policy loaded: Maskable PPO (IoT-Enriched)
+INFO:     Uvicorn running on http://127.0.0.1:8000
+```
+
+Verify at `http://localhost:8000/health`:
+```json
+{
+  "status": "ok",
+  "policy_type": "maskable_ppo",
+  "policy_display_name": "Maskable PPO (IoT-Enriched)"
+}
+```
+
+> If you see `"policy_display_name": "heuristic"`, the PPO weights didn't load.
+> Check that `backend/ml/weights/ckpt_160000_steps.zip` exists.
+> If missing: `cd backend/ml/weights && zip -j ckpt_160000_steps.zip ckpt_160000_steps/*`
+
+---
+
+### Step 3 · Start The Frontend
+
+```bash
+# Open a new terminal tab (keep the backend running in the other one)
+cd frontend
+
+# Install Node dependencies
+npm install
+
+# Start the dev server
+npm run dev
+```
+
+Open `http://localhost:3000` — the landing page loads with the 3D truck scene.
+
+For a production build:
+```bash
+npm run build
+npm start
+```
+
+---
+
+### Step 4 · ML Training (Optional — weights already included)
+
+You don't need to train to run the demo. The 160K-step checkpoint is already in the repo. But if you want to train a fresh policy:
+
+```bash
+cd backend
+source .venv/bin/activate
+
+# Default: 100K steps on CPU (~3 minutes, demo quality)
+python pretrain.py
+
+# Recommended: 200K steps for better convergence (~6 minutes on CPU)
+python pretrain.py --steps 200000
+
+# Skip BC stage and go straight to PPO (faster, slightly worse warm start)
+python pretrain.py --steps 200000 --skip-bc
+
+# Custom output path
+python pretrain.py --steps 200000 --out ml/weights/my_new_run
+```
+
+What gets created after training:
+```
+ml/weights/ppo_adios/
+├── ppo_adios.zip          ← SB3 PPO checkpoint (this is what gets loaded)
+├── imitation_bc.pt        ← BC fallback weights (Stage 1 output)
+├── metadata.json          ← obs-space sidecar (obs_type: multi_input)
+└── eval_result.json       ← PPO vs heuristic efficiency delta
+```
+
+To use your new weights, update `WEIGHTS_PATH` in `backend/api/main.py`:
+```python
+WEIGHTS_PATH = Path(__file__).parent.parent / "ml" / "weights" / "ppo_adios"
+```
+
+---
+
+### Step 5 · Run Benchmark Evaluation (Optional)
+
+Compare PPO vs heuristic across 20 held-out polygons and print all 10 KPIs:
+
+```bash
+cd backend
+source .venv/bin/activate
+
+python -m evaluation.compute_eval
+```
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `ModuleNotFoundError: sb3_contrib` | `pip install sb3-contrib` |
+| Health shows `"heuristic"` instead of PPO | Ensure `ckpt_160000_steps.zip` exists in `backend/ml/weights/` |
+| All simulation dispatches fail with `path_unreachable` | Verify `max_slope=2.5` in [planning/pathfinder.py:14](backend/planning/pathfinder.py) |
+| Frontend can't connect to backend | Backend must be on port 8000; check CORS (enabled by default in `main.py`) |
+| Need to recreate the zip after unzipping | `cd backend/ml/weights && zip -j ckpt_160000_steps.zip ckpt_160000_steps/*` |
+| Port 3000 already in use | `npm run dev -- --port 3001` |
+| Port 8000 already in use | `uvicorn api.main:app --port 8001` then update `frontend/src/lib/config.ts` |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend framework | Next.js 15 (App Router) |
+| 3D rendering | React Three Fiber + Three.js |
+| Animations | Framer Motion + GSAP |
+| State management | Zustand |
+| Backend framework | FastAPI + Uvicorn |
+| WebSocket streaming | FastAPI WebSocket |
+| RL framework | Stable Baselines 3 + sb3_contrib |
+| Policy type | MaskablePPO (MultiInputPolicy) |
+| Neural net | PyTorch 2.11 |
+| Environment | Gymnasium (custom DumpPackingEnv) |
+| Terrain physics | NumPy · SciPy Gaussian |
+| Path planning | Custom A\* (8-connected, slope-aware) |
+| IoT telemetry | Custom rolling-window telemetry layer |
 
 ---
 
 <div align="center">
 
-## Built With Vision by Team Butterfly
+## Built by Team Butterfly
 
-**Made by Team Butterfly**
+**Anushka Nair · Arjit Tripathi · Shivani Srivastava · Yashee Hinger**
 
-*Engineering safer dump decisions, smarter terrain intelligence, and stronger outcomes for Caterpillar.*
+*Solving CAT Hackathon Problem Statement 4 — Optimal Dump Packing*
+
+*Safer placement. Higher capacity. Smarter terrain.*
 
 </div>

@@ -34,6 +34,9 @@ from environment.terrain import Terrain
 from fleet.truck import make_fleet
 from planning.scorer import ScoringEngine, DEFAULT_WEIGHTS
 from planning.isolation_validator import IsolationValidator
+from planning.action_masker import ConstrainedActionMasker
+from evaluation.metrics import mean_spacing, summarize_episode
+from config import SITE_CONFIG, config_payload
 
 
 class NumpyEncoder(json.JSONEncoder):
@@ -73,27 +76,12 @@ def parse_args():
 
 # ── KPI calculation helpers ───────────────────────────────────────────────────
 
-def mean_spacing(dump_positions: list) -> float:
-    """Mean nearest-neighbour distance between dump centres in grid cells."""
-    if len(dump_positions) < 2:
-        return 0.0
-    pts = np.array(dump_positions, dtype=float)
-    dists = []
-    for i, p in enumerate(pts):
-        others = np.delete(pts, i, axis=0)
-        if len(others) == 0:
-            continue
-        nn_dist = np.min(np.linalg.norm(others - p, axis=1))
-        dists.append(nn_dist)
-    return float(np.mean(dists)) if dists else 0.0
-
-
 def run_heuristic(terrain: Terrain, fleet, n_dumps: int) -> dict:
     """Run one episode with the heuristic scorer. Returns KPI dict."""
     weights = dict(DEFAULT_WEIGHTS)
     entry   = terrain.entry
     eng     = ScoringEngine(terrain, entry, weights)
-    val     = IsolationValidator(terrain, entry, 0.85)
+    val     = IsolationValidator(terrain, entry, SITE_CONFIG.iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
 
     dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // len(fleet) + 1)
     dispatches  = dispatches[:n_dumps]
@@ -109,7 +97,8 @@ def run_heuristic(terrain: Terrain, fleet, n_dumps: int) -> dict:
 
         placed = False
         for _attempt in range(50):
-            r, c, _ = eng.score_all(reserved_cells=reserved)
+            action_mask = ConstrainedActionMasker(terrain, val).mask(payload_t, reserved_cells=reserved, include_iso=True)
+            r, c, _ = eng.score_all(reserved_cells=reserved, action_mask=action_mask)
 
             if r is None:
                 break
@@ -136,59 +125,75 @@ def run_heuristic(terrain: Terrain, fleet, n_dumps: int) -> dict:
             rejected += 1
             print(f"TRUCK REJECTED: last r, c = {r}, {c}")
 
-    vol  = terrain.total_volume()
-    cov  = terrain.coverage_fraction()
-    eff  = terrain.packing_efficiency()
-    uni  = max(0.0, min(1.0, 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01)))
-    rej  = rejected / max(total, 1)
-    spac = mean_spacing(dump_positions)
-    lat  = float(np.mean(latencies)) if latencies else 0.0
-
+    log = [{"status": "dumped"} for _ in range(success)] + [{"status": "rejected"} for _ in range(rejected)]
+    summary = summarize_episode(terrain, log, latencies, dump_positions, "heuristic")
     return {
         "policy":           "heuristic",
         "dumps_attempted":  total,
         "dumps_succeeded":  success,
-        "volume_m3":        round(vol,  2),
-        "coverage_pct":     round(cov * 100, 2),
-        "packing_efficiency": round(eff * 100, 2),
-        "height_uniformity":  round(uni, 4),
-        "rejection_rate":     round(rej, 4),
-        "mean_spacing_m":     round(spac, 3),
-        "latency_ms":         round(lat, 3),
+        "volume_m3":        summary["total_volume"],
+        "coverage_pct":     summary["coverage_pct"],
+        "packing_efficiency": summary["packing_efficiency"],
+        "height_uniformity":  summary["height_uniformity"],
+        "filled_uniformity":  summary["filled_uniformity"],
+        "rejection_rate":     summary["rejection_rate"],
+        "iso_rejection_rate": summary["iso_rejection_rate"],
+        "mean_spacing_m":     summary["mean_spacing_m"],
+        "latency_ms":         summary["latency_ms"],
+        "latency_p95_ms":     summary["latency_p95_ms"],
     }
 
 
-def run_static(terrain: Terrain, payload_t: float = 100.0, step: int = 8) -> dict:
-    """Uniform grid baseline — dumps every `step` cells."""
+def run_static(terrain: Terrain, fleet, n_dumps: int = 60, step: int | None = None) -> dict:
+    """Uniform grid baseline with the same fleet payload sequence and constraints."""
     rs, cs = np.where(terrain.mask)
+    step = int(step or SITE_CONFIG.target_spacing_cells)
     t0 = time.perf_counter()
     positions = []
-    for r in range(int(rs.min()), int(rs.max()) + 1, step):
-        for c in range(int(cs.min()), int(cs.max()) + 1, step):
-            if terrain.mask[r, c]:
-                ok, _ = terrain.apply_dump(r, c, payload_t)
-                if ok:
-                    positions.append((r, c))
-    latency_ms = (time.perf_counter() - t0) * 1000 / max(len(positions), 1)
-    vol = terrain.total_volume()
-    cov = terrain.coverage_fraction()
-    eff = terrain.packing_efficiency()
-    uni = max(0.0, min(1.0, 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01)))
+    log = []
+    val = IsolationValidator(terrain, terrain.entry, SITE_CONFIG.iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
+    dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // len(fleet) + 1)
+    dispatches = dispatches[:n_dumps]
+    grid_cells = [(int(r), int(c)) for r in range(int(rs.min()), int(rs.max()) + 1, step)
+                  for c in range(int(cs.min()), int(cs.max()) + 1, step) if terrain.mask[r, c]]
+    cell_i = 0
+    for i, (truck_id, payload_t) in enumerate(dispatches):
+        placed = False
+        while cell_i < len(grid_cells):
+            r, c = grid_cells[cell_i]
+            cell_i += 1
+            safe, _ = val.validate(r, c, payload_t)
+            if not safe:
+                continue
+            ok, reason = terrain.apply_dump(r, c, payload_t)
+            if ok:
+                val.record_dump(r, c)
+                positions.append((r, c))
+                log.append({"t": i, "truck": truck_id, "status": "dumped", "r": r, "c": c})
+                placed = True
+                break
+        if not placed:
+            log.append({"t": i, "truck": truck_id, "status": "no_space", "r": 0, "c": 0})
+    latency_ms = (time.perf_counter() - t0) * 1000 / max(len(dispatches), 1)
+    summary = summarize_episode(terrain, log, [latency_ms] * len(dispatches), positions, "static_grid")
     return {
         "policy":             "static_grid",
         "dumps_succeeded":    len(positions),
-        "volume_m3":          round(float(vol), 2),
-        "coverage_pct":       round(float(cov) * 100, 2),
-        "packing_efficiency": round(float(eff) * 100, 2),
-        "height_uniformity":  round(float(uni), 4),
-        "rejection_rate":     0.0,
-        "mean_spacing_m":     round(float(step), 3),
-        "latency_ms":         round(float(latency_ms), 3),
+        "volume_m3":          summary["total_volume"],
+        "coverage_pct":       summary["coverage_pct"],
+        "packing_efficiency": summary["packing_efficiency"],
+        "height_uniformity":  summary["height_uniformity"],
+        "filled_uniformity":  summary["filled_uniformity"],
+        "rejection_rate":     summary["rejection_rate"],
+        "iso_rejection_rate": summary["iso_rejection_rate"],
+        "mean_spacing_m":     summary["mean_spacing_m"],
+        "latency_ms":         summary["latency_ms"],
+        "latency_p95_ms":     summary["latency_p95_ms"],
     }
 
 
 def run_ml(terrain: Terrain, fleet, n_dumps: int, weights_path: str) -> dict:
-    """Run one episode with the neural policy."""
+    """Run one episode with the neural policy using robust action masking and retry loop."""
     try:
         from ml.policy import load_policy
         from scipy.ndimage import distance_transform_edt
@@ -196,64 +201,78 @@ def run_ml(terrain: Terrain, fleet, n_dumps: int, weights_path: str) -> dict:
     except Exception as e:
         return {"policy": "ml_error", "error": str(e)}
 
-    val = IsolationValidator(terrain, terrain.entry, 0.85)
+    val = IsolationValidator(terrain, terrain.entry, SITE_CONFIG.iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
     dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // len(fleet) + 1)
     dispatches  = dispatches[:n_dumps]
-    mask_flat   = terrain.mask.ravel()
     COLS        = terrain.cols
 
     def _obs(t: Terrain) -> np.ndarray:
         h     = t.height
         mask  = t.mask.astype(np.float32)
-        # ERROR 2-B fix: use same normalisation as training (h/15.0, not h/max(h))
-        h_n   = np.clip(h / 15.0, 0.0, 1.0).astype(np.float32)
+        h_n   = np.clip(h / SITE_CONFIG.max_height_m, 0.0, 1.0).astype(np.float32)
         dist  = distance_transform_edt(t.mask).astype(np.float32)
         d_n   = dist / (dist.max() or 1.0)
         return np.stack([h_n, mask, d_n], axis=0)
 
     total, success, rejected = 0, 0, 0
     latencies, dump_positions = [], []
+    reserved = set()
 
     for _, payload_t in dispatches:
         total += 1
-        obs   = _obs(terrain)
-        t0    = time.perf_counter()
-        # BUG 1-E fix: rebuild mask each step — exclude height-saturated cells
-        mf = terrain.mask.copy()
-        mf[terrain.height >= 15.0] = False
-        action = policy.predict(obs, mf.ravel())
+        t0 = time.perf_counter()
+        placed = False
+
+        for _attempt in range(50):
+            obs = _obs(terrain)
+            
+            action_mask = ConstrainedActionMasker(terrain, val).mask(payload_t, reserved_cells=reserved, include_iso=True)
+
+            if not action_mask.any():
+                break
+
+            action = policy.predict(obs, action_mask.ravel().copy())
+            r, c = divmod(int(action), COLS)
+
+            safe, _ = val.validate(r, c, payload_t)
+            if not safe:
+                reserved.add((r, c))
+                continue
+
+            ok, _ = terrain.apply_dump(r, c, payload_t)
+            if ok:
+                success += 1
+                dump_positions.append((r, c))
+                val.record_dump(r, c)
+                placed = True
+                reserved.discard((r, c))
+                break
+            else:
+                reserved.add((r, c))
+
         latency_ms = (time.perf_counter() - t0) * 1000
         latencies.append(latency_ms)
-
-        r, c = divmod(int(action), COLS)
-        safe, _ = val.validate(r, c, payload_t)
-        if not safe:
-            rejected += 1
-            continue
-        ok, _ = terrain.apply_dump(r, c, payload_t)
-        if ok:
-            success += 1
-            dump_positions.append((r, c))
-        else:
+        if not placed:
             rejected += 1
 
-    vol = terrain.total_volume()
-    cov = terrain.coverage_fraction()
-    eff = terrain.packing_efficiency()
-    uni = max(0.0, min(1.0, 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01)))
-    rej = rejected / max(total, 1)
+    policy_name = getattr(policy, "artifact_type", "unknown_ml")
+    log = [{"status": "dumped"} for _ in range(success)] + [{"status": "rejected"} for _ in range(rejected)]
+    summary = summarize_episode(terrain, log, latencies, dump_positions, policy_name)
 
     return {
-        "policy":             "ml_ppo",
+        "policy":             policy_name,
         "dumps_attempted":    total,
         "dumps_succeeded":    success,
-        "volume_m3":          round(vol,  2),
-        "coverage_pct":       round(cov * 100, 2),
-        "packing_efficiency": round(eff * 100, 2),
-        "height_uniformity":  round(uni, 4),
-        "rejection_rate":     round(rej, 4),
-        "mean_spacing_m":     round(mean_spacing(dump_positions), 3),
-        "latency_ms":         round(float(np.mean(latencies)), 3),
+        "volume_m3":          summary["total_volume"],
+        "coverage_pct":       summary["coverage_pct"],
+        "packing_efficiency": summary["packing_efficiency"],
+        "height_uniformity":  summary["height_uniformity"],
+        "filled_uniformity":  summary["filled_uniformity"],
+        "rejection_rate":     summary["rejection_rate"],
+        "iso_rejection_rate": summary["iso_rejection_rate"],
+        "mean_spacing_m":     summary["mean_spacing_m"],
+        "latency_ms":         summary["latency_ms"],
+        "latency_p95_ms":     summary["latency_p95_ms"],
     }
 
 
@@ -295,7 +314,7 @@ def print_table(summaries: list):
     print("┌─────────────────────────────────────────────────────────────────────────┐")
     print("│                       ADIOS BENCHMARK RESULTS                          │")
     print("├──────────────────────────┬────────────────┬────────────────┬───────────┤")
-    print(f"│ {'KPI':<24} │ {'ADIOS (heuristic)':^14} │ {'Static Grid':^14} │ {'ML PPO':^9} │")
+    print(f"│ {'KPI':<24} │ {'ADIOS (heuristic)':^14} │ {'Static Grid':^14} │ {'ML':^9} │")
     print("├──────────────────────────┼────────────────┼────────────────┼───────────┤")
 
     def _cell(s: dict | None, key: str) -> str:
@@ -320,7 +339,7 @@ def print_table(summaries: list):
     by_policy = {s["policy"]: s for s in summaries}
     h = by_policy.get("heuristic")
     st = by_policy.get("static_grid")
-    ml = by_policy.get("ml_ppo")
+    ml = next((s for s in summaries if s["policy"] not in ("heuristic", "static_grid")), None)
 
     for label, key in rows_def:
         if key == "generalisation_delta":
@@ -381,7 +400,7 @@ def main():
 
         # ── Static baseline
         t_s = Terrain.make_demo_polygon(100, 100, mat, seed)
-        s_kpis = run_static(t_s)
+        s_kpis = run_static(t_s, fleet, n_dumps=args.dumps)
         s_kpis.update({"seed": seed, "material": mat})
         results.append(s_kpis)
 
@@ -399,8 +418,7 @@ def main():
     # Determine which policies have results
     found_policies = set(r.get("policy") for r in results)
     policies = ["heuristic", "static_grid"]
-    if "ml_ppo" in found_policies:
-        policies.append("ml_ppo")
+    policies.extend(sorted(p for p in found_policies if p not in ("heuristic", "static_grid", "ml_error", None)))
     summaries = [summarise(results, p) for p in policies]
 
     print_table(summaries)
@@ -413,6 +431,7 @@ def main():
             "seed_start": args.seed_start,
             "fleet": args.fleet,
             "elapsed_s": round(elapsed, 1),
+            "config": config_payload(),
         },
         "per_polygon": results,
         "summaries": summaries,
@@ -422,6 +441,9 @@ def main():
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2, cls=NumpyEncoder)
     print(f"  Results written → {out_path}\n")
+
+    if args.out != "data/benchmark/benchmark_results.json":
+        return
 
     # ── Also write the "baseline" file that the frontend reads from /benchmark
     baseline_path = os.path.join(
@@ -448,7 +470,7 @@ def main():
         }
         if policy == "heuristic":
             by_seed[seed]["heuristic"] = row_data
-        elif policy == "ml_ppo":
+        elif policy not in ("heuristic", "static_grid"):
             by_seed[seed]["ml"] = row_data
         elif policy == "static_grid":
             by_seed[seed]["static"] = row_data

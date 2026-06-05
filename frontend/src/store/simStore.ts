@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { SimResult, DumpSnapshot, DumpEvent, DumpSummary, HealthStatus } from "@/types/adios";
+import type { SimResultWithSpacing, DumpSnapshot, DumpEvent, HealthStatus } from "@/types/adios";
+import { UI_DEFAULTS } from "@/lib/config";
 
 interface SimStore {
   // server state
@@ -24,10 +25,10 @@ interface SimStore {
   setWeights: (w: object) => void;
 
   // results
-  result: SimResult | null;
-  setResult: (r: SimResult) => void;
-  lastRunPolicy: "heuristic" | "ml_ppo" | null;
-  setLastRunPolicy: (p: "heuristic" | "ml_ppo" | null) => void;
+  result: SimResultWithSpacing | null;
+  setResult: (r: SimResultWithSpacing) => void;
+  lastRunPolicy: string | null;
+  setLastRunPolicy: (p: string | null) => void;
 
   // live streaming
   liveSurface: number[][] | null;
@@ -56,10 +57,10 @@ export const useSimStore = create<SimStore>((set) => ({
   setHealth: (h) => set({ health: h }),
 
   material: "default",
-  nDumps: 60,
-  isoThreshold: 0.85,
-  seed: 42,
-  selectedFleet: ["Cat793", "Cat777", "Cat797"],
+  nDumps: UI_DEFAULTS.nDumps,
+  isoThreshold: UI_DEFAULTS.isoThreshold,
+  seed: UI_DEFAULTS.seed,
+  selectedFleet: [...UI_DEFAULTS.fleet],
   weights: { w1: 1.2, w2: 0.5, w3: 3.0, w4: 0.15 },
   useML: false,
 

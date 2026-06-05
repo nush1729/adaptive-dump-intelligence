@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "ADIOS — Adaptive Dump Intelligence & Orchestration System",
-  description: "Enterprise-grade mining dump intelligence platform powered by A* pathfinding, PPO reinforcement learning, and real-time 3D terrain visualization.",
+  description: "Enterprise-grade mining dump intelligence platform with constraint-aware dispatch, truthful ML policy metadata, and real-time 3D terrain visualization.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

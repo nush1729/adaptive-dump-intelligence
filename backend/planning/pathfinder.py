@@ -1,5 +1,11 @@
 """
-pathfinder.py — Production A* Grid Pathfinder
+pathfinder.py — Slope-aware A* pathfinder for the ADIOS dump-site grid.
+
+Uses 8-connected A* (diagonal moves allowed) with a height-delta cost term.
+The key parameter is max_slope: it must be large enough to cross real pile heights.
+Gaussian dump deposition creates height peaks of several metres between adjacent
+cells — if max_slope is too small (e.g. 0.5m) A* blocks on any pile and returns
+None for nearly every dispatch. The tuned value is 2.5m (see config.py comments).
 """
 import heapq
 import math
@@ -11,8 +17,8 @@ def find_path(
     mask: np.ndarray,
     start: Tuple[int, int],
     goal: Tuple[int, int],
-    max_slope: float = 0.5,
-    slope_weight: float = 2.0,
+    max_slope: float = 2.5,
+    slope_weight: float = 1.5,
 ) -> Optional[List[Tuple[int, int]]]:
     rows, cols = height_map.shape
 

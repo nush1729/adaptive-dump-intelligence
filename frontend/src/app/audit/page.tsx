@@ -3,6 +3,7 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import PageShell from "@/components/layout/PageShell";
 import { RailItem } from "@/components/layout/CollapsedRail";
+import { UI_DEFAULTS } from "@/lib/config";
 
 const Scene3D = dynamic(() => import("@/components/three/Scene3D"), { ssr: false });
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -27,6 +28,7 @@ interface SimSnapshot {
   volume: number;
   coverage: number;
   efficiency: number;
+  surface?: number[][];
 }
 
 interface SimResult {
@@ -44,6 +46,15 @@ const STATUS_COLOR: Record<string, string> = {
   slope_rejected: "#FF3366",
 };
 function sc(s: string) { return STATUS_COLOR[s] ?? "#7AA8BC"; }
+
+function policyLabel(policy: unknown) {
+  const p = String(policy ?? "heuristic");
+  if (p === "maskable_ppo") return "Maskable PPO";
+  if (p === "imitation_bc") return "Imitation BC";
+  if (p === "hybrid") return "Hybrid Policy";
+  if (p === "heuristic") return "Heuristic";
+  return p.replace(/_/g, " ");
+}
 
 function StatusBadge({ status }: { status: string }) {
   return (
@@ -72,9 +83,9 @@ export default function AuditPage() {
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [seed, setSeed] = useState(42);
+  const [seed, setSeed] = useState<number>(UI_DEFAULTS.seed);
   const [material, setMaterial] = useState("default");
-  const [nDumps, setNDumps] = useState(60);
+  const [nDumps, setNDumps] = useState<number>(UI_DEFAULTS.nDumps);
   const [useML, setUseML] = useState(false);
 
   const loadAuditLog = useCallback(async () => {
@@ -107,8 +118,8 @@ export default function AuditPage() {
         body: JSON.stringify({
           material,
           n_dumps: nDumps,
-          fleet_models: ["Cat793", "Cat777", "Cat797", "Cat793"],
-          iso_threshold: 0.85,
+          fleet_models: [...UI_DEFAULTS.fleet],
+          iso_threshold: UI_DEFAULTS.isoThreshold,
           seed,
           use_ml: useML,
           auto_tune: false,
@@ -140,31 +151,17 @@ export default function AuditPage() {
   const { replaySurface, dumpMarkers } = useMemo(() => {
     if (!simResult) return { replaySurface: null, dumpMarkers: [] as Array<{ r: number; c: number }> };
     const log = simResult.log.slice(0, cursor + 1);
-    const rows = simResult.surface.length;
-    const cols = simResult.surface[0].length;
-    const h: number[][] = Array.from({ length: rows }, () => Array(cols).fill(0));
     const markers: Array<{ r: number; c: number }> = [];
 
     for (const e of log) {
-      if (e.status !== "dumped" || e.r < 0 || e.c < 0 || e.r >= rows || e.c >= cols) continue;
-      const radius = 8;
-      const sigma = radius * 0.45;
-      const sigSq2 = 2 * sigma * sigma;
-      const payload = (e.payload_t ?? 200) / 200;
-      for (let dr = -radius; dr <= radius; dr++) {
-        for (let dc = -radius; dc <= radius; dc++) {
-          const nr = e.r + dr;
-          const nc = e.c + dc;
-          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || !simResult.mask[nr][nc]) continue;
-          const distSq = dr * dr + dc * dc;
-          if (distSq > radius * radius) continue;
-          h[nr][nc] += Math.exp(-distSq / sigSq2) * 0.6 * payload;
-        }
-      }
+      if (e.status !== "dumped" || e.r == null || e.c == null) continue;
       markers.push({ r: e.r, c: e.c });
     }
 
-    return { replaySurface: h, dumpMarkers: markers.slice(-6) };
+    const snapshotSurface = simResult.snapshots
+      .filter((s) => s.surface)
+      .find((s) => s.dump_n >= cursor)?.surface;
+    return { replaySurface: snapshotSurface ?? simResult.surface, dumpMarkers: markers.slice(-6) };
   }, [simResult, cursor]);
 
   const currentEntry = simResult?.log[cursor] ?? null;
@@ -193,22 +190,56 @@ export default function AuditPage() {
         Policy
         <select value={useML ? "ml" : "heuristic"} onChange={(e) => setUseML(e.target.value === "ml")} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
           <option value="heuristic">Heuristic</option>
-          <option value="ml">ML-PPO</option>
+          <option value="ml">ML / Hybrid</option>
         </select>
       </label>
-      <button onClick={runSim} disabled={loading} className="rounded py-3 font-syncopate text-[0.72rem] uppercase tracking-[0.18em] font-bold disabled:opacity-60" style={{ background: loading ? "var(--muted)" : "var(--acid)", color: "#000" }}>
-        {loading ? "Simulating..." : "Run Simulation"}
+      <button
+        onClick={runSim}
+        disabled={loading}
+        className="rounded py-3 font-syncopate text-[0.72rem] uppercase tracking-[0.18em] font-bold"
+        style={{
+          background: loading ? "transparent" : "var(--acid)",
+          color: loading ? "var(--acid)" : "#000",
+          border: loading ? "2px solid var(--acid)" : "none",
+          boxShadow: loading ? "none" : "0 0 18px rgba(255,205,17,0.35)",
+          cursor: loading ? "not-allowed" : "pointer",
+          width: "100%",
+        }}
+      >
+        {loading ? "Simulating…" : "▶ Run Simulation"}
       </button>
 
       {simResult && (
         <>
           <div className="section-label mt-2">Playback</div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setCursor(0)} className="adios-icon-button !w-auto px-3 font-mono text-[0.68rem]">Start</button>
-            <button onClick={() => setCursor((c) => Math.max(0, c - 1))} disabled={cursor === 0} className="adios-icon-button !w-auto px-3 font-mono text-[0.68rem]">Prev</button>
-            <button onClick={() => setPlaying((p) => !p)} className="rounded px-3 py-1 font-mono text-[0.72rem] font-bold" style={{ background: playing ? "var(--ore)" : "var(--acid)", color: "#000" }}>{playing ? "Pause" : "Play"}</button>
+            <button
+              onClick={() => setCursor(0)}
+              className="rounded px-3 py-1 font-mono text-[0.68rem] font-bold"
+              style={{ background: "transparent", border: "1px solid var(--acid)", color: "var(--acid)", cursor: "pointer" }}
+            >⏮ Start</button>
+            <button
+              onClick={() => setCursor((c) => Math.max(0, c - 1))}
+              disabled={cursor === 0}
+              className="rounded px-3 py-1 font-mono text-[0.68rem] font-bold"
+              style={{ background: "transparent", border: "1px solid var(--acid)", color: cursor === 0 ? "var(--muted)" : "var(--acid)", cursor: cursor === 0 ? "not-allowed" : "pointer" }}
+            >◀ Prev</button>
+            <button
+              onClick={() => setPlaying((p) => !p)}
+              className="rounded px-4 py-1 font-mono text-[0.72rem] font-bold"
+              style={{
+                background: playing ? "var(--ore)" : "var(--acid)",
+                color: "#000", border: "none", cursor: "pointer",
+                boxShadow: playing ? "0 0 10px rgba(255,107,53,0.4)" : "0 0 14px rgba(255,205,17,0.4)",
+              }}
+            >{playing ? "⏸ Pause" : "▶ Play"}</button>
           </div>
-          <button onClick={() => setCursor((c) => Math.min(simResult.log.length - 1, c + 1))} disabled={cursor === simResult.log.length - 1} className="adios-icon-button !w-full font-mono text-[0.68rem]">Next</button>
+          <button
+            onClick={() => setCursor((c) => Math.min(simResult.log.length - 1, c + 1))}
+            disabled={cursor === simResult.log.length - 1}
+            className="rounded py-1.5 font-mono text-[0.68rem] font-bold w-full"
+            style={{ background: "transparent", border: "1px solid var(--acid)", color: "var(--acid)", cursor: cursor === simResult.log.length - 1 ? "not-allowed" : "pointer" }}
+          >Next ▶</button>
           <input type="range" min={0} max={simResult.log.length - 1} value={cursor} onChange={(e) => { setPlaying(false); setCursor(Number(e.target.value)); }} className="w-full accent-[#FFC000]" />
           <div className="h-1 rounded" style={{ background: "var(--border)" }}>
             <div className="h-full rounded transition-all" style={{ width: `${progressPct}%`, background: "var(--acid)" }} />
@@ -289,33 +320,12 @@ export default function AuditPage() {
         <div className="flex items-center gap-4 px-4 lg:px-5 py-3 border-b" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
           <span className="font-syncopate text-[0.75rem] tracking-[0.2em] uppercase font-bold" style={{ color: "var(--acid)" }}>Audit Replay</span>
           <span className="ml-2 rounded px-2 py-0.5 font-mono text-[0.6rem] uppercase tracking-[0.1em]" style={{ background: "rgba(255,192,0,0.15)", color: "var(--acid)", border: "1px solid var(--acid)" }}>
-            {simResult?.summary?.policy ?? "—"}
+            {policyLabel(simResult?.summary?.policy)}
           </span>
           <div className="ml-auto flex items-center gap-3 font-mono text-[0.7rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
             {simResult ? `${cursor + 1}/${simResult.log.length}` : loading ? "Simulating" : "Awaiting run"}
-            {simResult && (
-              <button 
-                onClick={() => window.print()}
-                className="ml-2 rounded px-3 py-1 bg-[#FFC000] text-black hover:bg-[#E5AC00] transition-colors shadow-[0_0_10px_rgba(255,192,0,0.3)] font-bold print:hidden"
-              >
-                Export PDF
-              </button>
-            )}
           </div>
         </div>
-
-        <style dangerouslySetInnerHTML={{__html: `
-          @media print {
-            body { background: white !important; color: black !important; }
-            .adios-sidebar, .adios-nav, button { display: none !important; }
-            .adios-page-shell, .adios-page-content, .adios-page-main { 
-              height: auto !important; overflow: visible !important; display: block !important;
-            }
-            .adios-panel { border: 1px solid #ccc !important; box-shadow: none !important; }
-            * { text-shadow: none !important; box-shadow: none !important; color: black !important; }
-            .border-b, .border-t { border-color: #ccc !important; }
-          }
-        `}} />
 
         {error && (
           <div className="px-5 py-2 border-b font-mono text-[0.75rem]" style={{ background: "rgba(255,51,102,0.08)", borderColor: "rgba(255,51,102,0.25)", color: "#FF3366" }}>
@@ -358,6 +368,129 @@ export default function AuditPage() {
                 <div className="font-mono text-[0.82rem] font-bold" style={{ color: "var(--acid)" }}>{v}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {simResult && (
+          <div id="adios-print-report" className="p-10 font-sans text-black bg-white" style={{ display: "none" }}>
+            {/* Header */}
+            <div className="flex items-center justify-between border-b-4 border-black pb-4 mb-6" style={{ contentVisibility: "auto" }}>
+              <div>
+                <h1 className="text-3xl font-extrabold tracking-tight text-black font-mono">
+                  CATERPILLAR ADIOS — SYSTEM AUDIT REPORT
+                </h1>
+                <p className="text-sm text-gray-700 uppercase tracking-widest font-mono mt-1 font-semibold">
+                  Adaptive Dump Intelligence & Orchestration System
+                </p>
+              </div>
+              <div className="text-right font-mono text-xs text-black font-semibold">
+                <div>Date: {new Date().toLocaleDateString()}</div>
+                <div>Status: OPERATIONAL</div>
+              </div>
+            </div>
+
+            {/* Meta Info */}
+            <div className="grid grid-cols-4 gap-4 p-4 bg-gray-100 rounded border border-gray-300 mb-6 font-mono text-xs text-black">
+              <div>
+                <span className="block text-gray-500 font-bold uppercase">Seed Value</span>
+                <span className="text-sm font-bold">{seed}</span>
+              </div>
+              <div>
+                <span className="block text-gray-500 font-bold uppercase">Material Zone</span>
+                <span className="text-sm font-bold capitalize">{material}</span>
+              </div>
+              <div>
+                <span className="block text-gray-500 font-bold uppercase">Budget Dumps</span>
+                <span className="text-sm font-bold">{nDumps}</span>
+              </div>
+              <div>
+                <span className="block text-gray-500 font-bold uppercase">Dispatch Policy</span>
+                <span className="text-sm font-bold uppercase">{policyLabel(simResult.summary.policy)}</span>
+              </div>
+            </div>
+
+            {/* KPI Summary */}
+            <div className="mb-6">
+              <h2 className="text-sm font-bold uppercase tracking-wider font-mono mb-3 text-black border-b border-gray-300 pb-1">
+                Site Performance Scorecard
+              </h2>
+              <div className="grid grid-cols-3 gap-4 font-mono text-black">
+                <div className="p-3 border border-gray-300 rounded text-center">
+                  <span className="block text-[0.62rem] uppercase text-gray-500 font-bold">Total Deposited Volume</span>
+                  <span className="text-lg font-extrabold text-black">{Number(simResult.summary.total_volume ?? 0).toFixed(1)} m³</span>
+                </div>
+                <div className="p-3 border border-gray-300 rounded text-center">
+                  <span className="block text-[0.62rem] uppercase text-gray-500 font-bold">Spatial Footprint Coverage</span>
+                  <span className="text-lg font-extrabold text-black">{simResult.summary.coverage_pct}%</span>
+                </div>
+                <div className="p-3 border border-gray-300 rounded text-center">
+                  <span className="block text-[0.62rem] uppercase text-gray-500 font-bold">Packing Efficiency</span>
+                  <span className="text-lg font-extrabold text-black">{simResult.summary.packing_efficiency}%</span>
+                </div>
+                <div className="p-3 border border-gray-300 rounded text-center">
+                  <span className="block text-[0.62rem] uppercase text-gray-500 font-bold">Height Uniformity</span>
+                  <span className="text-lg font-extrabold text-black">{(Number(simResult.summary.height_uniformity) * 100).toFixed(1)}%</span>
+                </div>
+                <div className="p-3 border border-gray-300 rounded text-center">
+                  <span className="block text-[0.62rem] uppercase text-gray-500 font-bold">Isolation Constraints Rej</span>
+                  <span className="text-lg font-extrabold text-black">{simResult.summary.rejected} / {simResult.summary.total_dispatched}</span>
+                </div>
+                <div className="p-3 border border-gray-300 rounded text-center">
+                  <span className="block text-[0.62rem] uppercase text-gray-500 font-bold">Dispatch Latency (Avg)</span>
+                  <span className="text-lg font-extrabold text-black">{simResult.summary.latency_ms} ms</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Decision Log Table */}
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-wider font-mono mb-3 text-black border-b border-gray-300 pb-1">
+                Detailed Dispatch Audit Log
+              </h2>
+              <table className="w-full text-left font-mono text-[0.68rem] text-black border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-black bg-gray-100">
+                    <th className="py-2 px-1">Step</th>
+                    <th className="py-2 px-1">Truck Model</th>
+                    <th className="py-2 px-1">Coords (R, C)</th>
+                    <th className="py-2 px-1 text-right">Payload</th>
+                    <th className="py-2 px-1 text-right">Reach</th>
+                    <th className="py-2 px-1 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {simResult.log.map((entry, idx) => (
+                    <tr key={idx} className="border-b border-gray-200">
+                      <td className="py-1 px-1">#{idx}</td>
+                      <td className="py-1 px-1 font-bold">{entry.truck}</td>
+                      <td className="py-1 px-1">({entry.r}, {entry.c})</td>
+                      <td className="py-1 px-1 text-right">{entry.payload_t}t</td>
+                      <td className="py-1 px-1 text-right">{entry.reach != null ? entry.reach.toFixed(3) : "--"}</td>
+                      <td className="py-1 px-1 text-center">
+                        <span className="uppercase text-[0.6rem] px-2 py-0.5 rounded font-bold" style={{
+                          border: `1px solid ${entry.status === "dumped" ? "#10B981" : "#EF4444"}`,
+                          color: entry.status === "dumped" ? "#065F46" : "#991B1B",
+                          backgroundColor: entry.status === "dumped" ? "#D1FAE5" : "#FEE2E2",
+                        }}>
+                          {entry.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="mt-12 pt-4 border-t border-gray-300 text-center font-mono text-[0.6rem] text-gray-500">
+              <p>CONFIDENTIAL — FOR CATERPILLAR INTERNAL USE ONLY</p>
+              <p className="mt-1">
+                ADIOS System Version 3.0.
+                {simResult.summary.policy === "maskable_ppo"
+                  ? " Powered by constrained reinforcement learning."
+                  : " Active policy artifact is reported exactly as loaded by the backend."}
+              </p>
+            </div>
           </div>
         )}
       </div>

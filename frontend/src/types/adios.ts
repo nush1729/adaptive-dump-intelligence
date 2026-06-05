@@ -31,7 +31,7 @@ export interface DumpSummary {
   height_uniformity: number;
   isolation_events: number;
   latency_ms: number;
-  policy: "heuristic" | "ml_ppo";
+  policy: string;
 }
 
 export interface StaticSummary {
@@ -49,6 +49,7 @@ export interface DumpSnapshot {
   coverage: number;
   efficiency: number;
   policy?: string;
+  surface?: number[][];
 }
 
 export interface DumpEvent {
@@ -106,5 +107,43 @@ export interface HealthStatus {
   status: string;
   version: string;
   ml_available: boolean;
-  policy_type: "ppo" | "heuristic";
+  policy_type: string;
+}
+
+export interface SpacingAnalysis {
+  mean_spacing_m: number | null;
+  min_spacing_m?: number | null;
+  max_spacing_m?: number | null;
+  staffed_target_m: number;
+  autonomous_baseline_m: number;
+  density_improvement_pct: number;
+  nn_distances?: number[];
+}
+
+export interface TruckInfo {
+  id: string;
+  profile: string;
+  max_payload_t: number;
+  turning_radius_m: number;
+  axle_load_t: number;
+  min_corridor_width_m: number;
+}
+
+export interface IoTFeatures {
+  fleet_congestion: number;
+  haul_latency_norm: number;
+  utilization: number;
+  zone_density: number;
+}
+
+export interface FleetIntelligence {
+  trucks: TruckInfo[];
+  iot_features: IoTFeatures;
+  fleet_metrics: Record<string, number>;
+  ctde_mode: string;
+  policy_type: string;
+}
+
+export interface SimResultWithSpacing extends SimResult {
+  spacing_analysis?: SpacingAnalysis;
 }

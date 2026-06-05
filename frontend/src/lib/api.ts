@@ -44,6 +44,23 @@ export async function fetchEvalResult() {
   return r.json();
 }
 
+export async function fetchSpacingAnalysis(seed: number, material: string, dumpPositions: [number, number][]) {
+  const r = await fetch(`${BASE}/spacing_analysis`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seed, material, dump_positions: dumpPositions }),
+  });
+  return r.json();
+}
+
+export async function fetchFleetIntelligence(seed?: number, nTrucks?: number) {
+  const params = new URLSearchParams();
+  if (seed !== undefined) params.set("seed", String(seed));
+  if (nTrucks !== undefined) params.set("n_trucks", String(nTrucks));
+  const r = await fetch(`${BASE}/fleet_intelligence?${params}`);
+  return r.json();
+}
+
 export function createWebSocket(cfg: object, onMessage: (msg: any) => void, onDone?: () => void) {
   const wsBase = BASE.replace(/^http/, "ws");
   const ws = new WebSocket(`${wsBase}/ws/simulate`);

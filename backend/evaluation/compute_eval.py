@@ -18,6 +18,9 @@ from environment.terrain import Terrain
 from fleet.truck import make_fleet
 from planning.scorer import ScoringEngine, DEFAULT_WEIGHTS
 from planning.isolation_validator import IsolationValidator
+from planning.action_masker import ConstrainedActionMasker
+from evaluation.metrics import summarize_episode
+from config import SITE_CONFIG, config_payload
 
 
 def parse_args():
@@ -39,7 +42,7 @@ def run_heuristic_episode(terrain, fleet, n_dumps):
     """Run one heuristic episode and return metrics dict."""
     weights = dict(DEFAULT_WEIGHTS)
     eng = ScoringEngine(terrain, terrain.entry, weights)
-    val = IsolationValidator(terrain, terrain.entry, 0.85)
+    val = IsolationValidator(terrain, terrain.entry, SITE_CONFIG.iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
 
     dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // len(fleet) + 1)
     dispatches = dispatches[:n_dumps]
@@ -49,7 +52,8 @@ def run_heuristic_episode(terrain, fleet, n_dumps):
     for truck_id, payload_t in dispatches:
         placed = False
         for _attempt in range(50):
-            r, c, _ = eng.score_all(reserved_cells=reserved)
+            action_mask = ConstrainedActionMasker(terrain, val).mask(payload_t, reserved_cells=reserved, include_iso=True)
+            r, c, _ = eng.score_all(reserved_cells=reserved, action_mask=action_mask)
             if r is None:
                 break
             safe, _ = val.validate(r, c, payload_t)
@@ -67,59 +71,77 @@ def run_heuristic_episode(terrain, fleet, n_dumps):
         if not placed:
             rejected += 1
 
+    log = [{"status": "dumped"} for _ in range(success)] + [{"status": "rejected"} for _ in range(rejected)]
+    summary = summarize_episode(terrain, log, [], [], "heuristic")
     return {
-        "volume": terrain.total_volume(),
-        "coverage_pct": terrain.coverage_fraction() * 100,
-        "packing_efficiency": terrain.packing_efficiency() * 100,
-        "uniformity": 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01),
+        "volume": summary["total_volume"],
+        "coverage_pct": summary["coverage_pct"],
+        "packing_efficiency": summary["packing_efficiency"],
+        "uniformity": summary["height_uniformity"],
         "success": success,
         "rejected": rejected,
     }
 
 
 def run_ml_episode(terrain, fleet, n_dumps, policy):
-    """Run one ML episode and return metrics dict."""
+    """Run one ML episode and return metrics dict using robust action masking and retry loop."""
     from scipy.ndimage import distance_transform_edt
 
-    val = IsolationValidator(terrain, terrain.entry, 0.85)
+    val = IsolationValidator(terrain, terrain.entry, SITE_CONFIG.iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
     dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // len(fleet) + 1)
     dispatches = dispatches[:n_dumps]
-    mask_flat = terrain.mask.ravel()
     COLS = terrain.cols
     success, rejected = 0, 0
+    reserved = set()
 
     for _, payload_t in dispatches:
-        h = terrain.height
-        mask = terrain.mask.astype(np.float32)
-        # ERROR 2-B fix: use same normalisation as training (h/15.0, not h/max(h))
-        h_norm = np.clip(h / 15.0, 0.0, 1.0).astype(np.float32)
-        dist = distance_transform_edt(terrain.mask).astype(np.float32)
-        dist_norm = dist / (dist.max() or 1.0)
-        obs = np.stack([h_norm, mask, dist_norm], axis=0)
+        placed = False
 
-        # BUG 1-E fix: rebuild mask each step — exclude height-saturated cells
-        mf = terrain.mask.copy()
-        mf[terrain.height >= 15.0] = False
-        action = policy.predict(obs, mf.ravel())
-        r, c = divmod(int(action), COLS)
+        for _attempt in range(50):
+            h = terrain.height
+            mask = terrain.mask.astype(np.float32)
+            h_norm = np.clip(h / SITE_CONFIG.max_height_m, 0.0, 1.0).astype(np.float32)
+            dist = distance_transform_edt(terrain.mask).astype(np.float32)
+            dist_norm = dist / (dist.max() or 1.0)
+            obs = np.stack([h_norm, mask, dist_norm], axis=0)
 
-        safe, _ = val.validate(r, c, payload_t)
-        if not safe:
+            action_mask = ConstrainedActionMasker(terrain, val).mask(payload_t, reserved_cells=reserved, include_iso=True)
+
+            if not action_mask.any():
+                break
+
+            action = policy.predict(obs, action_mask.ravel().copy())
+            r, c = divmod(int(action), COLS)
+
+            safe, _ = val.validate(r, c, payload_t)
+            if not safe:
+                reserved.add((r, c))
+                continue
+
+            ok, _ = terrain.apply_dump(r, c, payload_t)
+            if ok:
+                success += 1
+                val.record_dump(r, c)
+                placed = True
+                reserved.discard((r, c))
+                break
+            else:
+                reserved.add((r, c))
+
+        if not placed:
             rejected += 1
-            continue
-        ok, _ = terrain.apply_dump(r, c, payload_t)
-        if ok:
-            success += 1
-        else:
-            rejected += 1
 
+    policy_name = getattr(policy, "artifact_type", "unknown_ml")
+    log = [{"status": "dumped"} for _ in range(success)] + [{"status": "rejected"} for _ in range(rejected)]
+    summary = summarize_episode(terrain, log, [], [], policy_name)
     return {
-        "volume": terrain.total_volume(),
-        "coverage_pct": terrain.coverage_fraction() * 100,
-        "packing_efficiency": terrain.packing_efficiency() * 100,
-        "uniformity": 1.0 - terrain.height_std() / max(terrain.mean_height(), 0.01),
+        "volume": summary["total_volume"],
+        "coverage_pct": summary["coverage_pct"],
+        "packing_efficiency": summary["packing_efficiency"],
+        "uniformity": summary["height_uniformity"],
         "success": success,
         "rejected": rejected,
+        "policy": policy_name,
     }
 
 
@@ -135,7 +157,7 @@ def main():
         from ml.policy import load_policy
         weights_path = os.path.join(os.path.dirname(__file__), "..", "ml", "weights", "ppo_adios")
         policy = load_policy(weights_path)
-        policy_type = "supervised_mlp"
+        policy_type = getattr(policy, "artifact_type", "unknown_ml")
         print(f"  ✓ ML policy loaded: {policy_type}")
     except Exception as e:
         print(f"  ✗ ML policy not available: {e}")
@@ -198,6 +220,7 @@ def main():
         "seed_start": args.seed_start,
         "dumps_per_episode": args.dumps,
         "computed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "config": config_payload(),
     }
 
     if ml_results:

@@ -113,10 +113,16 @@ export default function SchedulingPage() {
       <button
         onClick={load}
         disabled={loading}
-        className="w-full rounded py-3 text-[0.76rem] font-syncopate tracking-[0.18em] uppercase font-bold transition-all disabled:opacity-60"
-        style={{ background: loading ? "var(--muted)" : "var(--acid)", color: "#000" }}
+        className="w-full rounded py-3 text-[0.76rem] font-syncopate tracking-[0.18em] uppercase font-bold transition-all"
+        style={{
+          background: loading ? "transparent" : "var(--acid)",
+          color: loading ? "var(--acid)" : "#000",
+          border: loading ? "2px solid var(--acid)" : "none",
+          boxShadow: loading ? "none" : "0 0 18px rgba(255,205,17,0.35)",
+          cursor: loading ? "not-allowed" : "pointer",
+        }}
       >
-        {loading ? "Loading..." : "Load Schedule"}
+        {loading ? "Loading…" : "▶ Load Schedule"}
       </button>
       {data && (
         <div className="grid grid-cols-2 gap-2">
@@ -176,15 +182,25 @@ export default function SchedulingPage() {
             </span>
             {data && (
               <div className="flex items-center gap-2 overflow-x-auto">
-                <button onClick={() => { setTick(0); setPlaying(false); }} className="adios-icon-button !w-auto px-3 font-mono text-[0.68rem]">
+                <button
+                  onClick={() => { setTick(0); setPlaying(false); }}
+                  className="rounded px-3 py-1 font-mono text-[0.68rem] font-bold"
+                  style={{ background: "transparent", border: "1px solid var(--acid)", color: "var(--acid)", cursor: "pointer" }}
+                >
                   Reset
                 </button>
                 <button
                   onClick={() => setPlaying((p) => !p)}
-                  className="rounded px-3 py-1 font-mono text-[0.7rem] font-bold"
-                  style={{ background: playing ? "var(--ore)" : "var(--acid)", color: "#000" }}
+                  className="rounded px-4 py-1 font-mono text-[0.72rem] font-bold"
+                  style={{
+                    background: playing ? "var(--ore)" : "var(--acid)",
+                    color: "#000",
+                    border: "none",
+                    cursor: "pointer",
+                    boxShadow: playing ? "0 0 10px rgba(255,107,53,0.4)" : "0 0 14px rgba(255,205,17,0.4)",
+                  }}
                 >
-                  {playing ? "Pause" : "Play"}
+                  {playing ? "⏸ Pause" : "▶ Play"}
                 </button>
                 <span className="font-mono text-[0.72rem] min-w-[52px]" style={{ color: "var(--acid)" }}>
                   t = {tick}

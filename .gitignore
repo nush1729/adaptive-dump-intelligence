@@ -43,3 +43,18 @@ frontend/.env.*.local
 .vscode/
 .idea/
 *.swp
+
+# =========================
+# Claude Code session files
+# =========================
+.claude/
+
+# =========================
+# TensorBoard logs (large, not needed in repo)
+# =========================
+backend/tb_logs/
+
+# =========================
+# Frontend build cache
+# =========================
+frontend/tsconfig.tsbuildinfo

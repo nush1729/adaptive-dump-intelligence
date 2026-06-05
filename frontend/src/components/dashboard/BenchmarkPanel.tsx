@@ -19,7 +19,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 // ── Types matching real benchmark_results.json ──────────────────────────────
 
 interface PerPolygonRow {
-  policy: "heuristic" | "static_grid" | "ml_ppo" | string;
+  policy: "heuristic" | "static_grid" | string;
   seed: number;
   material: string;
   dumps_attempted?: number;
@@ -137,7 +137,7 @@ export default function BenchmarkPanel() {
 
     const hRows = data.per_polygon.filter((r) => r.policy === "heuristic");
     const sRows = data.per_polygon.filter((r) => r.policy === "static_grid");
-    const mRows = data.per_polygon.filter((r) => r.policy === "ml_ppo");
+    const mRows = data.per_polygon.filter((r) => !["heuristic", "static_grid", "ml_error"].includes(r.policy));
     const allSeeds = [...new Set(hRows.map((r) => r.seed))];
 
     return {
@@ -147,7 +147,7 @@ export default function BenchmarkPanel() {
       mlRows: mRows,
       hSummary: data.summaries.find((s) => s.policy === "heuristic"),
       sSummary: data.summaries.find((s) => s.policy === "static_grid"),
-      mSummary: data.summaries.find((s) => s.policy === "ml_ppo"),
+      mSummary: data.summaries.find((s) => !["heuristic", "static_grid"].includes(s.policy)),
     };
   }, [data]);
 
@@ -375,9 +375,9 @@ export default function BenchmarkPanel() {
                     <td style={{ padding: "5px 8px", color: "var(--text2)" }}>{r.seed}</td>
                     <td style={{ padding: "5px 8px", color: "var(--text)" }}>{r.material}</td>
                     <td style={{ padding: "5px 8px",
-                      color: r.policy === "heuristic" ? "var(--acid)" : r.policy === "ml_ppo" ? "#7B68EE" : "var(--ore)",
+                      color: r.policy === "heuristic" ? "var(--acid)" : r.policy === "static_grid" ? "var(--ore)" : "#7B68EE",
                       fontWeight: 600 }}>
-                      {r.policy === "heuristic" ? "ADIOS" : r.policy === "static_grid" ? "Static" : "ML"}
+                      {r.policy === "heuristic" ? "ADIOS" : r.policy === "static_grid" ? "Static" : r.policy.replace(/_/g, " ")}
                     </td>
                     <td style={{ padding: "5px 8px", color: "var(--text)" }}>{r.dumps_succeeded}</td>
                     <td style={{ padding: "5px 8px", color: "var(--text)" }}>{r.volume_m3.toFixed(0)}</td>

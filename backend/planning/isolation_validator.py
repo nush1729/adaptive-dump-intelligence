@@ -9,6 +9,8 @@ Minimum dump spacing enforced as hard constraint before BFS.
 from collections import deque
 import numpy as np
 
+from config import SITE_CONFIG
+from environment.dump_physics import apply_dump_to_height
 
 # ── free function: pure BFS reachability ─────────────────────────────────────
 
@@ -51,16 +53,16 @@ class IsolationValidator:
     """
     Callers (signature contract — do NOT change positional args):
         IsolationValidator(terrain, entry, threshold)     # 3-arg
-        IsolationValidator(terrain, entry)                # 2-arg (default 0.85)
+        IsolationValidator(terrain, entry)                # 2-arg (site default)
         .validate(r, c, payload_t)  → (bool, float)
     """
 
-    def __init__(self, terrain, entry, reachability_threshold=0.85,
-                 min_spacing=3):
+    def __init__(self, terrain, entry, reachability_threshold=SITE_CONFIG.iso_threshold,
+                 min_spacing=SITE_CONFIG.min_dump_spacing_cells):
         self.terrain = terrain
         self.entry = entry
         self.reach_thresh = reachability_threshold   # externally settable
-        self.min_spacing = min_spacing
+        self.min_spacing = min_spacing if min_spacing is not None else SITE_CONFIG.min_dump_spacing_cells
         self.dump_history: list = []                 # list of (r, c)
 
     # ── public API ───────────────────────────────────────────────────────
@@ -78,8 +80,15 @@ class IsolationValidator:
             return False, -1.0
 
         # dry-run simulation (never mutate real terrain)
-        sim_h = self.terrain.height.copy()
-        sim_h[r, c] += payload_t
+        sim_h = apply_dump_to_height(
+            self.terrain.height,
+            self.terrain.mask,
+            int(r),
+            int(c),
+            float(payload_t),
+            self.terrain.material,
+            mutate=False,
+        )
 
         # BFS on simulated height
         thresh = self._pass_thresh()
@@ -101,12 +110,13 @@ class IsolationValidator:
     def _pass_thresh(self):
         """Return BFS passability ceiling.
 
-        ERROR 2-E fix: use 97th-percentile of heights instead of mean+2σ.
-        Early in simulation, mean+2σ ≈ 0.5, blocking cells with even slight
-        Gaussian deposition and causing ISO_REJECTED(0.00).  The 97th-percentile
-        correctly identifies only genuinely tall mounds as obstacles.
+        Uses configurable percentile (default 93rd) of heights.
+        Lower percentile = safer BFS (fewer false passable cells), but
+        more aggressive rejection. 93rd gives better balance than 97th
+        for dense packing scenarios where tall mounds appear earlier.
         """
         h = self.terrain.height[self.terrain.mask]
         if len(h) == 0:
             return 8.0
-        return float(max(np.percentile(h, 97), 1.0))
+        pct = getattr(SITE_CONFIG, "passability_percentile", 93.0)
+        return float(max(np.percentile(h, pct), 1.0))

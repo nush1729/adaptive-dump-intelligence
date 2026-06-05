@@ -159,7 +159,7 @@ export default function DashboardPage() {
       setResult(data);
       // Set the ACTUAL policy that was used (from backend response)
       const actualPolicy = data?.summary?.policy;
-      if (actualPolicy === "ml_ppo" || actualPolicy === "heuristic") {
+      if (typeof actualPolicy === "string") {
         setLastRunPolicy(actualPolicy);
       }
       // Only append snapshots/logs if WS didn't already stream them
@@ -277,6 +277,46 @@ export default function DashboardPage() {
               />
             </Suspense>
 
+            {/* Idle state — shown when no simulation has been run yet */}
+            {!currentSurface && !isRunning && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none">
+                {/* Animated concentric rings */}
+                <div className="relative flex items-center justify-center mb-8">
+                  {[80, 112, 144].map((size, i) => (
+                    <div
+                      key={size}
+                      className="absolute rounded-full border"
+                      style={{
+                        width: size, height: size,
+                        borderColor: `rgba(255,192,0,${0.18 - i * 0.04})`,
+                        animation: `spin ${6 + i * 2}s linear infinite ${i % 2 ? "reverse" : ""}`,
+                      }}
+                    />
+                  ))}
+                  {/* Center dot */}
+                  <div className="w-4 h-4 rounded-full" style={{ background: "#FFC000", boxShadow: "0 0 20px rgba(255,192,0,0.6), 0 0 40px rgba(255,192,0,0.3)" }} />
+                </div>
+                <div className="font-syncopate text-[0.8rem] uppercase tracking-[0.3em] mb-3" style={{ color: "var(--acid)" }}>
+                  Ready to Simulate
+                </div>
+                <div className="font-mono text-[0.62rem] uppercase tracking-[0.18em] mb-6" style={{ color: "var(--muted)" }}>
+                  Configure parameters and press Execute
+                </div>
+                <div className="flex items-center gap-4">
+                  {[
+                    { label: "PPO Policy", sub: "constrained RL" },
+                    { label: "A* Pathfinding", sub: "haul routes" },
+                    { label: "IoT Telemetry", sub: "fleet context" },
+                  ].map(({ label, sub }) => (
+                    <div key={label} className="text-center px-4 py-2" style={{ border: "1px solid rgba(255,192,0,0.1)", borderRadius: 4, background: "rgba(255,192,0,0.04)" }}>
+                      <div className="font-mono text-[0.58rem] uppercase tracking-[0.12em]" style={{ color: "#FFC000" }}>{label}</div>
+                      <div className="font-mono text-[0.52rem] mt-0.5" style={{ color: "#4B5563" }}>{sub}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Loading spinner overlay */}
             {isRunning && !liveSurface && (
               <div className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none"
@@ -341,4 +381,3 @@ export default function DashboardPage() {
     </PageShell>
   );
 }
-

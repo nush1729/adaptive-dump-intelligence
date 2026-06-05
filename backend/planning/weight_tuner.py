@@ -1,4 +1,5 @@
 import numpy as np
+from config import SITE_CONFIG
 
 class WeightTuner:
     """Simple weight tuner for dump packing optimization."""
@@ -26,17 +27,20 @@ class WeightTuner:
 
             terrain = terrain_factory()
             eng = ScoringEngine(terrain, terrain.entry, weights)
-            val = IsolationValidator(terrain, terrain.entry, 0.85)
+            val = IsolationValidator(terrain, terrain.entry, SITE_CONFIG.iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
             reserved = set()
+            payloads = [218.0, 104.0, 400.0, 218.0]
 
             # Run 30 dumps so the terrain has actual material before scoring
-            for _ in range(30):
+            for i in range(30):
+                payload_t = payloads[i % len(payloads)]
                 r, c, _ = eng.score_all(reserved_cells=reserved)
                 if r is None:
                     break
-                safe, _ = val.validate(r, c, 100.0)
+                safe, _ = val.validate(r, c, payload_t)
                 if safe:
-                    terrain.apply_dump(r, c, 100.0)
+                    terrain.apply_dump(r, c, payload_t)
+                    val.record_dump(r, c)
                 else:
                     reserved.add((r, c))
 

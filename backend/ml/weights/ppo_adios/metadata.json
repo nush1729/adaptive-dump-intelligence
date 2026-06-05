@@ -1,0 +1,11 @@
+{
+  "obs_type": "bc_imitation",
+  "terrain_channels": 5,
+  "context_dim": 13,
+  "architecture": "EnrichedTerrainFCN",
+  "best_acc": 16.0,
+  "rows": 100,
+  "cols": 100,
+  "n_params": 13090,
+  "training_polygons": null
+}

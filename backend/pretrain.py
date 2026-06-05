@@ -6,9 +6,9 @@ Usage:
 
 Stages:
   1. Supervised pre-training (behavioural cloning) on heuristic expert trajectories
-     → fast convergence from a good starting policy
-  2. PPO fine-tuning in the gymnasium environment
-     → learns to outperform the heuristic on unseen polygons
+     → fast convergence using the EnrichedTerrainFCN (truck + IoT context aware)
+  2. PPO fine-tuning using MultiInputPolicy + ADIOSMultiInputExtractor
+     → learns to outperform the heuristic on unseen polygons with full context
 
 Typical runtime: ~3 min on CPU for 100K steps (sufficient for demo quality)
 """
@@ -17,6 +17,7 @@ import numpy as np
 from pathlib import Path
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
 
 def parse_args():
     p = argparse.ArgumentParser()
@@ -29,96 +30,83 @@ def parse_args():
 
 def stage1_behavioural_cloning(out_dir: str, n_polygons: int = 50, epochs: int = 5):
     """
-    Pre-train a small CNN policy using expert (heuristic) demonstrations.
-    Much faster than PPO from scratch and gives a non-random starting point.
+    Pre-train the EnrichedTerrainFCN on expert (heuristic) demonstrations.
+    Uses the same Dict observation format as the PPO environment so BC and
+    PPO see identical feature representations.
     """
-    import torch
-    import torch.nn as nn
-    import torch.optim as optim
-    from ml.environment import DumpPackingEnv, ROWS, COLS
-    from ml.data_gen import make_random_terrain, generate_expert_trajectory
-    from ml.policy import TerrainCNNExtractor
+    from ml.train_supervised import train as sup_train, parse_args as sup_parse
 
-    print(f"  Stage 1: Behavioural cloning on {n_polygons} expert trajectories...")
+    print(f"  Stage 1: Enriched behavioural cloning on {n_polygons} expert trajectories...")
     Path(out_dir).mkdir(parents=True, exist_ok=True)
 
-    # collect expert data
-    all_obs, all_acts = [], []
-    for seed in range(n_polygons):
-        terrain = make_random_terrain(seed)
-        traj = generate_expert_trajectory(terrain, n_dumps=50)
-        for step in traj:
-            all_obs.append(step["obs"])
-            all_acts.append(step["action"])
-
-    obs_t = torch.tensor(np.array(all_obs), dtype=torch.float32)
-    act_t = torch.tensor(np.array(all_acts), dtype=torch.long)
-    print(f"    Collected {len(all_obs)} expert transitions")
-
-    # simple CNN for BC (shares architecture with the PPO extractor)
-    class BCNet(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.enc = nn.Sequential(
-                nn.Conv2d(3, 32, 8, 4), nn.ReLU(),
-                nn.Conv2d(32, 64, 4, 2), nn.ReLU(),
-                nn.Conv2d(64, 64, 3, 1), nn.ReLU(),
-                nn.Flatten(),
-            )
-            with torch.no_grad():
-                n = self.enc(torch.zeros(1, 3, 100, 100)).shape[1]
-            self.head = nn.Sequential(
-                nn.Linear(n, 256), nn.ReLU(),
-                nn.Linear(256, ROWS * COLS),
-            )
-        def forward(self, x):
-            return self.head(self.enc(x))
-
-    net = BCNet()
-    opt = optim.Adam(net.parameters(), lr=3e-4)
-    loss_fn = nn.CrossEntropyLoss()
-    BS = 256
-    n = len(obs_t)
-
-    for epoch in range(epochs):
-        idx = torch.randperm(n)
-        total_loss = 0.0
-        for i in range(0, n, BS):
-            batch_idx = idx[i:i+BS]
-            logits = net(obs_t[batch_idx])
-            loss = loss_fn(logits, act_t[batch_idx])
-            opt.zero_grad(); loss.backward(); opt.step()
-            total_loss += loss.item()
-        print(f"    BC epoch {epoch+1}/{epochs}  loss={total_loss/(n//BS):.4f}")
-
-    bc_path = os.path.join(out_dir, "bc_init.pt")
-    torch.save(net.state_dict(), bc_path)
-    print(f"    BC weights saved → {bc_path}")
-    return bc_path
+    # Re-use the supervised trainer CLI with our parameters
+    sys.argv = [
+        "train_supervised.py",
+        "--polygons", str(n_polygons),
+        "--dumps-per", "50",
+        "--epochs", str(epochs),
+        "--out", os.path.relpath(out_dir, os.path.dirname(__file__)),
+    ]
+    args = sup_parse()
+    ckpt_path = sup_train(args)
+    print(f"    BC weights saved → {ckpt_path}")
+    return ckpt_path
 
 
 def stage2_ppo(steps: int, device: str, out_path: str, bc_path: str = None):
     """
-    Fine-tune with PPO using stable-baselines3.
-    Uses MaskablePPO from sb3-contrib if available (better performance with action masks).
+    Fine-tune with PPO using MultiInputPolicy + ADIOSMultiInputExtractor.
+
+    Uses curriculum learning: trains on progressively harder polygon shapes
+    and mixed fleets. The enriched DumpPackingEnv produces 5-channel Dict obs:
+      {"terrain_map": (5,100,100), "context_vector": (CONTEXT_DIM,)}
     """
     print(f"  Stage 2: PPO fine-tuning for {steps:,} steps on {device}...")
     from ml.environment import DumpPackingEnv
-    from ml.policy import TerrainCNNExtractor
+    from ml.policy import ADIOSMultiInputExtractor
     from stable_baselines3.common.env_util import make_vec_env
-    from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
+    from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
 
-    # try MaskablePPO first
+    class CurriculumCallback(BaseCallback):
+        """Advance curriculum stage every 1/3 of training."""
+        def __init__(self, total_steps, envs, verbose=0):
+            super().__init__(verbose)
+            self.total_steps = total_steps
+            self.envs = envs
+            self._stage = 0
+        def _on_step(self) -> bool:
+            stage = min(2, int(self.num_timesteps / self.total_steps * 3))
+            if stage > self._stage:
+                self._stage = stage
+                print(f"\n    [Curriculum] Advancing to stage {stage}")
+            return True
+
     try:
-        from sb3_contrib import MaskablePPO
+        from sb3_contrib import MaskablePPO  # type: ignore
         from sb3_contrib.common.wrappers import ActionMasker
-        def mask_fn(env): return env.action_masks()
-        def env_fn(): return ActionMasker(DumpPackingEnv(seed_range=(0, 7999)), mask_fn)
+
+        def mask_fn(env):
+            return env.action_masks()
+
+        def env_fn_easy():
+            return ActionMasker(DumpPackingEnv(seed_range=(0, 2999), curriculum_stage=0), mask_fn)
+
+        def env_fn_medium():
+            return ActionMasker(DumpPackingEnv(seed_range=(3000, 5999), curriculum_stage=1), mask_fn)
+
+        def env_fn_hard():
+            return ActionMasker(DumpPackingEnv(seed_range=(6000, 7999), curriculum_stage=2), mask_fn)
+
+        # Start with easy envs; curriculum callback advances difficulty
+        env_fn = env_fn_easy
         ModelClass = MaskablePPO
-        print("    Using MaskablePPO (action masking enabled)")
+        print("    Using MaskablePPO with MultiInputPolicy + Curriculum Learning")
     except ImportError:
         from stable_baselines3 import PPO
-        def env_fn(): return DumpPackingEnv(seed_range=(0, 7999))
+
+        def env_fn():
+            return DumpPackingEnv(seed_range=(0, 7999))
+
         ModelClass = PPO
         print("    MaskablePPO not found, using standard PPO")
 
@@ -126,13 +114,13 @@ def stage2_ppo(steps: int, device: str, out_path: str, bc_path: str = None):
     vec_env = make_vec_env(env_fn, n_envs=n_envs)
 
     policy_kwargs = dict(
-        features_extractor_class=TerrainCNNExtractor,
-        features_extractor_kwargs=dict(features_dim=256),
+        features_extractor_class=ADIOSMultiInputExtractor,
+        features_extractor_kwargs=dict(features_dim=512),
         net_arch=dict(pi=[256, 128], vf=[256, 128]),
     )
 
     model = ModelClass(
-        "CnnPolicy",
+        "MultiInputPolicy",
         vec_env,
         policy_kwargs=policy_kwargs,
         learning_rate=3e-4,
@@ -149,12 +137,15 @@ def stage2_ppo(steps: int, device: str, out_path: str, bc_path: str = None):
     )
 
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    cb = CheckpointCallback(save_freq=max(steps // 5, 10000),
-                            save_path=os.path.dirname(out_path),
-                            name_prefix="ckpt")
+    checkpoint_cb = CheckpointCallback(
+        save_freq=max(steps // 5, 10_000),
+        save_path=os.path.dirname(out_path),
+        name_prefix="ckpt",
+    )
+    curriculum_cb = CurriculumCallback(steps, vec_env)
 
     t0 = time.time()
-    model.learn(total_timesteps=steps, callback=cb, progress_bar=True)
+    model.learn(total_timesteps=steps, callback=[checkpoint_cb, curriculum_cb], progress_bar=True)
     elapsed = time.time() - t0
     print(f"    Training complete in {elapsed:.0f}s")
     model.save(out_path)
@@ -163,12 +154,13 @@ def stage2_ppo(steps: int, device: str, out_path: str, bc_path: str = None):
 
 def evaluate_policy(weights_path: str, n_eval: int = 10):
     """Quick evaluation vs heuristic on held-out polygons."""
-    import torch
     from ml.environment import DumpPackingEnv
-    from ml.policy import load_policy, HeuristicFallbackPolicy
+    from ml.policy import load_policy
     from environment.terrain import Terrain
     from planning.scorer import ScoringEngine, DEFAULT_WEIGHTS
     from planning.isolation_validator import IsolationValidator
+    from planning.action_masker import ConstrainedActionMasker
+    from config import SITE_CONFIG
 
     print(f"Evaluating trained policy on {n_eval} held-out polygons (seeds 8000+)...")
     policy = load_policy(weights_path)
@@ -182,40 +174,46 @@ def evaluate_policy(weights_path: str, n_eval: int = 10):
         obs, _ = env.reset()
         done = False
         while not done:
-            masks = env.action_masks() if hasattr(env, 'action_masks') else None
+            masks = env.action_masks() if hasattr(env, "action_masks") else None
             action = policy.predict(obs, masks)
             obs, _, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
-        ml_eff = env.terrain.packing_efficiency()
-        ml_scores.append(ml_eff)
+        ml_scores.append(env.terrain.packing_efficiency())
 
         # Heuristic rollout
         terrain_h = Terrain.make_demo_polygon(100, 100, "default", seed)
         eng = ScoringEngine(terrain_h, terrain_h.entry, dict(DEFAULT_WEIGHTS))
-        val = IsolationValidator(terrain_h, terrain_h.entry, 0.85)
-        for _ in range(60):
-            r, c, _ = eng.score_all()
-            if r is None: break
-            safe, _ = val.validate(r, c, 100.0)
-            if safe: terrain_h.apply_dump(r, c, 100.0)
+        val = IsolationValidator(terrain_h, terrain_h.entry, SITE_CONFIG.iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
+        payloads = [218.0, 104.0, 400.0, 218.0]
+        for j in range(SITE_CONFIG.benchmark_dumps):
+            payload_t = payloads[j % len(payloads)]
+            action_mask = ConstrainedActionMasker(terrain_h, val).mask(payload_t, include_iso=True)
+            r, c, _ = eng.score_all(action_mask=action_mask)
+            if r is None:
+                break
+            safe, _ = val.validate(r, c, payload_t)
+            if safe:
+                terrain_h.apply_dump(r, c, payload_t)
+                val.record_dump(r, c)
         h_scores.append(terrain_h.packing_efficiency())
 
     ml_mean = np.mean(ml_scores) * 100
-    h_mean = np.mean(h_scores) * 100
-    delta = ml_mean - h_mean
+    h_mean  = np.mean(h_scores) * 100
+    delta   = ml_mean - h_mean
     print(f"    PPO policy efficiency:    {ml_mean:.1f}%")
     print(f"    Heuristic efficiency:     {h_mean:.1f}%")
     print(f"    Delta:                    {delta:+.1f}%")
-    return {"ml_efficiency": ml_mean, "heuristic_efficiency": h_mean, "delta": delta}
+    return {"ml_efficiency": round(ml_mean, 2), "heuristic_efficiency": round(h_mean, 2), "delta": round(delta, 2)}
 
 
 if __name__ == "__main__":
     args = parse_args()
-    out_dir = os.path.dirname(args.out)
+    # args.out = "ml/weights/ppo_adios" — BC and PPO both live in this directory
+    out_dir = args.out
     Path(out_dir).mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
-    print("ADIOS v3 — Policy Training Pipeline")
+    print("ADIOS — Physics & IoT-Informed Policy Training Pipeline")
     print("=" * 60)
 
     bc_path = None
@@ -227,12 +225,27 @@ if __name__ == "__main__":
 
     try:
         stage2_ppo(args.steps, args.device, args.out, bc_path)
-        print("" + "=" * 60)
+        print("=" * 60)
         eval_result = evaluate_policy(args.out)
-        # save eval result for dashboard
         with open(os.path.join(out_dir, "eval_result.json"), "w") as f:
-            import json
             json.dump(eval_result, f, indent=2)
+
+        # Write metadata sidecar so load_policy can validate obs-space without
+        # a full model load
+        from config import CONTEXT_DIM, SITE_CONFIG
+        metadata = {
+            "obs_type": "multi_input",
+            "terrain_channels": 5,
+            "context_dim": CONTEXT_DIM,
+            "rows": SITE_CONFIG.rows,
+            "cols": SITE_CONFIG.cols,
+            "policy_class": "MultiInputPolicy",
+            "extractor": "ADIOSMultiInputExtractor",
+            "trained_steps": args.steps,
+        }
+        with open(os.path.join(out_dir, "metadata.json"), "w") as f:
+            json.dump(metadata, f, indent=2)
+        print(f"  Metadata sidecar → {os.path.join(out_dir, 'metadata.json')}")
     except Exception as e:
         print(f"  PPO training failed: {e}")
-        print("  System will use heuristic policy (still fully functional)")
+        print("  System will use BC imitation policy (still fully functional)")

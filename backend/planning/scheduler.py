@@ -6,6 +6,8 @@ Full path reserved before truck moves.
 Deadlock cycle detection (DFS on wait-for graph) before every dispatch.
 """
 from collections import defaultdict
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 class TimeSpaceScheduler:
@@ -19,6 +21,11 @@ class TimeSpaceScheduler:
         self.truck_paths: dict = {}         # truck_id → [(r, c, t), …]
         self.starvation: dict = defaultdict(int)
         self.wait_for: dict = defaultdict(set)   # tid → {blocking tids}
+        try:
+            from config import SITE_CONFIG
+            self._max_delay = SITE_CONFIG.scheduler_max_delay_steps
+        except Exception:
+            self._max_delay = 40
 
     # ── reservation ──────────────────────────────────────────────────────
 
