@@ -17,7 +17,7 @@
 
 # ADIOS — Adaptive Dump Intelligence & Orchestration System
 
-<img src="https://readme-typing-svg.demolab.com?font=Orbitron&weight=700&size=22&duration=2600&pause=900&color=FFB800&center=true&vCenter=true&multiline=true&repeat=true&width=900&height=80&lines=CAT+Hackathon+%7C+Problem+Statement+4%3A+Optimal+Dump+Packing;MaskablePPO+%2B+IoT+Telemetry+%2B+A*+Path+Planning;Safer+Placement.+Higher+Capacity.+Smarter+Terrain." alt="Animated tagline" />
+<img src="https://readme-typing-svg.demolab.com?font=Orbitron&weight=700&size=22&duration=2600&pause=900&color=FFB800&center=true&vCenter=true&multiline=true&repeat=true&width=900&height=80&lines=CATERPILLAR+Hackathon+%7C+Problem+Statement+4%3A+Optimal+Dump+Packing;MaskablePPO+%2B+IoT+Telemetry+%2B+A*+Path+Planning;Safer+Placement.+Higher+Capacity.+Smarter+Terrain." alt="Animated tagline" />
 
 [![Frontend](https://img.shields.io/badge/Frontend-Next.js%2015-111111?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -495,8 +495,6 @@ python -m evaluation.compute_eval
 ## Built by Team Butterfly
 
 **Anushka Nair · Arjit Tripathi · Shivani Srivastava · Yashee Hinger**
-
-*Solving CAT Hackathon Problem Statement 4 — Optimal Dump Packing*
 
 *Safer placement. Higher capacity. Smarter terrain.*
 
