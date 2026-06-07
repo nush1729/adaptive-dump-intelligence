@@ -1,11 +1,10 @@
 {
-  "obs_type": "bc_imitation",
+  "obs_type": "multi_input",
   "terrain_channels": 5,
-  "context_dim": 13,
-  "architecture": "EnrichedTerrainFCN",
-  "best_acc": 16.0,
+  "context_dim": 17,
   "rows": 100,
   "cols": 100,
-  "n_params": 13090,
-  "training_polygons": null
+  "policy_class": "MultiInputPolicy",
+  "extractor": "ADIOSMultiInputExtractor",
+  "trained_steps": 100000
 }

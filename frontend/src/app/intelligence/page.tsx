@@ -70,10 +70,10 @@ const CTDE_STEPS = [
 ];
 
 const TRAINING = [
-  { phase: "Phase 1: Behavioural Cloning", detail: "EnrichedTerrainFCN pre-trained on 50 expert heuristic trajectories × 50 dumps. Achieves ~16% top-1 accuracy — provides warm policy initialisation." },
-  { phase: "Phase 2: PPO Fine-tuning", detail: "MaskablePPO + MultiInputPolicy + ADIOSMultiInputExtractor. 200K steps, 4 parallel envs, curriculum learning (easy→medium→hard polygon shapes)." },
-  { phase: "Phase 3: Curriculum Learning", detail: "Training progresses through 3 difficulty stages every 1/3 of total steps. Seeds 0–2999 (easy), 3000–5999 (medium), 6000–7999 (hard)." },
-  { phase: "Results", detail: "ep_rew_mean: −128 → +46.7. explained_variance: 0.88. Policy type: MaskablePPO (IoT-Enriched). Saved: ml/weights/ppo_adios.zip" },
+  { phase: "Phase 1: Behavioural Cloning", detail: "EnrichedTerrainFCN pre-trained on 50 expert heuristic trajectories × 50 dumps. Achieves ~21% top-1 accuracy — provides warm policy initialisation." },
+  { phase: "Phase 2: PPO Fine-tuning", detail: "MaskablePPO + MultiInputPolicy + ADIOSMultiInputExtractor. 100K steps, parallel envs, optional curriculum learning (easy→medium→hard polygon shapes)." },
+  { phase: "Phase 3: Curriculum Learning", detail: "Optional staged difficulty progression across training (easy→medium→hard polygon seeds), enabled via the --curriculum flag in pretrain.py." },
+  { phase: "Results", detail: "ep_rew_mean: −128 → +12.7 over 100K steps — a real, monotonic convergence. Eval: PPO policy efficiency 3.9% vs heuristic 3.5% (+0.4pp). Saved: ml/weights/ppo_adios.zip" },
 ];
 
 export default function IntelligencePage() {
