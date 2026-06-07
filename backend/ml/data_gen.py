@@ -32,10 +32,12 @@ FLEET_PAYLOADS = list(SITE_CONFIG.generic_payloads_t)
 _DEFAULT_TRUCK_SEQUENCE = list(SITE_CONFIG.default_fleet)
 
 
-def make_random_terrain(seed: int, rows: int = 100, cols: int = 100) -> Terrain:
+def make_random_terrain(seed: int, rows: int = 100, cols: int = 100, material: str = None) -> Terrain:
+    """Build a random-polygon terrain. Pass `material` to fix it (used by
+    material-conditioned fine-tuning); otherwise one is sampled per-seed."""
     rng = np.random.default_rng(seed)
-    material = MATERIALS[int(rng.integers(0, len(MATERIALS)))]
-    return Terrain.make_demo_polygon(rows, cols, material, seed)
+    mat = material or MATERIALS[int(rng.integers(0, len(MATERIALS)))]
+    return Terrain.make_demo_polygon(rows, cols, mat, seed)
 
 
 def make_mixed_fleet_sequence(n_dumps: int, seed: int = 0) -> list:
@@ -75,10 +77,14 @@ def _build_synthetic_iot(dump_idx: int, n_dumps: int, rng: np.random.Generator) 
     """Synthetic IoT feature vector for training — varies with episode progress."""
     progress = dump_idx / max(n_dumps, 1)
     iot = np.array([
-        min(progress * 1.5, 1.0),      # fleet_congestion
-        float(rng.uniform(0.0, 0.6)),  # haul_latency (domain-randomised)
-        progress,                       # utilisation
-        min(progress * 1.2, 1.0),      # active_zone_density
+        min(progress * 1.5, 1.0),                                           # fleet_congestion
+        float(rng.uniform(0.0, 0.6)),                                       # haul_latency (domain-randomised)
+        progress,                                                            # utilisation
+        min(progress * 1.2, 1.0),                                           # active_zone_density
+        float(np.clip(rng.uniform(0.6, 1.0), 0.0, 1.0)),                    # weather_visibility
+        float(np.clip(1.0 - 0.15 * progress + rng.normal(0.0, 0.03), 0.0, 1.0)),  # equipment_health
+        float(np.clip(rng.uniform(0.5, 0.95), 0.0, 1.0)),                   # ground_bearing_capacity
+        float(rng.uniform(0.0, 0.7)),                                       # queue_length_norm
     ], dtype=np.float32)
     assert iot.shape == (IOT_FEATURE_DIM,)
     return iot

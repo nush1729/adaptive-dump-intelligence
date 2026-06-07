@@ -54,7 +54,7 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
   }, [scoreMap, mask]);
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-[#050608]">
+    <div className="h-full flex flex-col bg-[#050608]">
       <div className="flex items-center justify-between gap-4 px-6 py-4 border-b" style={{ background: "rgba(10,12,15,0.78)", borderColor: "var(--border)" }}>
         <div>
           <div className="font-syncopate text-[0.68rem] uppercase tracking-[0.2em]" style={{ color: "var(--acid)" }}>
@@ -90,10 +90,10 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
 
 export default function DashboardPage() {
   const {
-    material, nDumps, isoThreshold, seed, selectedFleet, weights,
-    useML, isRunning, result, liveSurface, liveLog,
+    material, nDumps, isoThreshold, minDumpSpacing, seed, selectedFleet, payloadOverrides, weights,
+    useML, zoneMode, isRunning, result, liveSurface, liveLog,
     health, setHealth, setResult, setIsRunning, setProgress, resetLive,
-    setLiveSurface, appendLog, appendVolume, appendSnapshot,
+    setLiveSurface, appendLog, appendVolume, appendSnapshot, appendAnomaly, liveAnomalies, setLiveWhy, liveWhy, setLiveDumpStage,
     activeView, setActiveView, showStatic, setWeights, lastRunPolicy, setLastRunPolicy,
   } = useSimStore();
 
@@ -118,8 +118,10 @@ export default function DashboardPage() {
     setLastRunPolicy(null);
 
     const cfg = {
-      material, n_dumps: nDumps, iso_threshold: isoThreshold, seed,
-      fleet_models: selectedFleet, weights, use_ml: useML,
+      material, n_dumps: nDumps, iso_threshold: isoThreshold, min_dump_spacing: minDumpSpacing, seed,
+      fleet_models: selectedFleet,
+      payload_overrides: Object.keys(payloadOverrides).length > 0 ? payloadOverrides : null,
+      weights, use_ml: useML, zone_mode: zoneMode,
     };
 
     // Step 1: Stream via WebSocket for live terrain updates
@@ -135,12 +137,17 @@ export default function DashboardPage() {
               efficiency: msg.efficiency!, policy: msg.policy });
             appendLog({ t: msg.dump!, truck: msg.truck!, r: msg.r!, c: msg.c!,
               status: "dumped", payload_t: msg.payload_t!, volume: msg.volume!,
-              coverage: msg.coverage! });
+              coverage: msg.coverage!, gps_fix: msg.gps_fix, dump_stage: msg.dump_stage, why: msg.why });
+            if (msg.why) setLiveWhy(msg.why);
+            if (msg.dump_stage) setLiveDumpStage(msg.dump_stage);
             setProgress((msg.dump! + 1) / nDumps * 100);
           } else if (msg.type === "rejected") {
             appendLog({ t: msg.dump!, truck: "—", r: msg.r!, c: msg.c!,
               status: `iso_rejected(${msg.reach?.toFixed(2)})`,
               payload_t: 0, volume: 0, coverage: 0 });
+          } else if (msg.type === "anomaly") {
+            appendAnomaly({ tick: msg.tick!, metric: msg.metric!, value: msg.value!,
+              zscore: msg.zscore!, message: msg.message! });
           } else if (msg.type === "done") {
             wsOk = true;
             resolve();
@@ -174,9 +181,9 @@ export default function DashboardPage() {
     }
 
     setIsRunning(false);
-  }, [isRunning, material, nDumps, isoThreshold, seed, selectedFleet, weights,
-      useML, setIsRunning, resetLive, appendVolume, appendLog, appendSnapshot,
-      setLiveSurface, setProgress, setResult, setLastRunPolicy]);
+  }, [isRunning, material, nDumps, isoThreshold, minDumpSpacing, seed, selectedFleet,
+      payloadOverrides, weights, useML, setIsRunning, resetLive, appendVolume, appendLog,
+      appendSnapshot, setLiveSurface, setProgress, setResult, setLastRunPolicy]);
 
   const handleTune = useCallback(async () => {
     setIsTuning(true);
@@ -205,6 +212,7 @@ export default function DashboardPage() {
           <RailItem label="Iso" value={isoThreshold.toFixed(2)} />
           <RailItem label="Fleet" value={String(selectedFleet.length)} />
           <RailItem label="ML" value={useML ? "On" : "Off"} />
+          <RailItem label="Zone" value={zoneMode ? "Geofenced" : "Free-form"} />
         </>
       }
       rightTitle="Live Metrics"
@@ -260,7 +268,29 @@ export default function DashboardPage() {
 
         {/* Cinematic Workspace */}
         <div className="flex-1 relative min-h-0" style={{ background: "var(--void)" }}>
-          
+
+          {/* Predictive-maintenance anomaly alert banner */}
+          {liveAnomalies.length > 0 && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex flex-col gap-1.5 max-w-[min(90%,560px)]">
+              {liveAnomalies.slice(0, 2).map((a, i) => (
+                <div key={`${a.tick}-${a.metric}-${i}`}
+                  className="px-3 py-2 rounded font-mono text-[0.72rem] backdrop-blur-md flex items-center gap-2"
+                  style={{
+                    background: "rgba(255,68,0,0.12)",
+                    border: "1px solid rgba(255,68,0,0.5)",
+                    color: "#FF6A3D",
+                  }}>
+                  <span className="uppercase tracking-widest text-[0.6rem] font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: "rgba(255,68,0,0.25)" }}>
+                    Anomaly
+                  </span>
+                  <span>{a.message}</span>
+                  <span className="ml-auto opacity-60">t={a.tick}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Subtle Grid Overlay */}
           <div className="absolute inset-0 pointer-events-none adios-grid-overlay opacity-10" />
 

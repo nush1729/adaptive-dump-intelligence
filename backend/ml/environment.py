@@ -43,7 +43,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from environment.terrain import Terrain
 from planning.isolation_validator import IsolationValidator
-from planning.action_masker import ConstrainedActionMasker
+from planning.action_masker import ConstrainedActionMasker, turning_radius_accessible
 from config import (
     SITE_CONFIG, MATERIALS, material_config,
     TRUCK_PROFILES, N_TRUCK_TYPES, MAX_PAYLOAD_T, CONTEXT_DIM,
@@ -113,18 +113,6 @@ def _compute_spacing_density(height: np.ndarray, mask: np.ndarray) -> np.ndarray
     return density.astype(np.float32)
 
 
-def _turning_radius_accessible(terrain, r: int, c: int, profile_name: str) -> bool:
-    """
-    Check if truck with given turning radius can reach cell (r,c) from entry.
-    Approximation: ensure a corridor of width >= turning_radius_cells exists
-    along the path from entry to target. Uses distance-transform heuristic.
-    """
-    profile = TRUCK_PROFILES.get(profile_name, TRUCK_PROFILES["generic"])
-    turning_radius_cells = profile.turning_radius_m  # 1m² cells → direct mapping
-    dist_to_boundary = distance_transform_edt(terrain.mask)
-    if dist_to_boundary[r, c] < turning_radius_cells * 0.5:
-        return False
-    return True
 
 
 class DumpPackingEnv(gym.Env):
@@ -180,9 +168,40 @@ class DumpPackingEnv(gym.Env):
         self._truck_dump_counts = {}
         self._dump_positions = []  # track placed dump centres for spacing reward
 
+    # ── curriculum ───────────────────────────────────────────────────────────
+    # Stage 0 = easy (single generic truck, short episodes, narrow seed band)
+    # Stage 1 = medium (small mixed fleet, full-length episodes)
+    # Stage 2 = hard (full mixed fleet, full seed range — the "real" distribution)
+    # Each stage tweaks the *episode setup* only (fleet composition, episode
+    # length, polygon-seed diversity) — never the observation/action/reward
+    # definitions — so a single trained model can progress through stages
+    # without invalidating its architecture.
+    _CURRICULUM_STAGES = {
+        0: {"n_trucks": 1, "truck_profiles": ["generic"], "max_dumps": 40, "seed_range": (0, 1999)},
+        1: {"n_trucks": 2, "truck_profiles": ["generic", "Cat777"], "max_dumps": 60, "seed_range": (0, 4999)},
+        2: {"n_trucks": 4, "truck_profiles": None, "max_dumps": 80, "seed_range": (0, 9999)},
+    }
+
+    def _apply_curriculum_stage(self, stage: int) -> None:
+        cfg = self._CURRICULUM_STAGES.get(stage, self._CURRICULUM_STAGES[2])
+        self.n_trucks = cfg["n_trucks"]
+        self.truck_profiles = cfg["truck_profiles"] or _TRUCK_PROFILE_NAMES
+        self.max_dumps = cfg["max_dumps"]
+        self.seed_range = cfg["seed_range"]
+
+    def set_curriculum_stage(self, stage: int) -> None:
+        """Advance (or change) curriculum difficulty between training runs.
+
+        Call this on a live env instance (or before make_vec_env wraps it) to
+        progress easy -> medium -> hard across sequential model.learn() calls.
+        """
+        self.curriculum_stage = stage
+        self._apply_curriculum_stage(stage)
+
     # ── reset ────────────────────────────────────────────────────────────────
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+        self._apply_curriculum_stage(self.curriculum_stage)
         rng_seed = self.fixed_seed
         if rng_seed is None:
             lo, hi = self.seed_range
@@ -218,7 +237,7 @@ class DumpPackingEnv(gym.Env):
 
         # Turning-radius accessibility check
         profile_name = self.truck_profiles[self._truck_idx % len(self.truck_profiles)]
-        if not _turning_radius_accessible(self.terrain, r, c, profile_name):
+        if not turning_radius_accessible(self.terrain, r, c, profile_name):
             reward -= 0.5
 
         # Isolation constraint
@@ -248,7 +267,8 @@ class DumpPackingEnv(gym.Env):
                 n_total = self.max_dumps
                 for pct in [0.25, 0.5, 0.75]:
                     checkpoint = int(n_total * pct)
-                    if self._dump_count == checkpoint and len(self._dump_positions) > 4:
+                    # _dump_count is pre-increment here (this dump is ordinal _dump_count + 1)
+                    if self._dump_count + 1 == checkpoint and len(self._dump_positions) > 4:
                         cur_mean = self._mean_pairwise_spacing()
                         gap = (AUTONOMOUS_SPACING_CELLS - cur_mean) / max(AUTONOMOUS_SPACING_CELLS - STAFFED_SPACING_CELLS, 1.0)
                         reward += max(0.0, gap) * 1.5
@@ -398,11 +418,20 @@ class DumpPackingEnv(gym.Env):
 
         progress = self._dump_count / max(self.max_dumps, 1)
         rng = self.np_random if self.np_random else np.random.default_rng(42)
+        # Local pile height under the truck's current cell informs synthetic
+        # ground-bearing capacity — taller piles ⇒ softer ground (mirrors
+        # IoTTelemetry.ground_bearing_capacity used at inference time).
+        local_height = float(h[self.terrain.entry]) if h.size else 0.0
+        bearing = np.clip(0.9 - 0.03 * local_height + float(rng.normal(0.0, 0.02)), 0.0, 1.0)
         iot = np.array([
-            min(progress * 1.5, 1.0),
-            float(rng.uniform(0.0, 0.6)),
-            progress,
-            min(progress * 1.2, 1.0),
+            min(progress * 1.5, 1.0),                          # fleet_congestion
+            float(rng.uniform(0.0, 0.6)),                       # haul_latency_norm
+            progress,                                           # utilization
+            min(progress * 1.2, 1.0),                           # zone_density
+            float(np.clip(rng.uniform(0.6, 1.0), 0.0, 1.0)),    # weather_visibility
+            float(np.clip(1.0 - 0.15 * progress + rng.normal(0.0, 0.03), 0.0, 1.0)),  # equipment_health
+            float(bearing),                                     # ground_bearing_capacity
+            float(rng.uniform(0.0, 0.7)),                       # queue_length_norm
         ], dtype=np.float32)
 
         context = build_context_vector(

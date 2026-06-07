@@ -21,8 +21,6 @@ from planning.isolation_validator import IsolationValidator
 from planning.action_masker import ConstrainedActionMasker
 from evaluation.metrics import summarize_episode
 from config import SITE_CONFIG, config_payload
-
-
 def parse_args():
     p = argparse.ArgumentParser(description="ADIOS ML Evaluation — compute real metrics")
     p.add_argument("--seeds", type=int, default=10,
@@ -36,7 +34,6 @@ def parse_args():
     p.add_argument("--out", type=str, default=None,
                    help="Output path (default: ml/weights/ppo_adios/eval_result.json)")
     return p.parse_args()
-
 
 def run_heuristic_episode(terrain, fleet, n_dumps):
     """Run one heuristic episode and return metrics dict."""
@@ -82,10 +79,10 @@ def run_heuristic_episode(terrain, fleet, n_dumps):
         "rejected": rejected,
     }
 
-
 def run_ml_episode(terrain, fleet, n_dumps, policy):
     """Run one ML episode and return metrics dict using robust action masking and retry loop."""
-    from scipy.ndimage import distance_transform_edt
+    from planning.orchestrator import _build_terrain_map
+    from ml.policy import TruckAgent
 
     val = IsolationValidator(terrain, terrain.entry, SITE_CONFIG.iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
     dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // len(fleet) + 1)
@@ -93,24 +90,27 @@ def run_ml_episode(terrain, fleet, n_dumps, policy):
     COLS = terrain.cols
     success, rejected = 0, 0
     reserved = set()
+    agents = {t.truck_id: TruckAgent(t.truck_id, t.model) for t in fleet}
 
-    for _, payload_t in dispatches:
+    for truck_id, payload_t in dispatches:
         placed = False
+        agent = agents[truck_id]
 
         for _attempt in range(50):
-            h = terrain.height
-            mask = terrain.mask.astype(np.float32)
-            h_norm = np.clip(h / SITE_CONFIG.max_height_m, 0.0, 1.0).astype(np.float32)
-            dist = distance_transform_edt(terrain.mask).astype(np.float32)
-            dist_norm = dist / (dist.max() or 1.0)
-            obs = np.stack([h_norm, mask, dist_norm], axis=0)
+            terrain_map = _build_terrain_map(terrain)
 
             action_mask = ConstrainedActionMasker(terrain, val).mask(payload_t, reserved_cells=reserved, include_iso=True)
 
             if not action_mask.any():
                 break
 
-            action = policy.predict(obs, action_mask.ravel().copy())
+            action = agent.propose_action(
+                terrain_map=terrain_map,
+                payload_t=payload_t,
+                material=terrain.material,
+                policy=policy,
+                action_masks=action_mask.ravel().copy(),
+            )
             r, c = divmod(int(action), COLS)
 
             safe, _ = val.validate(r, c, payload_t)
@@ -122,6 +122,7 @@ def run_ml_episode(terrain, fleet, n_dumps, policy):
             if ok:
                 success += 1
                 val.record_dump(r, c)
+                agent.record_dump()
                 placed = True
                 reserved.discard((r, c))
                 break
@@ -261,10 +262,8 @@ def main():
         out_path = os.path.join(
             os.path.dirname(__file__), "..", "ml", "weights", "ppo_adios", "eval_result.json"
         )
-
     with open(out_path, "w") as f:
         json.dump(eval_data, f, indent=2)
-
     print(f"\n{'='*50}")
     print(f"  Heuristic Efficiency: {h_eff['mean']:.1f}% ± {h_eff['std']:.1f}%")
     if ml_results:
@@ -273,7 +272,5 @@ def main():
         print(f"  Delta:                {eval_data['delta']:+.1f}%")
     print(f"  Written → {out_path}")
     print(f"{'='*50}\n")
-
-
 if __name__ == "__main__":
     main()

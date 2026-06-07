@@ -82,6 +82,8 @@ const STACK = [
       { name: "Compaction Modelling", role: "Physics-based soil compaction simulation for dump site accuracy" },
       { name: "CTDE Framework", role: "Centralised training, decentralised per-truck execution at inference" },
       { name: "IoTTelemetry", role: "Fleet GPS/payload noise simulation, congestion + utilisation features" },
+      { name: "AnomalyDetector", role: "Rolling z-score predictive maintenance over equipment health & ground bearing streams" },
+      { name: "ZonePlanner", role: "Geofenced per-truck-class zone partitioning — runnable AHS-style comparison baseline" },
     ],
   },
 ];

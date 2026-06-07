@@ -5,12 +5,16 @@ Endpoints:
   GET  /health               system + model status
   GET  /fleet_specs          truck specs
   POST /simulate             full run → returns terrain, metrics, snapshots
-  POST /simulate/ml          same but uses trained PPO policy
+                             (set use_ml=true in body to dispatch via trained PPO policy)
   POST /tune                 weight auto-tuner
   GET  /benchmark            load pre-computed benchmark results
   GET  /audit                load last audit log
-  WS   /ws/simulate          real-time step-by-step streaming (heuristic)
-  WS   /ws/simulate/ml       real-time step-by-step streaming (ML policy)
+  GET  /eval_result          load last PPO-vs-heuristic evaluation summary
+  POST /spacing_analysis     nearest-neighbour dump spacing analysis
+  GET  /fleet_intelligence   live IoT telemetry + CTDE fleet snapshot
+  GET  /schedule             time-space dispatch schedule
+  WS   /ws/simulate          real-time step-by-step streaming
+                             (set use_ml=true in body to stream via trained PPO policy)
 """
 import asyncio
 import json, os, sys, time
@@ -35,8 +39,8 @@ from config import SITE_CONFIG, config_payload
 # ── optional ML imports ───────────────────────────────────────────────────────
 ML_AVAILABLE = False
 _policy_cache = {}
-WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), "..", "ml", "weights", "ckpt_160000_steps")
-# Note: load_policy resolves this to ckpt_160000_steps.zip automatically
+WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), "..", "ml", "weights", "ppo_adios")
+# Note: load_policy resolves this to ppo_adios.zip automatically
 
 def _load_policy_cached(device="cpu", raise_on_fail=False):
     if "policy" not in _policy_cache:
@@ -77,11 +81,14 @@ class SimConfig(BaseModel):
     material: str = "default"
     n_dumps: int = SITE_CONFIG.benchmark_dumps
     fleet_models: List[str] = list(SITE_CONFIG.default_fleet)
+    payload_overrides: Optional[Dict[str, float]] = None
     weights: Optional[dict] = None
     iso_threshold: float = SITE_CONFIG.iso_threshold
+    min_dump_spacing: Optional[float] = None
     auto_tune: bool = False
     seed: int = SITE_CONFIG.default_seed
     use_ml: bool = False
+    zone_mode: bool = False
 
 class TuneConfig(BaseModel):
     material: str = "default"
@@ -149,17 +156,14 @@ def _build_obs_dict(terrain: Terrain, truck_profile: str = "generic",
                     payload_t: float = 100.0, truck_dump_count: int = 0,
                     iot_features=None) -> dict:
     """Build 5-channel Dict observation matching DumpPackingEnv._obs() exactly."""
-    from scipy.ndimage import distance_transform_edt, gaussian_filter
+    from scipy.ndimage import gaussian_filter
     from ml.environment import build_context_vector, PILE_THRESHOLD_M
 
     h = terrain.height
     mask = terrain.mask.astype(np.float32)
     h_norm = np.clip(h / SITE_CONFIG.max_height_m, 0.0, 1.0).astype(np.float32)
 
-    dist_arr = distance_transform_edt(terrain.mask)
-    if isinstance(dist_arr, tuple):
-        dist_arr = dist_arr[0]
-    dist = np.asarray(dist_arr, dtype=np.float32)
+    dist = terrain.dist_to_boundary
     dist_norm = dist / (dist.max() or 1.0)
 
     pile_mask = (h > PILE_THRESHOLD_M).astype(np.float32)
@@ -180,7 +184,8 @@ def _build_obs_dict(terrain: Terrain, truck_profile: str = "generic",
     )
     return {"terrain_map": terrain_map, "context_vector": context}
 
-def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float) -> tuple:
+def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float,
+                    min_dump_spacing: Optional[float] = None) -> tuple:
     """Run one episode with the loaded ML policy. Returns (log, snapshots, latencies, positions, policy_type)."""
     try:
         policy, ptype = _load_policy_cached(raise_on_fail=True)
@@ -189,15 +194,18 @@ def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float)
 
     from iot.telemetry import IoTTelemetry
     from ml.policy import TruckAgent
+    from ml.anomaly_detector import AnomalyDetector
 
     iot = IoTTelemetry(n_trucks=len(fleet))
     iot.reset()
+    anomaly_detector = AnomalyDetector()
     truck_agents = {
         t.truck_id: TruckAgent(t.truck_id, getattr(t, "profile_name", "generic"))
         for t in fleet
     }
 
-    val = IsolationValidator(terrain, terrain.entry, iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
+    spacing = min_dump_spacing if min_dump_spacing is not None else SITE_CONFIG.min_dump_spacing_cells
+    val = IsolationValidator(terrain, terrain.entry, iso_threshold, spacing)
     log, snapshots = [], []
     COLS = terrain.cols
 
@@ -214,7 +222,13 @@ def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float)
 
         agent = truck_agents.get(truck_id)
         iot.update_truck(truck_id, terrain.entry, payload_t, tick=i)
-        iot_features = iot.get_iot_feature_vector()
+        entry_height_m = float(terrain.height[terrain.entry[0], terrain.entry[1]])
+        iot_features = iot.get_iot_feature_vector(local_height_m=entry_height_m)
+        anomaly_detector.observe(
+            tick=i,
+            fleet_metrics=iot.get_fleet_metrics(),
+            ground_bearing_capacity=iot.ground_bearing_capacity(entry_height_m),
+        )
 
         for _attempt in range(50):
             action_mask = ConstrainedActionMasker(terrain, val, iso_threshold).mask(
@@ -281,7 +295,7 @@ def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float)
             })
         latencies.append((time.perf_counter() - t0) * 1000)
 
-    return log, snapshots, latencies, dump_positions, policy_type
+    return log, snapshots, latencies, dump_positions, policy_type, anomaly_detector
 
 # ── routes ────────────────────────────────────────────────────────────────────
 @app.get("/health")
@@ -316,13 +330,14 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
         tuner = WeightTuner(weights, n_trials=20)
         weights, _ = tuner.tune(factory)
 
-    fleet = make_fleet(cfg.fleet_models)
+    fleet = make_fleet(cfg.fleet_models, payload_overrides=cfg.payload_overrides)
 
     actual_policy = "heuristic"  # Track what was ACTUALLY used
     log = None
+    anomaly_detector = None
     if cfg.use_ml:
         try:
-            log, snapshots, latencies, dump_positions, loaded_policy = _run_ml_episode(terrain, fleet, cfg.n_dumps, cfg.iso_threshold)
+            log, snapshots, latencies, dump_positions, loaded_policy, anomaly_detector = _run_ml_episode(terrain, fleet, cfg.n_dumps, cfg.iso_threshold, cfg.min_dump_spacing)
             if log is not None:
                 actual_policy = loaded_policy or "unknown_ml"
             else:
@@ -333,15 +348,17 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
             log = None
 
     if not cfg.use_ml or log is None:
-        orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH)
+        orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH, n_trucks=len(fleet), min_spacing=cfg.min_dump_spacing)
         orch.validator.reach_thresh = cfg.iso_threshold
-        dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
+        dispatches = [{"truck_id": t.truck_id, "payload_t": t.payload_t, "truck_profile": t.model}
+                      for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
         dispatches = dispatches[:cfg.n_dumps]
         latencies = []
         dump_positions = []
         t_last = time.perf_counter()
-        log = orch.run(dispatches)
+        log = orch.run(dispatches, zone_mode=cfg.zone_mode)
         snapshots = orch.snapshots
+        anomaly_detector = orch.anomaly_detector
         latencies = [(time.perf_counter() - t_last) * 1000 / max(len(dispatches), 1)] * len(dispatches)
         dump_positions = [(int(x["r"]), int(x["c"])) for x in log if x.get("status") == "dumped"]
         actual_policy = "heuristic"
@@ -447,7 +464,11 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
             "display_name": actual_policy.replace("_", " ").title(),
         },
         "config": config_payload(),
+        "zone_mode": cfg.zone_mode,
+        "anomalies": anomaly_detector.to_json() if anomaly_detector is not None else {"alerts": [], "alert_count": 0},
     })
+    if cfg.zone_mode and not cfg.use_ml and getattr(orch, "zone_planner", None) is not None:
+        payload["zone_layout"] = orch.zone_planner.to_json()
     return _sanitize_for_json(payload)
 
 @app.post("/simulate")
@@ -586,10 +607,15 @@ def fleet_intelligence(seed: int = SITE_CONFIG.default_seed, n_trucks: int = 4):
     truck_names = list(TRUCK_PROFILES.keys())[:n_trucks]
     for i, name in enumerate(truck_names):
         profile = TRUCK_PROFILES[name]
-        # Simulate a few ticks to get realistic IoT state
+        # Simulate a mid-shift snapshot: stagger arrivals so roughly half the
+        # fleet is still active/in-transit and half has just dumped — a fleet
+        # where every truck has already dumped reads as fully idle (congestion,
+        # zone density, queue all flatten to 0), which misrepresents live ops.
         tid = f"T{i+1}"
-        iot.update_truck(tid, (50, 50), profile.max_payload_t * 0.9, tick=i * 3)
-        iot.record_dump(tid, tick=i * 3 + 2)
+        iot.update_truck(tid, (50 + i * 4, 50 - i * 3), profile.max_payload_t * 0.9, tick=i * 3)
+        if i % 2 == 0:
+            iot.record_dump(tid, tick=i * 3 + 2)
+    iot.step_environment(queue_length=max(1, n_trucks // 2))
 
     iot_vec = iot.get_iot_feature_vector().tolist()
     fleet_metrics = iot.get_fleet_metrics()
@@ -612,11 +638,49 @@ def fleet_intelligence(seed: int = SITE_CONFIG.default_seed, n_trucks: int = 4):
             "haul_latency_norm": round(float(iot_vec[1]), 3),
             "utilization": round(float(iot_vec[2]), 3),
             "zone_density": round(float(iot_vec[3]), 3),
+            "weather_visibility": round(float(iot_vec[4]), 3),
+            "equipment_health": round(float(iot_vec[5]), 3),
+            "ground_bearing_capacity": round(float(iot_vec[6]), 3),
+            "queue_length_norm": round(float(iot_vec[7]), 3),
         },
         "fleet_metrics": fleet_metrics,
         "ctde_mode": "active",
         "policy_type": _load_policy_cached()[1],
     })
+
+
+@app.get("/anomalies")
+def anomalies(seed: int = SITE_CONFIG.default_seed, n_trucks: int = 4, ticks: int = 60):
+    """
+    Predictive-maintenance probe: replays `ticks` of synthetic IoT telemetry
+    through the z-score AnomalyDetector (equipment_health / ground_bearing_capacity)
+    and returns any alerts raised — i.e. samples that drop sharply below their
+    own rolling baseline, not arbitrary thresholds.
+    """
+    from iot.telemetry import IoTTelemetry
+    from ml.anomaly_detector import AnomalyDetector
+
+    terrain = Terrain.make_demo_polygon(100, 100, "default", seed)
+    iot = IoTTelemetry(n_trucks=n_trucks)
+    iot.reset()
+    detector = AnomalyDetector()
+
+    truck_names = [f"T{i+1}" for i in range(n_trucks)]
+    er, ec = terrain.entry
+    for tick in range(ticks):
+        tid = truck_names[tick % n_trucks]
+        iot.update_truck(tid, (er, ec), 200.0, tick=tick)
+        if tick % 3 == 0:
+            iot.record_dump(tid, tick=tick)
+        iot.step_environment(queue_length=tick % n_trucks)
+        entry_height_m = float(terrain.height[er, ec])
+        detector.observe(
+            tick=tick,
+            fleet_metrics=iot.get_fleet_metrics(),
+            ground_bearing_capacity=iot.ground_bearing_capacity(entry_height_m),
+        )
+
+    return _sanitize_for_json(detector.to_json())
 
 
 # ── WebSocket: real-time streaming ───────────────────────────────────────────
@@ -638,7 +702,7 @@ def get_schedule(n_trucks: int = 4, n_dumps: int = 40, seed: int = 42):
     truck_names = [f"T{i+1}" for i in range(n_trucks)]
     payloads = rng.choice(list(SITE_CONFIG.generic_payloads_t), size=n_trucks, replace=True)
     
-    orch = ADIOSOrchestrator(terrain)
+    orch = ADIOSOrchestrator(terrain, n_trucks=n_trucks)
     dispatches = []
     for i in range(n_dumps):
         tid = i % n_trucks
@@ -724,14 +788,15 @@ async def ws_simulate(ws: WebSocket):
         cfg = SimConfig(**json.loads(raw))
         terrain = Terrain.make_demo_polygon(cfg.rows, cfg.cols, cfg.material, cfg.seed)
         weights = cfg.weights or dict(DEFAULT_WEIGHTS)
-        fleet = make_fleet(cfg.fleet_models)
+        fleet = make_fleet(cfg.fleet_models, payload_overrides=cfg.payload_overrides)
 
         # FIX: use ScoringEngine for intelligent cell selection
         from planning.scorer import ScoringEngine
         eng = ScoringEngine(terrain, terrain.entry, weights)
         val = IsolationValidator(terrain, terrain.entry, cfg.iso_threshold)
 
-        dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
+        dispatches = [{"truck_id": t.truck_id, "payload_t": t.payload_t, "truck_profile": t.model}
+                      for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
         dispatches = dispatches[:cfg.n_dumps]
         success_count = 0
         reject_count  = 0
@@ -741,13 +806,29 @@ async def ws_simulate(ws: WebSocket):
         if cfg.use_ml:
             policy, ptype = _load_policy_cached(raise_on_fail=True)
             
-        orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH)
+        orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH, n_trucks=len(fleet), min_spacing=cfg.min_dump_spacing)
         orch.validator.reach_thresh = cfg.iso_threshold
-        
+
         success_count = 0
         reject_count = 0
-        
-        for log_entry, snapshot, placed, r, c in orch.run_generator(dispatches, policy=policy, ptype=ptype):
+        zone_layout_sent = not cfg.zone_mode
+        alerts_sent = 0
+
+        for log_entry, snapshot, placed, r, c in orch.run_generator(dispatches, policy=policy, ptype=ptype, zone_mode=cfg.zone_mode):
+            if not zone_layout_sent and getattr(orch, "zone_planner", None) is not None:
+                await ws.send_json(_sanitize_for_json({
+                    "type": "zone_layout",
+                    "zones": orch.zone_planner.to_json()["zones"],
+                }))
+                zone_layout_sent = True
+
+            # Stream any newly-raised predictive-maintenance alerts
+            new_alerts = orch.anomaly_detector.alerts[alerts_sent:]
+            if new_alerts:
+                alerts_sent = len(orch.anomaly_detector.alerts)
+                for alert in new_alerts:
+                    await ws.send_json(_sanitize_for_json({"type": "anomaly", **alert}))
+
             if log_entry["status"] == "no_space":
                 await ws.send_json(_sanitize_for_json({
                     "type": "skip", "dump": log_entry["t"]
@@ -776,6 +857,11 @@ async def ws_simulate(ws: WebSocket):
                     "efficiency":   terrain.packing_efficiency(),
                     "full_surface": terrain.to_json_surface(),
                     "policy":       ptype,
+                    "truck_profile": log_entry.get("truck_profile"),
+                    "zone_mode":    cfg.zone_mode,
+                    "gps_fix":      log_entry.get("gps_fix"),
+                    "dump_stage":   log_entry.get("dump_stage"),
+                    "why":          log_entry.get("why"),
                 }))
                 await asyncio.sleep(0)  # Yield control to the event loop
 
@@ -788,6 +874,8 @@ async def ws_simulate(ws: WebSocket):
             "coverage_pct":      round(terrain.coverage_fraction() * 100, 2),
             "packing_efficiency": round(terrain.packing_efficiency() * 100, 2),
             "policy":            ptype,
+            "zone_mode":         cfg.zone_mode,
+            "anomaly_count":     orch.anomaly_detector.to_json()["alert_count"],
         }
         await ws.send_json(_sanitize_for_json({"type": "done", "summary": summary}))
 

@@ -13,6 +13,7 @@ Stages:
 Typical runtime: ~3 min on CPU for 100K steps (sufficient for demo quality)
 """
 import argparse, os, sys, time, json
+from typing import Optional
 import numpy as np
 from pathlib import Path
 
@@ -25,6 +26,9 @@ def parse_args():
     p.add_argument("--device", type=str, default="cpu")
     p.add_argument("--out", type=str, default="ml/weights/ppo_adios")
     p.add_argument("--skip-bc", action="store_true", help="Skip behavioural cloning stage")
+    p.add_argument("--curriculum", action="store_true",
+                   help="Run sequential easy->medium->hard curriculum (single model, "
+                        "steps split 20/30/50%% across stages) instead of single-stage training")
     return p.parse_args()
 
 
@@ -53,99 +57,100 @@ def stage1_behavioural_cloning(out_dir: str, n_polygons: int = 50, epochs: int =
     return ckpt_path
 
 
-def stage2_ppo(steps: int, device: str, out_path: str, bc_path: str = None):
+def stage2_ppo(steps: int, device: str, out_path: str, bc_path: Optional[str] = None,
+               curriculum: bool = False):
     """
     Fine-tune with PPO using MultiInputPolicy + ADIOSMultiInputExtractor.
 
-    Uses curriculum learning: trains on progressively harder polygon shapes
-    and mixed fleets. The enriched DumpPackingEnv produces 5-channel Dict obs:
+    The enriched DumpPackingEnv produces 5-channel Dict obs:
       {"terrain_map": (5,100,100), "context_vector": (CONTEXT_DIM,)}
+
+    When curriculum=True, runs true multi-stage curriculum learning: the same
+    model object is trained sequentially across easy -> medium -> hard
+    DumpPackingEnv configurations (single generic truck/short episodes ->
+    small mixed fleet -> full mixed fleet/full seed range), with `steps` split
+    proportionally (20% / 30% / 50%) across the three stages. This only
+    changes *episode setup* (fleet composition, episode length, seed
+    diversity) between stages — observation/action/reward shapes are
+    identical throughout, so the same model and optimizer state carry over.
     """
-    print(f"  Stage 2: PPO fine-tuning for {steps:,} steps on {device}...")
     from ml.environment import DumpPackingEnv
     from ml.policy import ADIOSMultiInputExtractor
     from stable_baselines3.common.env_util import make_vec_env
-    from stable_baselines3.common.callbacks import CheckpointCallback, BaseCallback
+    from stable_baselines3.common.callbacks import CheckpointCallback
 
-    class CurriculumCallback(BaseCallback):
-        """Advance curriculum stage every 1/3 of training."""
-        def __init__(self, total_steps, envs, verbose=0):
-            super().__init__(verbose)
-            self.total_steps = total_steps
-            self.envs = envs
-            self._stage = 0
-        def _on_step(self) -> bool:
-            stage = min(2, int(self.num_timesteps / self.total_steps * 3))
-            if stage > self._stage:
-                self._stage = stage
-                print(f"\n    [Curriculum] Advancing to stage {stage}")
-            return True
-
+    use_maskable = True
     try:
-        from sb3_contrib import MaskablePPO  # type: ignore
+        from sb3_contrib import MaskablePPO
         from sb3_contrib.common.wrappers import ActionMasker
 
         def mask_fn(env):
             return env.action_masks()
 
-        def env_fn_easy():
-            return ActionMasker(DumpPackingEnv(seed_range=(0, 2999), curriculum_stage=0), mask_fn)
-
-        def env_fn_medium():
-            return ActionMasker(DumpPackingEnv(seed_range=(3000, 5999), curriculum_stage=1), mask_fn)
-
-        def env_fn_hard():
-            return ActionMasker(DumpPackingEnv(seed_range=(6000, 7999), curriculum_stage=2), mask_fn)
-
-        # Start with easy envs; curriculum callback advances difficulty
-        env_fn = env_fn_easy
         ModelClass = MaskablePPO
-        print("    Using MaskablePPO with MultiInputPolicy + Curriculum Learning")
+        print("    Using MaskablePPO with MultiInputPolicy")
     except ImportError:
         from stable_baselines3 import PPO
-
-        def env_fn():
-            return DumpPackingEnv(seed_range=(0, 7999))
-
         ModelClass = PPO
+        use_maskable = False
         print("    MaskablePPO not found, using standard PPO")
 
-    n_envs = min(4, os.cpu_count() or 2)
-    vec_env = make_vec_env(env_fn, n_envs=n_envs)
+    def make_env_fn(stage: int):
+        def env_fn():
+            env = DumpPackingEnv(curriculum_stage=stage)
+            return ActionMasker(env, mask_fn) if use_maskable else env
+        return env_fn
 
+    n_envs = min(4, os.cpu_count() or 2)
     policy_kwargs = dict(
         features_extractor_class=ADIOSMultiInputExtractor,
         features_extractor_kwargs=dict(features_dim=512),
         net_arch=dict(pi=[256, 128], vf=[256, 128]),
     )
-
-    model = ModelClass(
-        "MultiInputPolicy",
-        vec_env,
-        policy_kwargs=policy_kwargs,
-        learning_rate=3e-4,
-        n_steps=512,
-        batch_size=256,
-        n_epochs=4,
-        gamma=0.99,
-        gae_lambda=0.95,
-        clip_range=0.2,
-        ent_coef=0.01,
-        verbose=1,
-        device=device,
-        tensorboard_log="./tb_logs/",
-    )
-
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     checkpoint_cb = CheckpointCallback(
         save_freq=max(steps // 5, 10_000),
         save_path=os.path.dirname(out_path),
         name_prefix="ckpt",
     )
-    curriculum_cb = CurriculumCallback(steps, vec_env)
 
+    stages = [0, 1, 2] if curriculum else [2]
+    splits = [0.2, 0.3, 0.5] if curriculum else [1.0]
+    model = None
     t0 = time.time()
-    model.learn(total_timesteps=steps, callback=[checkpoint_cb, curriculum_cb], progress_bar=True)
+
+    for stage, frac in zip(stages, splits):
+        stage_steps = max(int(steps * frac), 1)
+        label = {0: "easy", 1: "medium", 2: "hard"}[stage]
+        print(f"  Stage 2{'.' + label if curriculum else ''}: PPO fine-tuning "
+              f"for {stage_steps:,} steps on {device} (curriculum_stage={stage} / {label})...")
+
+        vec_env = make_vec_env(make_env_fn(stage), n_envs=n_envs)
+
+        if model is None:
+            model = ModelClass(
+                "MultiInputPolicy",
+                vec_env,
+                policy_kwargs=policy_kwargs,
+                learning_rate=3e-4,
+                n_steps=512,
+                batch_size=256,
+                n_epochs=4,
+                gamma=0.99,
+                gae_lambda=0.95,
+                clip_range=0.2,
+                ent_coef=0.01,
+                verbose=1,
+                device=device,
+                tensorboard_log="./tb_logs/",
+            )
+        else:
+            # Carry the trained policy/optimizer forward into the next stage's envs
+            model.set_env(vec_env)
+
+        model.learn(total_timesteps=stage_steps, callback=[checkpoint_cb],
+                    progress_bar=True, reset_num_timesteps=(stage == stages[0]))
+
     elapsed = time.time() - t0
     print(f"    Training complete in {elapsed:.0f}s")
     model.save(out_path)
@@ -224,7 +229,7 @@ if __name__ == "__main__":
             print(f"  BC stage skipped ({e})")
 
     try:
-        stage2_ppo(args.steps, args.device, args.out, bc_path)
+        stage2_ppo(args.steps, args.device, args.out, bc_path, curriculum=args.curriculum)
         print("=" * 60)
         eval_result = evaluate_policy(args.out)
         with open(os.path.join(out_dir, "eval_result.json"), "w") as f:

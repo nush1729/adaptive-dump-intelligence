@@ -65,11 +65,10 @@ html:not(.dark) {
 ═══════════════════════════════════════════════════ */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
-  height: 100%;
+  min-height: 100%;
   background: var(--void);
   color: var(--text);
   font-family: "DM Sans", system-ui, sans-serif;
-  overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 button, input, select, textarea { font: inherit; }
@@ -282,7 +281,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .adios-brand {
   font-family: "Syncopate", sans-serif;
-  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.28em;
+  font-size: 0.95rem; font-weight: 700; letter-spacing: 0.28em;
   color: var(--cat); text-decoration: none; text-transform: uppercase;
   white-space: nowrap;
 }
@@ -293,9 +292,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .adios-nav-links a {
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.64rem; letter-spacing: 0.12em;
-  text-transform: uppercase; padding: 7px 13px;
-  color: var(--muted); text-decoration: none;
+  font-size: 0.8rem; letter-spacing: 0.1em; font-weight: 500;
+  text-transform: uppercase; padding: 8px 14px;
+  color: var(--text2); text-decoration: none;
   border-bottom: 2px solid transparent;
   border-radius: 3px 3px 0 0;
   transition: color 150ms, background 150ms, border-color 150ms;
@@ -320,8 +319,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   box-shadow: 0 0 8px var(--green);
 }
 .adios-live strong {
-  font-family: "JetBrains Mono", monospace; font-size: 0.56rem;
-  color: var(--green); letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: "JetBrains Mono", monospace; font-size: 0.7rem;
+  color: var(--green); letter-spacing: 0.08em; text-transform: uppercase;
   font-weight: 600; white-space: nowrap;
 }
 .adios-icon-button {
@@ -340,9 +339,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* ═══════════════════════════════════════════════════
    PAGE SHELL
 ═══════════════════════════════════════════════════ */
-.adios-page-shell   { height: 100dvh; overflow: hidden; background: var(--void); }
-.adios-page-content { height: 100%; padding-top: var(--nav-h); display: flex; min-width: 0; overflow: hidden; }
-.adios-page-main    { flex: 1; min-width: 0; height: 100%; overflow: hidden; background: var(--void); }
+.adios-page-shell   { height: 100dvh; overflow: hidden; background: var(--void); display: flex; flex-direction: column; }
+.adios-page-content { flex: 1; min-height: 0; padding-top: var(--nav-h); display: flex; min-width: 0; overflow: hidden; }
+.adios-page-main    { flex: 1; min-width: 0; height: 100%; overflow-y: auto; overflow-x: hidden; background: var(--void); }
+
+.adios-status-bar {
+  flex-shrink: 0; height: 30px; display: flex; align-items: center; gap: 18px;
+  padding: 0 16px; background: var(--surface); border-top: 1px solid var(--border);
+  font-family: "JetBrains Mono", monospace; font-size: 0.66rem; color: var(--text2);
+  letter-spacing: 0.04em; overflow: hidden; white-space: nowrap;
+}
+.adios-status-bar .dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--acid); box-shadow: 0 0 6px var(--acid); margin-right: 6px;
+}
 
 /* ═══════════════════════════════════════════════════
    SIDEBAR
@@ -373,7 +383,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.adios-sidebar-body { flex: 1; min-height: 0; overflow: hidden; }
+/* Single scroll container per sidebar — plain block flow, normal page-scroll
+   pattern. Panels (ControlPanel/MetricsPanel) render as static content and
+   let this element own the only scrollbar; no nested overflow regions. */
+.adios-sidebar-body {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+}
+.adios-sidebar-body::-webkit-scrollbar { width: 7px; }
+.adios-sidebar-body::-webkit-scrollbar-track { background: transparent; }
+.adios-sidebar-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.adios-sidebar-body::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 .adios-sidebar-rail {
   height: 100%; padding: 8px 7px; display: flex; flex-direction: column; gap: 6px; align-items: stretch;
 }
@@ -414,5 +434,5 @@ input[type=range] { accent-color: var(--cat); }
 @media (max-width: 900px) {
   .adios-live strong { display: none; }
   .adios-nav { gap: 10px; padding-inline: 12px; }
-  .adios-nav-links a { padding-inline: 8px; font-size: 0.58rem; }
+  .adios-nav-links a { padding-inline: 8px; font-size: 0.7rem; }
 }

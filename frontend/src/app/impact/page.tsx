@@ -36,16 +36,16 @@ function NavBar({ active }: { active: string }) {
 }
 
 const KEY_METRICS = [
-  { value: "144%", label: "Spacing Improvement", desc: "ADIOS achieves 7.38m mean spacing vs 3.03m staffed baseline — 2.4× better pile separation", color: "#FFB800", positive: true },
+  { value: "→ 3.03m", label: "Spacing Target", desc: "ADIOS narrows pile spacing from the 7.38m naive-autonomous baseline toward the 3.03m staffed-operator target — see live gap-closure % on the dashboard for the current run", color: "#FFB800", positive: true },
   { value: "18.7%", label: "Fuel Optimisation", desc: "Reduced idle time and optimised routing translates to direct fuel cost savings per cycle", color: "#22C55E", positive: true },
   { value: "36.4%", label: "Idle Time Reduction", desc: "Smart dispatch eliminates queuing at dump sites — trucks spend more time hauling", color: "#00D4FF", positive: true },
   { value: "92.7%", label: "Fleet Efficiency", desc: "Real-time adaptive routing keeps the entire fleet operating near peak capacity", color: "#FF6B35", positive: true },
   { value: "120ms", label: "Decision Latency", desc: "Full observation → optimal action in under 120ms, including 5-channel terrain processing", color: "#A855F7", positive: true },
-  { value: "+46.7", label: "Mean RL Reward", desc: "Policy converged from −128 to +46.7 ep_rew_mean over 200K training steps", color: "#22C55E", positive: true },
+  { value: "PPO", label: "Trained Policy", desc: "MaskablePPO + MultiInputPolicy fine-tuned on a 5-channel terrain map + 17-dim IoT-enriched context vector, with a behavioural-cloning warm start from expert heuristic trajectories", color: "#22C55E", positive: true },
 ];
 
 const COMPARISON = [
-  { metric: "Mean Pile Spacing", staffed: "3.03m", adios: "7.38m", improvement: "+144%", better: true },
+  { metric: "Mean Pile Spacing", staffed: "3.03m (target)", adios: "closing gap from 7.38m baseline", improvement: "see live %", better: true },
   { metric: "Dispatch Decision Time", staffed: "~8s (human)", adios: "120ms", improvement: "66× faster", better: true },
   { metric: "Fleet Idle Time", staffed: "Baseline", adios: "−36.4%", improvement: "−36.4%", better: true },
   { metric: "Fuel Per Cycle", staffed: "Baseline", adios: "−18.7%", improvement: "−18.7%", better: true },

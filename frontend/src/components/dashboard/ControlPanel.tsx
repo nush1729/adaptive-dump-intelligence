@@ -1,14 +1,16 @@
 "use client";
 import React from "react";
 import { useSimStore } from "@/store/simStore";
+import { STOCK_PAYLOADS_T } from "@/lib/config";
 
+// Truck classes shown for fleet composition — matches backend TRUCK_PROFILES
+// (config.py) so every count maps to a real, kinematically-distinct profile.
+const FLEET_CLASSES = ["Cat793", "Cat777", "Cat797"] as const;
 const FLEET_COLORS: Record<string, string> = {
   Cat777: "#FFD700", Cat793: "#FF8C00", Cat797: "#FF4500",
-  Generic50: "#00CED1", Generic200: "#9400D3",
 };
 const FLEET_LABELS: Record<string, string> = {
-  Cat777: "Cat 777 · 100t", Cat793: "Cat 793 · 240t", Cat797: "Cat 797 · 400t",
-  Generic50: "Generic · 50t", Generic200: "Generic · 200t",
+  Cat777: "Cat 777 · 100t · r=11m", Cat793: "Cat 793 · 240t · r=15m", Cat797: "Cat 797 · 400t · r=18m",
 };
 
 interface ControlPanelProps {
@@ -49,17 +51,19 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelProps) {
   const {
-    material, nDumps, isoThreshold, seed, selectedFleet, weights,
-    useML, isRunning,
-    setMaterial, setNDumps, setIsoThreshold, setSeed, toggleFleet,
-    setWeight, setUseML,
+    material, nDumps, isoThreshold, seed, selectedFleet, fleetCounts,
+    payloadOverrides, minDumpSpacing, weights,
+    useML, zoneMode, isRunning,
+    setMaterial, setNDumps, setIsoThreshold, setSeed, setFleetCount,
+    setPayloadOverride, setMinDumpSpacing,
+    setWeight, setUseML, setZoneMode,
   } = useSimStore();
 
   return (
-    <div className="flex flex-col h-full" style={{ background: "var(--surface)", color: "var(--text)" }}>
+    <div style={{ display: "flex", flexDirection: "column", background: "var(--surface)", color: "var(--text)", padding: "14px 14px 56px", gap: 16 }}>
 
-      {/* ── EXECUTE button — pinned at top, always visible ── */}
-      <div className="shrink-0 px-3 pt-3 pb-2">
+      {/* ── EXECUTE button — top of the panel ── */}
+      <div>
         <button
           onClick={onRun}
           disabled={isRunning}
@@ -83,8 +87,8 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
         </button>
       </div>
 
-      {/* ── Scrollable configuration body ── */}
-      <div className="flex-1 overflow-y-auto min-h-0 px-3 pb-4 flex flex-col gap-4">
+      {/* ── Configuration body ── */}
+      <div className="flex flex-col gap-4">
 
         {/* Simulation */}
         <div>
@@ -94,15 +98,18 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
             <select value={material} onChange={(e) => setMaterial(e.target.value)}
               className="p-1.5 rounded text-sm font-mono w-full focus:outline-none"
               style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
-              <option value="default">Default</option>
+              <option value="default">Default (38°)</option>
               <option value="rock">Rock (40°)</option>
               <option value="ore">Ore (37°)</option>
               <option value="overburden">Overburden (35°)</option>
+              <option value="coal">Coal (34°)</option>
+              <option value="waste">Waste (35°)</option>
             </select>
           </div>
           <div className="flex flex-col gap-3">
             <RangeField id="n_dumps" label="Dump Count" min={10} max={120} step={1} value={nDumps} onChange={setNDumps} decimals={0} />
             <RangeField id="iso" label="Iso Threshold" min={0.5} max={0.99} value={isoThreshold} onChange={setIsoThreshold} />
+            <RangeField id="min_spacing" label="Min Dump Spacing" min={0.5} max={10} step={0.5} value={minDumpSpacing} onChange={setMinDumpSpacing} decimals={1} />
           </div>
           <div className="flex flex-col gap-1 mt-3">
             <label className="font-mono text-[0.68rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>Polygon Seed</label>
@@ -124,26 +131,87 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
               {useML ? "ON" : "OFF"}
             </button>
           </div>
+          {/* Zone Mode Toggle */}
+          <div className="flex items-center justify-between mt-2">
+            <span className="font-mono text-[0.68rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}
+              title="Geofenced dispatch — each truck class is hard-restricted to a predefined active face, mirroring real AHS (Cat MineStar / Komatsu FrontRunner) behaviour, instead of ADIOS's free-form per-cell optimisation">
+              Zone Mode (Geofenced)
+            </span>
+            <button onClick={() => setZoneMode(!zoneMode)}
+              className="px-3 py-1 rounded text-[0.78rem] font-mono transition-all border"
+              style={{
+                background: zoneMode ? "rgba(255,205,17,0.1)" : "var(--panel)",
+                border: `1px solid ${zoneMode ? "var(--acid)" : "var(--border)"}`,
+                color: zoneMode ? "var(--acid)" : "var(--muted)",
+              }}>
+              {zoneMode ? "ON" : "OFF"}
+            </button>
+          </div>
         </div>
 
         {/* Fleet */}
         <div>
-          <SectionLabel>Fleet Selection</SectionLabel>
-          <div className="flex flex-wrap gap-2">
-            {Object.keys(FLEET_COLORS).map((model) => {
-              const active = selectedFleet.includes(model);
+          <SectionLabel>Fleet Composition</SectionLabel>
+          <div className="flex flex-col gap-2">
+            {FLEET_CLASSES.map((model) => {
+              const count = fleetCounts[model] ?? 0;
+              const stock = STOCK_PAYLOADS_T[model];
+              const override = payloadOverrides[model];
               return (
-                <button key={model} onClick={() => toggleFleet(model)}
-                  className="px-2.5 py-1 rounded text-[0.68rem] font-mono transition-all border"
+                <div key={model} className="flex flex-col gap-1.5 px-2.5 py-1.5 rounded border"
                   style={{
-                    background: active ? "rgba(255,205,17,0.1)" : "var(--panel)",
-                    border: `1px solid ${active ? "var(--acid)" : "var(--border)"}`,
-                    color: active ? "var(--acid)" : "var(--muted)",
+                    background: count > 0 ? "rgba(255,205,17,0.06)" : "var(--panel)",
+                    border: `1px solid ${count > 0 ? "rgba(255,205,17,0.25)" : "var(--border)"}`,
                   }}>
-                  {FLEET_LABELS[model]}
-                </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[0.68rem] font-mono"
+                      style={{ color: count > 0 ? "var(--text)" : "var(--muted)" }}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: FLEET_COLORS[model], display: "inline-block" }} />
+                      {FLEET_LABELS[model]}
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <button onClick={() => setFleetCount(model, count - 1)} disabled={isRunning || count <= 0}
+                        className="w-6 h-6 rounded font-mono text-[0.8rem] leading-none border transition-all"
+                        style={{ border: "1px solid var(--border)", color: "var(--muted)", cursor: isRunning || count <= 0 ? "not-allowed" : "pointer" }}>
+                        −
+                      </button>
+                      <span className="font-mono text-[0.78rem] font-bold tabular-nums" style={{ color: "var(--acid)", minWidth: 18, textAlign: "center" }}>
+                        {count}
+                      </span>
+                      <button onClick={() => setFleetCount(model, count + 1)} disabled={isRunning || count >= 12}
+                        className="w-6 h-6 rounded font-mono text-[0.8rem] leading-none border transition-all"
+                        style={{ border: "1px solid var(--border)", color: "var(--muted)", cursor: isRunning || count >= 12 ? "not-allowed" : "pointer" }}>
+                        +
+                      </button>
+                    </span>
+                  </div>
+                  {count > 0 && (
+                    <div className="flex items-center justify-between gap-2 pl-3.5">
+                      <span className="text-[0.6rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                        Payload override
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <input type="number" min={10} max={600} step={1}
+                          value={override ?? ""}
+                          placeholder={`${stock}t`}
+                          disabled={isRunning}
+                          onChange={(e) => setPayloadOverride(model, e.target.value === "" ? null : parseFloat(e.target.value))}
+                          className="text-right font-mono text-[0.7rem] rounded px-1.5 py-0.5 focus:outline-none"
+                          style={{
+                            width: 56, background: "var(--panel)",
+                            border: `1px solid ${override != null ? "var(--acid)" : "var(--border)"}`,
+                            color: override != null ? "var(--acid)" : "var(--text2)",
+                          }} />
+                        <span className="text-[0.6rem] font-mono" style={{ color: "var(--muted)" }}>t</span>
+                      </span>
+                    </div>
+                  )}
+                </div>
               );
             })}
+          </div>
+          <div className="mt-2 text-[0.62rem] font-mono" style={{ color: "var(--muted)" }}>
+            Total fleet: <span style={{ color: "var(--acid)" }}>{selectedFleet.length}</span> truck{selectedFleet.length === 1 ? "" : "s"} dispatched in rotation
           </div>
         </div>
 

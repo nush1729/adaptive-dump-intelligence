@@ -48,6 +48,11 @@ def parse_args():
     p.add_argument("--batch", type=int, default=64)
     p.add_argument("--out", type=str, default="ml/weights/ppo_adios")
     p.add_argument("--device", type=str, default="cpu")
+    p.add_argument("--material", type=str, default=None,
+                   choices=["rock", "ore", "overburden", "default"],
+                   help="Fine-tune the base BC checkpoint on a single material "
+                        "(loads imitation_bc.pt, trains briefly on material-only "
+                        "data, saves to imitation_bc_<material>.pt)")
     return p.parse_args()
 
 
@@ -118,15 +123,21 @@ class TerrainFCN(nn.Module):
 
 # ── Data collection ──────────────────────────────────────────────────────────
 
-def collect_expert_data(n_polygons: int, dumps_per: int, verbose: bool = True):
-    """Run the heuristic scorer and collect (obs_dict, action) pairs."""
+def collect_expert_data(n_polygons: int, dumps_per: int, verbose: bool = True,
+                        material: Optional[str] = None):
+    """Run the heuristic scorer and collect (obs_dict, action) pairs.
+
+    Pass `material` to restrict generated terrains to a single material
+    (used for material-conditioned fine-tuning); otherwise materials are
+    sampled at random per polygon.
+    """
     from ml.data_gen import make_random_terrain, generate_expert_trajectory
 
     all_terrain, all_context, all_acts = [], [], []
     n_channels = None
     t0 = time.time()
     for i in range(n_polygons):
-        terrain = make_random_terrain(seed=i)
+        terrain = make_random_terrain(seed=i, material=material)
         traj = generate_expert_trajectory(terrain, n_dumps=dumps_per)
         for step in traj:
             obs = step["obs"]
@@ -258,6 +269,101 @@ def train(args):
     return ckpt_path
 
 
+# ── Material-conditioned fine-tuning ─────────────────────────────────────────
+
+def finetune_material(args):
+    """Continue training the base BC checkpoint on a single material's terrains.
+
+    Loads `imitation_bc.pt`, runs a short additional training pass on
+    material-only data, and saves the result to `imitation_bc_<material>.pt`
+    so the general-purpose base checkpoint is left untouched.
+    """
+    device = torch.device(args.device)
+    out_dir = os.path.join(os.path.dirname(__file__), "..", args.out)
+    base_ckpt_path = os.path.join(out_dir, "imitation_bc.pt")
+
+    print(f"\n{'='*60}")
+    print(f"  ADIOS Material Fine-Tuning — material: {args.material}")
+    print(f"  Base checkpoint: {base_ckpt_path}")
+    print(f"{'='*60}")
+
+    ckpt = torch.load(base_ckpt_path, map_location=device, weights_only=False)
+    ctx_dim = ckpt.get("context_dim", CONTEXT_DIM)
+    n_channels = ckpt.get("n_terrain_channels", 5)
+
+    print(f"\n[1/3] Collecting {args.material}-only expert trajectories …")
+    finetune_polygons = max(1, args.polygons // 3)
+    finetune_epochs = max(1, args.epochs // 2)
+    terrain_arr, context_arr, act_arr, _ = collect_expert_data(
+        finetune_polygons, args.dumps_per, material=args.material)
+
+    terrain_t = torch.from_numpy(terrain_arr)
+    context_t = torch.from_numpy(context_arr)
+    act_t     = torch.from_numpy(act_arr)
+    dataset   = TensorDataset(terrain_t, context_t, act_t)
+    loader    = DataLoader(dataset, batch_size=args.batch, shuffle=True, num_workers=0)
+
+    print(f"\n[2/3] Fine-tuning ({finetune_epochs} epochs, lr={args.lr * 0.1:.1e}) …")
+    model = EnrichedTerrainFCN(context_dim=ctx_dim, n_terrain_channels=n_channels).to(device)
+    model.load_state_dict(ckpt["model_state_dict"])
+
+    # Lower LR than base training — we're adapting, not relearning from scratch.
+    opt = optim.AdamW(model.parameters(), lr=args.lr * 0.1, weight_decay=1e-4)
+    loss_fn = nn.CrossEntropyLoss()
+
+    best_acc, history = 0.0, []
+    for epoch in range(1, finetune_epochs + 1):
+        model.train()
+        total_loss, total_correct, total_n = 0.0, 0, 0
+        t0 = time.time()
+        for terrain_b, context_b, act_b in loader:
+            terrain_b = terrain_b.to(device)
+            context_b = context_b.to(device)
+            act_b     = act_b.to(device)
+
+            mask_b = terrain_b[:, 1, :, :].reshape(terrain_b.size(0), -1).bool()
+            logits = model(terrain_b, context_b)
+            logits[~mask_b] = float("-inf")
+
+            loss = loss_fn(logits, act_b)
+            opt.zero_grad()
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            opt.step()
+
+            total_loss    += loss.item() * len(act_b)
+            total_correct += (logits.argmax(1) == act_b).sum().item()
+            total_n       += len(act_b)
+
+        avg_loss = total_loss / total_n
+        acc      = total_correct / total_n * 100
+        best_acc = max(best_acc, acc)
+        elapsed  = time.time() - t0
+        history.append({"epoch": epoch, "loss": round(avg_loss, 4), "acc": round(acc, 2)})
+        print(f"  Epoch {epoch:2d}/{finetune_epochs}  loss={avg_loss:.4f}  acc={acc:.1f}%  {elapsed:.1f}s")
+
+    print(f"\n[3/3] Saving material-tuned weights …")
+    ckpt_path = os.path.join(out_dir, f"imitation_bc_{args.material}.pt")
+    torch.save({
+        "model_state_dict": model.state_dict(),
+        "architecture": "EnrichedTerrainFCN",
+        "context_dim": ctx_dim,
+        "n_terrain_channels": n_channels,
+        "n_params": sum(p.numel() for p in model.parameters() if p.requires_grad),
+        "best_acc": best_acc,
+        "history": history,
+        "n_actions": N_ACTIONS,
+        "rows": ROWS,
+        "cols": COLS,
+        "material": args.material,
+        "base_checkpoint": "imitation_bc.pt",
+    }, ckpt_path)
+    print(f"  Saved → {ckpt_path}")
+    print(f"  Best top-1 accuracy ({args.material}): {best_acc:.1f}%")
+    print(f"\n{'='*60}\n")
+    return ckpt_path
+
+
 # ── Inference wrapper ─────────────────────────────────────────────────────────
 
 class SupervisedMLPPolicy:
@@ -331,4 +437,7 @@ def load_supervised_policy(ckpt_path: str, device: str = "cpu") -> SupervisedMLP
 
 if __name__ == "__main__":
     args = parse_args()
-    train(args)
+    if args.material:
+        finetune_material(args)
+    else:
+        train(args)

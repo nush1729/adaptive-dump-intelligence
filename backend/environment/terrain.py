@@ -1,7 +1,7 @@
 import numpy as np
 from typing import Tuple
 
-from scipy.ndimage import gaussian_filter1d
+from scipy.ndimage import distance_transform_edt, gaussian_filter1d
 
 from config import MATERIALS as CONFIG_MATERIALS
 from environment.dump_physics import apply_dump_to_height
@@ -33,8 +33,17 @@ class Terrain:
         self.rows = height.shape[0]
         # Material segregation: track what material was dumped at each cell
         self.material_map: np.ndarray = np.full((self.rows, self.cols), "", dtype=object)
-        # Material zones: allow defining sub-regions for segregated dumping
-        self.material_zones: dict = {}  # zone_name -> bool mask
+        # Distance-to-boundary cache — `mask` is fixed for the lifetime of a
+        # Terrain (only `height`/`material_map` mutate on dumps), so this EDT
+        # only needs computing once instead of redundantly per dispatch/attempt
+        # across orchestrator, action_masker, and obs-builder call sites.
+        self._dist_to_boundary: np.ndarray | None = None
+
+    @property
+    def dist_to_boundary(self) -> np.ndarray:
+        if self._dist_to_boundary is None:
+            self._dist_to_boundary = distance_transform_edt(self.mask).astype(np.float32)
+        return self._dist_to_boundary
 
     def apply_dump(self, r, c, volume):
         """Apply a dump payload in tonnes at position (r, c)."""

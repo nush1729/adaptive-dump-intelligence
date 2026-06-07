@@ -11,6 +11,7 @@ export interface SimConfig {
   auto_tune?: boolean;
   seed: number;
   use_ml?: boolean;
+  zone_mode?: boolean;
 }
 
 export interface ScoreWeights {
@@ -32,6 +33,7 @@ export interface DumpSummary {
   isolation_events: number;
   latency_ms: number;
   policy: string;
+  anomaly_count?: number;
 }
 
 export interface StaticSummary {
@@ -63,6 +65,15 @@ export interface DumpEvent {
   score?: number | null;
   volume: number;
   coverage: number;
+  gps_fix?: [number, number] | null;
+  dump_stage?: DumpStage;
+  why?: DecisionExplanation;
+}
+
+export interface DumpStage {
+  site_dump_count: number;
+  cell_pre_height_m: number;
+  compaction_applied: boolean;
 }
 
 export interface SimResult {
@@ -77,10 +88,49 @@ export interface SimResult {
   entry: [number, number];
   snapshots: DumpSnapshot[];
   log: DumpEvent[];
+  zone_mode?: boolean;
+  zone_layout?: ZoneLayout;
+  anomalies?: AnomalyReport;
+}
+
+export interface ZoneInfo {
+  profile: string;
+  truck_class: string;
+  cell_count: number;
+  mask: number[][];
+}
+
+export interface ZoneLayout {
+  zones: ZoneInfo[];
+}
+
+export interface WeightDelta {
+  weight: string;
+  base: number;
+  modulated: number;
+  pct_change: number;
+}
+
+export interface DecisionExplanation {
+  deltas: WeightDelta[];
+  triggers: string[];
+}
+
+export interface AnomalyAlert {
+  tick: number;
+  metric: string;
+  value: number;
+  zscore: number;
+  message: string;
+}
+
+export interface AnomalyReport {
+  alerts: AnomalyAlert[];
+  alert_count: number;
 }
 
 export interface WsMessage {
-  type: "dump" | "rejected" | "skip" | "done" | "error";
+  type: "dump" | "rejected" | "skip" | "done" | "error" | "zone_layout" | "anomaly";
   dump?: number;
   truck?: string;
   r?: number;
@@ -94,6 +144,18 @@ export interface WsMessage {
   reach?: number;
   msg?: string;
   policy?: string;
+  truck_profile?: string;
+  zone_mode?: boolean;
+  zones?: ZoneInfo[];
+  gps_fix?: [number, number] | null;
+  dump_stage?: DumpStage;
+  why?: DecisionExplanation;
+  // anomaly alert fields (present when type === "anomaly")
+  tick?: number;
+  metric?: string;
+  value?: number;
+  zscore?: number;
+  message?: string;
 }
 
 export interface FleetSpec {
@@ -134,6 +196,10 @@ export interface IoTFeatures {
   haul_latency_norm: number;
   utilization: number;
   zone_density: number;
+  weather_visibility: number;
+  equipment_health: number;
+  ground_bearing_capacity: number;
+  queue_length_norm: number;
 }
 
 export interface FleetIntelligence {

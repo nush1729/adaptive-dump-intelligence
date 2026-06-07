@@ -87,9 +87,11 @@ MAX_PAYLOAD_T: float = 500.0  # normalization ceiling
 
 # ── IoT / CTDE observation dimensions ────────────────────────────────────────
 
-IOT_FEATURE_DIM: int = 4   # [fleet_congestion, haul_latency_norm, utilization, zone_density]
+# [fleet_congestion, haul_latency_norm, utilization, zone_density,
+#  weather_visibility, equipment_health, ground_bearing_capacity, queue_length_norm]
+IOT_FEATURE_DIM: int = 8
 TRUCK_FEATURE_DIM: int = 9  # [type_onehot(4), payload_norm, dump_count_norm, density_norm, compaction_norm, angle_norm]
-CONTEXT_DIM: int = TRUCK_FEATURE_DIM + IOT_FEATURE_DIM  # 13 total
+CONTEXT_DIM: int = TRUCK_FEATURE_DIM + IOT_FEATURE_DIM  # 17 total
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,30 @@ class IoTConfig:
     payload_noise_pct: float = 0.03   # 3% payload scale error (realistic load-cell noise)
     height_noise_m: float = 0.05      # 5 cm terrain SLAM error
     latency_norm_s: float = 300.0     # 5-minute normalization window for haul latency
+
+    # ── Phase 2 synthetic sensor channels ────────────────────────────────────
+    # Weather visibility (0-1, 1 = clear). Drifts slowly via an OU-style random
+    # walk to simulate changing site conditions (dust, fog, rain).
+    weather_visibility_base: float = 0.85
+    weather_visibility_drift: float = 0.03
+    weather_visibility_min: float = 0.2
+
+    # Per-truck equipment health (0-1, 1 = perfect). Degrades gradually with
+    # dump count and recovers slightly on idle ticks (maintenance windows).
+    equipment_health_init: float = 1.0
+    equipment_health_wear_per_dump: float = 0.004
+    equipment_health_recovery: float = 0.0015
+    equipment_health_noise: float = 0.01
+
+    # Ground bearing capacity (0-1, 1 = firm). Derived from local terrain
+    # height/slope — softer / steeper ground near tall piles bears less load.
+    ground_bearing_base: float = 0.9
+    ground_bearing_height_penalty: float = 0.03   # per metre of local pile height
+    ground_bearing_noise: float = 0.02
+
+    # Truck queue length at the active dump entry (integer trucks waiting),
+    # normalised by queue_norm_cap for the feature vector.
+    queue_norm_cap: float = 6.0
 
 
 IOT_CONFIG = IoTConfig()

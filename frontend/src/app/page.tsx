@@ -253,23 +253,23 @@ export default function LandingPage() {
         >
           <div style={{ display: "flex", alignItems: "baseline" }}>
             {"ADIOS".split("").map((ch, i) => (
-              <span key={i} style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 900, fontSize: "1.3rem", letterSpacing: "0.1em", color: ch === "O" ? "#FFB800" : "#FFF", textShadow: ch === "O" ? "0 0 20px #FFB800" : "none" }}>{ch}</span>
+              <span key={i} style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 900, fontSize: "1.7rem", letterSpacing: "0.1em", color: ch === "O" ? "#FFB800" : "#FFF", textShadow: ch === "O" ? "0 0 20px #FFB800" : "none" }}>{ch}</span>
             ))}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 0, marginLeft: 6 }}>
-            <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.36rem", color: "#4B5563", letterSpacing: "0.12em", textTransform: "uppercase", lineHeight: 1 }}>ADAPTIVE INTELLIGENCE</span>
-            <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.36rem", color: "#4B5563", letterSpacing: "0.12em", textTransform: "uppercase", lineHeight: 1 }}>SYSTEM</span>
+            <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.6rem", color: "#9CA3AF", letterSpacing: "0.1em", textTransform: "uppercase", lineHeight: 1.3 }}>ADAPTIVE INTELLIGENCE</span>
+            <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.6rem", color: "#9CA3AF", letterSpacing: "0.1em", textTransform: "uppercase", lineHeight: 1.3 }}>SYSTEM</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 28, alignItems: "center" }}>
           {NAV_LINKS.map((link) => {
             const isActive = pathname === NAV_ROUTES[link];
             return (
               <button
                 key={link}
                 onClick={() => router.push(NAV_ROUTES[link])}
-                style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", letterSpacing: "0.12em", color: isActive ? "#FFB800" : "#6B7280", background: "transparent", border: "none", cursor: "pointer", padding: "2px 0", borderBottom: isActive ? "1px solid #FFB800" : "1px solid transparent", transition: "color 0.2s" }}
+                style={{ fontFamily: "JetBrains Mono", fontSize: "0.85rem", fontWeight: 500, letterSpacing: "0.08em", color: isActive ? "#FFB800" : "#C4C9D2", background: "transparent", border: "none", cursor: "pointer", padding: "6px 2px", borderBottom: isActive ? "1px solid #FFB800" : "1px solid transparent", transition: "color 0.2s" }}
               >
                 {link}
               </button>
@@ -280,9 +280,9 @@ export default function LandingPage() {
         <motion.button
           onClick={() => router.push("/dashboard")}
           whileHover={{ background: "#FFB800", color: "#000" }}
-          style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.6rem", letterSpacing: "0.16em", color: "#FFB800", background: "transparent", border: "1px solid #FFB800", borderRadius: 2, padding: "8px 18px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "all 0.2s", flexShrink: 0 }}
+          style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.16em", color: "#FFB800", background: "transparent", border: "1px solid #FFB800", borderRadius: 2, padding: "10px 22px", cursor: "pointer", display: "flex", alignItems: "center", gap: 8, transition: "all 0.2s", flexShrink: 0 }}
         >
-          LAUNCH PLATFORM <span style={{ fontSize: "0.8rem" }}>→</span>
+          LAUNCH PLATFORM <span style={{ fontSize: "0.9rem" }}>→</span>
         </motion.button>
       </nav>
 

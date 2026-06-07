@@ -22,7 +22,7 @@
 ---
 [![Frontend](https://img.shields.io/badge/Frontend-Next.js%2015-111111?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![ML](https://img.shields.io/badge/ML-MaskablePPO%20160K%20steps-0F62FE?style=for-the-badge&logo=pytorch&logoColor=white)](#ml-training)
+[![ML](https://img.shields.io/badge/ML-MaskablePPO%20IoT--Enriched-0F62FE?style=for-the-badge&logo=pytorch&logoColor=white)](#ml-training)
 [![3D](https://img.shields.io/badge/3D-React%20Three%20Fiber-F97316?style=for-the-badge&logo=threedotjs&logoColor=white)](https://docs.pmnd.rs/react-three-fiber)
 [![IoT](https://img.shields.io/badge/IoT-Fleet%20Telemetry%20Layer-2E7D32?style=for-the-badge)](#iot-adaptive-weight-modulation)
 
@@ -34,9 +34,11 @@
 
 ADIOS answers one question per incoming haul truck: **where should this load be dumped next?**
 
-Instead of relying on a human spotter or a fixed dump zone grid, ADIOS uses a trained reinforcement learning policy (MaskablePPO, 160K steps) backed by live terrain state, IoT fleet telemetry, constraint-aware action masking, and an A\* path planner to pick the single best cell on the dump site — every dispatch, every truck, in real time.
+Instead of relying on a human spotter or a fixed dump zone grid, ADIOS uses a trained reinforcement learning policy (MaskablePPO, IoT-enriched 17-dim context) backed by live terrain state, an 8-channel IoT fleet telemetry layer, constraint-aware action masking, and an A\* path planner to pick the single best cell on the dump site — every dispatch, every truck, in real time.
 
 The result: dump piles are tighter, spacing is more uniform, access lanes stay open, and the site fills closer to a staffed human baseline (target 3.03m mean spacing vs. 7.38m autonomous baseline).
+
+The dashboard's fleet panel is fully configurable without touching code: set **per-class truck counts** (Cat793 / Cat777 / Cat797), override each class's **payload tonnage** to simulate custom fleet mixes, tune the **minimum dump-spacing** safety threshold, and pick from **6 material types** (default, rock, ore, overburden, coal, waste) — each with distinct density, angle of repose, and cross-material compatibility penalties.
 
 ---
 
@@ -53,19 +55,19 @@ flowchart TD
     subgraph BACKEND["⚙️  FastAPI Backend (port 8000)"]
         API["REST + WebSocket API\n/simulate · /dispatch · /health"]
         ORC["Orchestrator\nheuristic fallback + ML dispatch"]
-        IOT["IoT Telemetry Layer\nfleet_congestion · haul_latency\nutilisation · zone_density"]
+        IOT["IoT Telemetry Layer\nfleet_congestion · haul_latency · utilisation · zone_density\nweather_visibility · equipment_health\nground_bearing_capacity · queue_length"]
     end
 
     subgraph PLANNING["🗺️  Planning Core"]
         SCR["ScoringEngine\nIoT-modulated weights\nvolume · coverage · spacing · isolation"]
         ISO["IsolationValidator\nBFS flood-fill dry-run\npassability 93rd percentile"]
-        MASK["ConstrainedActionMasker\npolygon boundary · height ceiling\nspacing · path reachability"]
+        MASK["ConstrainedActionMasker\npolygon boundary · height ceiling\nspacing · turning-radius kinematics\n· isolation · path reachability"]
         PATH["A* Pathfinder\n8-connected · slope-aware\nmax_slope 2.5m · slope_weight 1.5"]
         SCHED["TimeSpaceScheduler\ndeadlock detection (DFS)\n40-step retry window"]
     end
 
     subgraph ML["🤖  ML Engine"]
-        PPO["MaskablePPO Policy\nADIOSMultiInputExtractor\n5-channel terrain + 13-dim context"]
+        PPO["MaskablePPO Policy\nADIOSMultiInputExtractor\n5-channel terrain + 17-dim context"]
         BC["BC Imitation Fallback\nEnrichedTerrainFCN\n(used if PPO fails to load)"]
         ENV["DumpPackingEnv (Gymnasium)\nGaussian dump physics\npile-proximity reward +0.6"]
     end
@@ -105,6 +107,39 @@ flowchart TD
 
 ---
 
+## Implementation Status — What's Real vs. What's Conceptual
+
+Honest accounting of what's enforced at decision time vs. recorded as metadata
+vs. modeled as a simplified stand-in. (Mining-domain context: production
+autonomous-haulage systems — Cat MineStar, Komatsu FrontRunner — dump at
+**predefined geofenced zones** chosen by a fleet-management system, not via
+per-cell optimisation. ADIOS targets the **optimisation layer that could sit
+above that planning tier**, not a 1:1 reproduction of today's deployed AHS.)
+
+**Implemented & enforced at runtime (every dispatch, every truck):**
+- Isolation prevention — BFS reachability dry-run (`IsolationValidator`), hard-rejects any cell that would fragment the polygon below `iso_threshold`
+- A\* path feasibility — every chosen cell is validated end-to-end from entry before commit (`pathfinder.find_path`); infeasible cells yield `path_unreachable` and are re-masked
+- **Turning-radius kinematics** — `ConstrainedActionMasker._apply_kinematics` hard-rejects cells a given truck class cannot geometrically maneuver into (boundary-clearance proxy derived from each `TruckProfile.turning_radius_m`); a Cat797 (18m radius) and a Cat777 (11m radius) genuinely see different candidate sets, and rejections are logged per-dispatch as `kinematics_rejected`
+- Deadlock/collision avoidance — `TimeSpaceScheduler` reservation grid prevents simultaneous path occupancy
+- IoT-adaptive scoring — 8-channel telemetry reshapes heuristic weights live, no retraining required
+- Mixed-fleet dispatch — per-truck-class profiles (payload, turning radius, axle load) flow through both the heuristic engine and the ML context vector
+- **Angle-of-repose pile shaping** — `dump_physics.relax_slopes` runs sandpile-style talus relaxation after every dump (`_AVALANCHE_PASSES=24`, per-material `angle_of_repose_deg`), so piles settle into plateaued, bench-like mounds bounded by each material's stable slope rather than growing into unbounded Gaussian spikes — plus compaction (`compaction_floor`/`compaction_gain`) when re-dumping onto existing material
+- **Material compatibility constraints** — `MATERIAL_COMPATIBILITY` penalises or hard-blocks dumping one material onto an incompatible one already on site (e.g. ore↔waste = blocked, ore↔coal = penalised); 6 materials available (`default`, `rock`, `ore`, `overburden`, `coal`, `waste`), each with distinct density and angle of repose
+- **Predictive maintenance** — `AnomalyDetector` runs rolling z-score analysis over the same `equipment_health`/`ground_bearing_capacity` IoT streams already produced (no new sensors), surfacing live anomaly alerts in the dispatch stream
+- **Geofenced zone-mode comparison** — `ZonePlanner` partitions the site into per-truck-class rectangular active faces, giving a runnable side-by-side baseline against ADIOS's free-form per-cell optimisation (mirrors how production AHS — Cat MineStar / Komatsu FrontRunner — actually segregates mixed fleets)
+
+**Partially implemented (present, used, but simplified):**
+- Turning-radius check is a **boundary-clearance heuristic**, not a full Dubins/Reeds-Shepp kinematic feasibility solve — it answers "is there room to swing in," not "what's the exact approach trajectory"
+- Ground-bearing capacity is a **synthetic IoT signal** derived from local pile height + noise, not a soil-mechanics / geotechnical model
+- "CTDE" framing describes a **shared-policy multi-agent dispatch** (all `TruckAgent`s use the same trained weights and observe the same global terrain map) — closer to centralized dispatch with per-truck context than canonical decentralized execution
+
+**Conceptual / simulation-only (acknowledged gap vs. real mining practice):**
+- Cell-level dump-spot optimisation itself — real AHS dumps at geofenced zones, not via live per-cell scoring; this is ADIOS's R&D contribution, not a reproduction of deployed behaviour
+- Continuous Gaussian-kernel terrain physics — real terrain models are reconciled periodically via survey/LIDAR passes, not simulated continuously
+- Dozer-leveling and multi-pass load overlap — talus relaxation produces physically-bounded plateaus from the deposition + redistribution model itself, but it does not simulate a separate leveling machine actively reshaping the pile between truck cycles, the way a real active face operates
+
+---
+
 ## ML Pipeline — How The Policy Learns
 
 ```mermaid
@@ -113,9 +148,9 @@ flowchart LR
 
     B["EnrichedTerrainFCN\nLearns to imitate expert\nBC weights: imitation_bc.pt"] -->|Stage 2 · PPO fine-tune| C
 
-    C["MaskablePPO\nMultiInputPolicy\n5-chan terrain + 13-dim context\n160K training steps"] -->|Saves to| D
+    C["MaskablePPO\nMultiInputPolicy\n5-chan terrain + 17-dim context\n(8-dim IoT-enriched)"] -->|Saves to| D
 
-    D["ckpt_160000_steps.zip\n+ metadata.json sidecar\nobs_type: multi_input"] -->|Loaded by| E
+    D["ppo_adios.zip\n+ metadata.json sidecar\nobs_type: multi_input · context_dim: 17"] -->|Loaded by| E
 
     E["load_policy\nReads metadata · probes obs-space\nvalidates dummy forward pass\nserves TruckAgent wrappers"]
 
@@ -136,7 +171,7 @@ Each truck gets a **Dict observation** with two components:
 ```
 {
   "terrain_map":    shape (5, 100, 100)   ← 5-channel enriched terrain grid
-  "context_vector": shape (13,)            ← per-truck + IoT features
+  "context_vector": shape (17,)            ← per-truck + material + IoT features
 }
 ```
 
@@ -147,6 +182,8 @@ Each truck gets a **Dict observation** with two components:
 | `ch2` — dist_boundary | Distance to nearest boundary wall (normalised) |
 | `ch3` — pile_mask | SLAM pile detection map (threshold 0.2m) |
 | `ch4` — spacing_density | Gaussian density of existing dump centres |
+
+`context_vector` = `TRUCK_FEATURE_DIM (9)` + `IOT_FEATURE_DIM (8)` = **17**
 
 | Context Index | Feature |
 |--------------|---------|
@@ -160,36 +197,32 @@ Each truck gets a **Dict observation** with two components:
 | 10 | Haul latency norm (IoT, 20-tick window) |
 | 11 | Fleet utilisation (IoT) |
 | 12 | Zone density (IoT) |
+| 13 | Weather visibility (IoT, slow drifting random walk) |
+| 14 | Equipment health (IoT, per-truck wear/recovery model) |
+| 15 | Ground bearing capacity (IoT, derived from local pile height) |
+| 16 | Queue length, normalised (IoT, entry congestion depth) |
 
 ---
 
-## Why The ZIP File? Can I Use The Unzipped Folder?
+## How The Policy Loads — Graceful Degradation
 
-**Short answer: no — Stable Baselines3 only loads `.zip` files.**
+**Stable Baselines3 only loads `.zip` checkpoints** — `MaskablePPO.load("ppo_adios")` internally appends `.zip` and reads `policy.pth` / `data` / `policy.optimizer.pth` from inside the archive. Our `load_policy()` ([ml/policy.py](backend/ml/policy.py)) wraps this with a multi-tier fallback so the system never hard-fails on a stale or missing checkpoint:
 
-When you call `MaskablePPO.load("ckpt_160000_steps")`, SB3 internally does this:
-
-```python
-# SB3 source (stable_baselines3/common/base_class.py)
-path = str(path) + ".zip"              # always appends .zip
-with zipfile.ZipFile(path, "r") as zf:
-    data   = json.loads(zf.read("data"))           # model config JSON
-    params = th.load(zf.open("policy.pth"))        # policy network weights
-    opt    = th.load(zf.open("policy.optimizer.pth"))
+```
+MaskablePPO MultiInput (validated against current CONTEXT_DIM)
+    ↓ on failure
+Legacy CNN policy
+    ↓ on failure
+Standard PPO
+    ↓ on failure
+BC imitation (imitation_bc.pt)
+    ↓ on failure
+Heuristic-only (ScoringEngine)
 ```
 
-It expects specific entries inside the zip — it does **not** support loading from a plain directory. The `ckpt_160000_steps/` folder is only useful for:
+Each tier is validated with a dummy forward pass against the live `CONTEXT_DIM` from `config.py` before being accepted — so changing `IOT_FEATURE_DIM` / `CONTEXT_DIM` (e.g. when adding new telemetry channels) never crashes the API; it just gracefully falls back until you retrain.
 
-- **Inspecting** individual files (`policy.pth`, `data`, `system_info.txt`)
-- **Reading** `metadata.json` — our custom sidecar that lets `load_policy()` validate the obs-space without a full model load
-- **Debugging** architecture mismatches by reading `data` directly
-
-If you accidentally delete the zip after unzipping, recreate it:
-
-```bash
-cd backend/ml/weights
-zip -j ckpt_160000_steps.zip ckpt_160000_steps/*
-```
+The `metadata.json` sidecar next to each checkpoint records its `context_dim`, `obs_type`, and architecture, which is how `load_policy()` validates compatibility without a full model load.
 
 ---
 
@@ -219,15 +252,19 @@ At every heuristic dispatch, live telemetry shifts the scoring weights in real t
 
 ```mermaid
 flowchart LR
-    IOT["IoT Telemetry\nfleet_congestion\nhaul_latency_norm\nutilisation\nzone_density"] --> MOD["_iot_modulated_weights"]
+    IOT["IoT Telemetry — 8 channels\nfleet_congestion · haul_latency_norm\nutilisation · zone_density\nweather_visibility · equipment_health\nground_bearing_capacity · queue_length"] --> MOD["_iot_modulated_weights"]
 
     MOD -->|"congestion > 0.7\nspacing weight x(1 + 0.5 x delta)"| W1["Spacing Up\navoid pile-ups"]
     MOD -->|"utilisation < 0.3\ncoverage weight x1.4"| W2["Coverage Up\nspread trucks out"]
     MOD -->|"zone_density > 0.6\nisolation weight x(1 + 0.4 x delta)"| W3["Isolation Up\nprotect access lanes"]
     MOD -->|"latency_norm < 0.2\ncoverage weight x0.85"| W4["Coverage Down\ntrucks moving fast, pack tight"]
+    MOD -->|"visibility < 0.5\nslope weight up · coverage weight x0.8"| W5["Caution Mode\npoor visibility → safer placement"]
+    MOD -->|"equipment_health < 0.7\nslope weight up"| W6["Wear Compensation\ndegraded gear → gentler terrain"]
+    MOD -->|"ground_bearing < 0.6\nslope weight up"| W7["Soft-Ground Avoidance\nweak bearing → flatter cells"]
+    MOD -->|"queue_norm > 0.5\ncoverage weight up"| W8["Congestion Relief\nlong queue → spread dumps"]
 
     classDef node fill:#111827,stroke:#00D4FF,color:#fff,stroke-width:1.5px
-    class IOT,MOD,W1,W2,W3,W4 node
+    class IOT,MOD,W1,W2,W3,W4,W5,W6,W7,W8 node
 ```
 
 ---
@@ -272,24 +309,21 @@ adaptive-dump-intelligence/
 │   ├── ml/
 │   │   ├── environment.py             # DumpPackingEnv (Gymnasium, 5-channel obs)
 │   │   ├── policy.py                  # load_policy(), ADIOSMultiInputExtractor, TruckAgent
+│   │   ├── anomaly_detector.py        # Rolling z-score predictive-maintenance detector
 │   │   ├── data_gen.py                # Expert demonstration generator (for BC)
 │   │   ├── train_supervised.py        # Stage 1: behavioural cloning trainer
 │   │   └── weights/
-│   │       ├── ckpt_160000_steps/     # Unzipped checkpoint — inspect only
-│   │       │   ├── policy.pth
-│   │       │   ├── policy.optimizer.pth
-│   │       │   ├── pytorch_variables.pth
-│   │       │   ├── data
-│   │       │   └── metadata.json      # Custom obs-space sidecar
-│   │       ├── ckpt_160000_steps.zip  # ← SB3 loads THIS (must exist)
+│   │       ├── ppo_adios.zip          # ← SB3 loads THIS (MaskablePPO MultiInput, context_dim=17)
 │   │       └── ppo_adios/
-│   │           ├── imitation_bc.pt    # BC fallback weights
-│   │           └── metadata.json      # Marks as bc_imitation type
+│   │           ├── imitation_bc.pt    # BC fallback weights (Stage 1 warm-start)
+│   │           ├── eval_result.json   # PPO vs heuristic efficiency delta
+│   │           └── metadata.json      # obs-space sidecar (obs_type, context_dim, architecture)
 │   ├── planning/
 │   │   ├── orchestrator.py            # Dispatch loop — ML + heuristic paths
 │   │   ├── scorer.py                  # ScoringEngine + IoT weight modulation
 │   │   ├── isolation_validator.py     # BFS flood-fill isolation check
-│   │   ├── action_masker.py           # ConstrainedActionMasker
+│   │   ├── action_masker.py           # ConstrainedActionMasker (+ turning-radius kinematics gate)
+│   │   ├── zone_planner.py            # Geofenced per-class zone partitioning (zone-mode comparison)
 │   │   ├── pathfinder.py              # A* slope-aware grid pathfinder
 │   │   ├── scheduler.py               # TimeSpaceScheduler + deadlock detection
 │   │   └── weight_tuner.py            # Random-search weight optimiser
@@ -377,8 +411,9 @@ Verify at `http://localhost:8000/health`:
 ```
 
 > If you see `"policy_display_name": "heuristic"`, the PPO weights didn't load.
-> Check that `backend/ml/weights/ckpt_160000_steps.zip` exists.
-> If missing: `cd backend/ml/weights && zip -j ckpt_160000_steps.zip ckpt_160000_steps/*`
+> Check that `backend/ml/weights/ppo_adios.zip` exists and that its `metadata.json`
+> sidecar's `context_dim` matches `CONTEXT_DIM` in `backend/config.py` (currently **17**).
+> If the dimensions mismatch (e.g. after adding new IoT channels), retrain with `python pretrain.py`.
 
 ---
 
@@ -407,38 +442,35 @@ npm start
 
 ### Step 4 · ML Training (Optional — weights already included)
 
-You don't need to train to run the demo. The 160K-step checkpoint is already in the repo. But if you want to train a fresh policy:
+You don't need to train to run the demo — a trained checkpoint (`ppo_adios.zip`, `context_dim=17`, IoT-enriched) is already in the repo at `backend/ml/weights/`. But if you want to train a fresh policy (e.g. after changing `IOT_FEATURE_DIM` / `CONTEXT_DIM` or terrain reward shaping):
 
 ```bash
 cd backend
 source .venv/bin/activate
 
-# Default: 100K steps on CPU (~3 minutes, demo quality)
+# Default: 100K steps on CPU (~12 minutes, demo quality)
 python pretrain.py
 
-# Recommended: 200K steps for better convergence (~6 minutes on CPU)
-python pretrain.py --steps 200000
+# Reduced run for quick iteration (~10 minutes on CPU)
+python pretrain.py --steps 25000
 
 # Skip BC stage and go straight to PPO (faster, slightly worse warm start)
-python pretrain.py --steps 200000 --skip-bc
+python pretrain.py --steps 100000 --skip-bc
 
 # Custom output path
-python pretrain.py --steps 200000 --out ml/weights/my_new_run
+python pretrain.py --steps 100000 --out ml/weights/my_new_run
 ```
 
-What gets created after training:
+What gets created/overwritten after training:
 ```
+ml/weights/ppo_adios.zip       ← SB3 MaskablePPO checkpoint (this is what load_policy() loads)
 ml/weights/ppo_adios/
-├── ppo_adios.zip          ← SB3 PPO checkpoint (this is what gets loaded)
-├── imitation_bc.pt        ← BC fallback weights (Stage 1 output)
-├── metadata.json          ← obs-space sidecar (obs_type: multi_input)
-└── eval_result.json       ← PPO vs heuristic efficiency delta
+├── imitation_bc.pt            ← BC fallback weights (Stage 1 output)
+├── metadata.json              ← obs-space sidecar (obs_type: multi_input, context_dim: 17)
+└── eval_result.json           ← PPO vs heuristic efficiency delta
 ```
 
-To use your new weights, update `WEIGHTS_PATH` in `backend/api/main.py`:
-```python
-WEIGHTS_PATH = Path(__file__).parent.parent / "ml" / "weights" / "ppo_adios"
-```
+`WEIGHTS_PATH` in `backend/api/main.py` already points at `ml/weights/ppo_adios` — no edits needed unless you use `--out` to write somewhere else.
 
 ---
 
@@ -460,10 +492,10 @@ python -m evaluation.compute_eval
 | Symptom | Fix |
 |---------|-----|
 | `ModuleNotFoundError: sb3_contrib` | `pip install sb3-contrib` |
-| Health shows `"heuristic"` instead of PPO | Ensure `ckpt_160000_steps.zip` exists in `backend/ml/weights/` |
+| Health shows `"heuristic"` instead of PPO | Ensure `ppo_adios.zip` exists in `backend/ml/weights/` and its `metadata.json` `context_dim` matches `CONTEXT_DIM` in `config.py` |
+| `context_dim` mismatch after changing `IOT_FEATURE_DIM` | Retrain with `python pretrain.py` — `load_policy()` falls back gracefully (BC → heuristic) until you do |
 | All simulation dispatches fail with `path_unreachable` | Verify `max_slope=2.5` in [planning/pathfinder.py:14](backend/planning/pathfinder.py) |
 | Frontend can't connect to backend | Backend must be on port 8000; check CORS (enabled by default in `main.py`) |
-| Need to recreate the zip after unzipping | `cd backend/ml/weights && zip -j ckpt_160000_steps.zip ckpt_160000_steps/*` |
 | Port 3000 already in use | `npm run dev -- --port 3001` |
 | Port 8000 already in use | `uvicorn api.main:app --port 8001` then update `frontend/src/lib/config.ts` |
 
