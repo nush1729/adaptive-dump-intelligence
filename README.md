@@ -17,15 +17,14 @@
 
 # ADIOS — Adaptive Dump Intelligence & Orchestration System
 
-<img src="https://readme-typing-svg.demolab.com?font=Orbitron&weight=700&size=22&duration=2600&pause=900&color=FFB800&center=true&vCenter=true&multiline=true&repeat=true&width=900&height=80&lines=CATERPILLAR+Hackathon+%7C+Problem+Statement+4%3A+Optimal+Dump+Packing;MaskablePPO+%2B+IoT+Telemetry+%2B+A*+Path+Planning;Safer+Placement.+Higher+Capacity.+Smarter+Terrain." alt="Animated tagline" />
+<img src="https://readme-typing-svg.demolab.com?font=Orbitron&weight=700&size=22&duration=2600&pause=900&color=FFB800&center=true&vCenter=true&multiline=true&repeat=true&width=900&height=100&lines=CATERPILLAR+Hackathon+%7C+Optimal+Dump+Packing;MaskablePPO+%2B+IoT+Telemetry+%2B+A*+Path+Planning;Safer+Placement.+Higher+Capacity.+Smarter+Terrain." alt="Animated tagline" />
 
+---
 [![Frontend](https://img.shields.io/badge/Frontend-Next.js%2015-111111?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![ML](https://img.shields.io/badge/ML-MaskablePPO%20160K%20steps-0F62FE?style=for-the-badge&logo=pytorch&logoColor=white)](#ml-training)
 [![3D](https://img.shields.io/badge/3D-React%20Three%20Fiber-F97316?style=for-the-badge&logo=threedotjs&logoColor=white)](https://docs.pmnd.rs/react-three-fiber)
 [![IoT](https://img.shields.io/badge/IoT-Fleet%20Telemetry%20Layer-2E7D32?style=for-the-badge)](#iot-adaptive-weight-modulation)
-
-**Built by Team Butterfly** · Anushka Nair · Arjit Tripathi · Shivani Srivastava · Yashee Hinger
 
 </div>
 
