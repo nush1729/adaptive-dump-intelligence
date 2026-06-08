@@ -3,10 +3,29 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import PageShell from "@/components/layout/PageShell";
 import { RailItem } from "@/components/layout/CollapsedRail";
-import { UI_DEFAULTS } from "@/lib/config";
+import { UI_DEFAULTS, STOCK_PAYLOADS_T } from "@/lib/config";
 
 const Scene3D = dynamic(() => import("@/components/three/Scene3D"), { ssr: false });
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+/* ── Fleet class constants (matches dashboard ControlPanel) ─── */
+const FLEET_CLASSES = ["Cat793", "Cat777", "Cat797"] as const;
+const FLEET_COLORS: Record<string, string> = {
+  Cat777: "#FFD700", Cat793: "#FF8C00", Cat797: "#FF4500",
+};
+const FLEET_LABELS: Record<string, string> = {
+  Cat777: "Cat 777 · 100t", Cat793: "Cat 793 · 240t", Cat797: "Cat 797 · 400t",
+};
+
+/* ── Material options (same set as dashboard) ──────────────── */
+const MATERIAL_OPTIONS = [
+  { value: "default", label: "Default (38°)" },
+  { value: "rock", label: "Rock (40°)" },
+  { value: "ore", label: "Ore (37°)" },
+  { value: "overburden", label: "Overburden (35°)" },
+  { value: "coal", label: "Coal (34°)" },
+  { value: "waste", label: "Waste (35°)" },
+];
 
 interface AuditEntry {
   t: number;
@@ -77,16 +96,54 @@ function KPIOverlay({ label, val }: { label: string; val: string }) {
   );
 }
 
+/** Derive the [model, model, ...] list from per-class counts. */
+function fleetFromCounts(counts: Record<string, number>): string[] {
+  const out: string[] = [];
+  for (const model of FLEET_CLASSES) {
+    const n = counts[model] ?? 0;
+    for (let i = 0; i < n; i++) out.push(model);
+  }
+  return out;
+}
+
 export default function AuditPage() {
   const [simResult, setSimResult] = useState<SimResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState(0);
   const [playing, setPlaying] = useState(false);
+
+  // ── Simulation config state (mirrors Dashboard) ──────────
   const [seed, setSeed] = useState<number>(UI_DEFAULTS.seed);
   const [material, setMaterial] = useState("default");
   const [nDumps, setNDumps] = useState<number>(UI_DEFAULTS.nDumps);
   const [useML, setUseML] = useState(false);
+  const [isoThreshold, setIsoThreshold] = useState<number>(UI_DEFAULTS.isoThreshold);
+  const [minDumpSpacing, setMinDumpSpacing] = useState<number>(UI_DEFAULTS.minDumpSpacing);
+  const [zoneMode, setZoneMode] = useState(false);
+
+  // Fleet composition state
+  const initialFleetCounts: Record<string, number> = UI_DEFAULTS.fleet.reduce(
+    (acc, model) => ({ ...acc, [model]: (acc[model] ?? 0) + 1 }),
+    {} as Record<string, number>,
+  );
+  const [fleetCounts, setFleetCounts] = useState<Record<string, number>>(initialFleetCounts);
+  const [payloadOverrides, setPayloadOverrides] = useState<Record<string, number>>({});
+
+  const selectedFleet = useMemo(() => fleetFromCounts(fleetCounts), [fleetCounts]);
+
+  const setFleetCount = (model: string, count: number) => {
+    const clamped = Math.max(0, Math.min(12, Math.round(count)));
+    setFleetCounts(prev => ({ ...prev, [model]: clamped }));
+  };
+  const setPayloadOverride = (model: string, val: number | null) => {
+    setPayloadOverrides(prev => {
+      const next = { ...prev };
+      if (val == null || Number.isNaN(val) || val <= 0) { delete next[model]; }
+      else { next[model] = Math.round(Math.min(600, Math.max(10, val))); }
+      return next;
+    });
+  };
 
   const loadAuditLog = useCallback(async () => {
     setLoading(true);
@@ -112,16 +169,20 @@ export default function AuditPage() {
     setPlaying(false);
     setCursor(0);
     try {
+      const fleet = selectedFleet.length > 0 ? selectedFleet : ["generic"];
       const r = await fetch(`${API}/simulate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           material,
           n_dumps: nDumps,
-          fleet_models: [...UI_DEFAULTS.fleet],
-          iso_threshold: UI_DEFAULTS.isoThreshold,
+          fleet_models: fleet,
+          payload_overrides: Object.keys(payloadOverrides).length > 0 ? payloadOverrides : null,
+          iso_threshold: isoThreshold,
+          min_dump_spacing: minDumpSpacing,
           seed,
           use_ml: useML,
+          zone_mode: zoneMode,
           auto_tune: false,
         }),
       });
@@ -133,7 +194,7 @@ export default function AuditPage() {
     } finally {
       setLoading(false);
     }
-  }, [seed, material, nDumps, useML]);
+  }, [seed, material, nDumps, useML, selectedFleet, payloadOverrides, isoThreshold, minDumpSpacing, zoneMode]);
 
   useEffect(() => { loadAuditLog(); runSim(); }, []);
 
@@ -172,20 +233,50 @@ export default function AuditPage() {
   const controlsPanel = (
     <div className="h-full overflow-y-auto p-4 flex flex-col gap-4">
       <div className="section-label">Replay Controls</div>
+
+      {/* Material */}
       <label className="flex flex-col gap-1 font-mono text-[0.72rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
         Material
         <select value={material} onChange={(e) => setMaterial(e.target.value)} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
-          {["default", "rock", "ore", "overburden"].map((m) => <option key={m} value={m}>{m}</option>)}
+          {MATERIAL_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
       </label>
+
+      {/* Dumps */}
       <label className="flex flex-col gap-1 font-mono text-[0.72rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
         Dumps
         <input type="number" value={nDumps} min={10} max={150} onChange={(e) => setNDumps(Number(e.target.value))} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
       </label>
+
+      {/* Seed */}
       <label className="flex flex-col gap-1 font-mono text-[0.72rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
         Seed
         <input type="number" value={seed} min={0} max={9999} onChange={(e) => setSeed(Number(e.target.value))} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
       </label>
+
+      {/* ISO Threshold */}
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between items-center">
+          <span className="font-mono text-[0.68rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>Iso Threshold</span>
+          <span className="font-mono text-[0.78rem] font-bold px-2 py-0.5 rounded" style={{ color: "var(--acid)", background: "var(--panel)", border: "1px solid var(--border)" }}>{isoThreshold.toFixed(2)}</span>
+        </div>
+        <input type="range" min={0.5} max={0.99} step={0.01} value={isoThreshold}
+          onChange={(e) => setIsoThreshold(parseFloat(e.target.value))}
+          className="w-full" style={{ accentColor: "var(--acid)" }} />
+      </div>
+
+      {/* Min Dump Spacing */}
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between items-center">
+          <span className="font-mono text-[0.68rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>Min Spacing</span>
+          <span className="font-mono text-[0.78rem] font-bold px-2 py-0.5 rounded" style={{ color: "var(--acid)", background: "var(--panel)", border: "1px solid var(--border)" }}>{minDumpSpacing.toFixed(1)}</span>
+        </div>
+        <input type="range" min={0.5} max={10} step={0.5} value={minDumpSpacing}
+          onChange={(e) => setMinDumpSpacing(parseFloat(e.target.value))}
+          className="w-full" style={{ accentColor: "var(--acid)" }} />
+      </div>
+
+      {/* Policy */}
       <label className="flex flex-col gap-1 font-mono text-[0.72rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
         Policy
         <select value={useML ? "ml" : "heuristic"} onChange={(e) => setUseML(e.target.value === "ml")} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
@@ -193,6 +284,85 @@ export default function AuditPage() {
           <option value="ml">ML / Hybrid</option>
         </select>
       </label>
+
+      {/* Zone Mode Toggle */}
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-[0.68rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>Zone Mode</span>
+        <button onClick={() => setZoneMode(!zoneMode)}
+          className="px-3 py-1 rounded text-[0.78rem] font-mono transition-all border"
+          style={{
+            background: zoneMode ? "rgba(255,205,17,0.1)" : "var(--panel)",
+            border: `1px solid ${zoneMode ? "var(--acid)" : "var(--border)"}`,
+            color: zoneMode ? "var(--acid)" : "var(--muted)",
+          }}>
+          {zoneMode ? "ON" : "OFF"}
+        </button>
+      </div>
+
+      {/* Fleet Composition */}
+      <div className="section-label mt-1">Fleet Composition</div>
+      <div className="flex flex-col gap-2">
+        {FLEET_CLASSES.map((model) => {
+          const count = fleetCounts[model] ?? 0;
+          const stock = STOCK_PAYLOADS_T[model];
+          const override = payloadOverrides[model];
+          return (
+            <div key={model} className="flex flex-col gap-1.5 px-2.5 py-1.5 rounded border"
+              style={{
+                background: count > 0 ? "rgba(255,205,17,0.06)" : "var(--panel)",
+                border: `1px solid ${count > 0 ? "rgba(255,205,17,0.25)" : "var(--border)"}`,
+              }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-[0.68rem] font-mono"
+                  style={{ color: count > 0 ? "var(--text)" : "var(--muted)" }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: FLEET_COLORS[model], display: "inline-block" }} />
+                  {FLEET_LABELS[model]}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <button onClick={() => setFleetCount(model, count - 1)} disabled={count <= 0}
+                    className="w-6 h-6 rounded font-mono text-[0.8rem] leading-none border"
+                    style={{ border: "1px solid var(--border)", color: "var(--muted)", cursor: count <= 0 ? "not-allowed" : "pointer", background: "transparent" }}>
+                    −
+                  </button>
+                  <span className="font-mono text-[0.78rem] font-bold tabular-nums" style={{ color: "var(--acid)", minWidth: 18, textAlign: "center" }}>
+                    {count}
+                  </span>
+                  <button onClick={() => setFleetCount(model, count + 1)} disabled={count >= 12}
+                    className="w-6 h-6 rounded font-mono text-[0.8rem] leading-none border"
+                    style={{ border: "1px solid var(--border)", color: "var(--muted)", cursor: count >= 12 ? "not-allowed" : "pointer", background: "transparent" }}>
+                    +
+                  </button>
+                </span>
+              </div>
+              {count > 0 && (
+                <div className="flex items-center justify-between gap-2 pl-3.5">
+                  <span className="text-[0.6rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                    Payload override
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <input type="number" min={10} max={600} step={1}
+                      value={override ?? ""}
+                      placeholder={`${stock}t`}
+                      onChange={(e) => setPayloadOverride(model, e.target.value === "" ? null : parseFloat(e.target.value))}
+                      className="text-right font-mono text-[0.7rem] rounded px-1.5 py-0.5 focus:outline-none"
+                      style={{
+                        width: 56, background: "var(--panel)",
+                        border: `1px solid ${override != null ? "var(--acid)" : "var(--border)"}`,
+                        color: override != null ? "var(--acid)" : "var(--text2)",
+                      }} />
+                    <span className="text-[0.6rem] font-mono" style={{ color: "var(--muted)" }}>t</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <div className="text-[0.62rem] font-mono" style={{ color: "var(--muted)" }}>
+          Total fleet: <span style={{ color: "var(--acid)" }}>{selectedFleet.length}</span> truck{selectedFleet.length === 1 ? "" : "s"}
+        </div>
+      </div>
+
+      {/* Run Simulation */}
       <button
         onClick={runSim}
         disabled={loading}
@@ -303,6 +473,7 @@ export default function AuditPage() {
           <RailItem label="Dump" value={String(nDumps)} accent />
           <RailItem label="Seed" value={String(seed)} />
           <RailItem label="Mat" value={material.slice(0, 3)} />
+          <RailItem label="Fleet" value={String(selectedFleet.length)} />
         </>
       }
       rightTitle="Decision Log"
@@ -380,7 +551,7 @@ export default function AuditPage() {
                   CATERPILLAR ADIOS — SYSTEM AUDIT REPORT
                 </h1>
                 <p className="text-sm text-gray-700 uppercase tracking-widest font-mono mt-1 font-semibold">
-                  Adaptive Dump Intelligence & Orchestration System
+                  Adaptive Dump Intelligence &amp; Orchestration System
                 </p>
               </div>
               <div className="text-right font-mono text-xs text-black font-semibold">

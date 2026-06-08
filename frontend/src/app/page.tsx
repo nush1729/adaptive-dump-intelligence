@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, Suspense } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, useInView } from "framer-motion";
-import gsap from "gsap";
+// gsap is imported dynamically inside useEffect to avoid SSR issues
 
 const LandingHeroScene = dynamic(
   () => import("@/components/landing/LandingHeroScene"),
@@ -693,16 +693,20 @@ export default function LandingPage() {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const ctx = gsap.context(() => {
-      gsap.from(".gn", { opacity: 0, y: -26, duration: 0.65, ease: "power2.out" });
-      gsap.from(".gl", { y: 70, opacity: 0, duration: 0.82, stagger: 0.075, delay: 0.22, ease: "back.out(1.55)" });
-      gsap.from(".gs", { y: 18, opacity: 0, duration: 0.68, delay: 0.72, ease: "power3.out" });
-      gsap.from(".gd", { y: 14, opacity: 0, duration: 0.55, delay: 0.94, ease: "power3.out" });
-      gsap.from(".gb", { y: 16, opacity: 0, duration: 0.5, stagger: 0.1, delay: 1.08, ease: "power3.out" });
-      gsap.from(".gm", { x: 28, opacity: 0, duration: 0.5, stagger: 0.07, delay: 0.48, ease: "power2.out" });
-      gsap.from(".ghud", { scale: 0.86, opacity: 0, duration: 0.62, stagger: 0.13, delay: 0.62, ease: "back.out(1.3)" });
-    }, rootRef);
-    return () => ctx.revert();
+    let ctx: any;
+    import("gsap").then((mod) => {
+      const gsap = mod.default;
+      ctx = gsap.context(() => {
+        gsap.from(".gn", { opacity: 0, y: -26, duration: 0.65, ease: "power2.out" });
+        gsap.from(".gl", { y: 70, opacity: 0, duration: 0.82, stagger: 0.075, delay: 0.22, ease: "back.out(1.55)" });
+        gsap.from(".gs", { y: 18, opacity: 0, duration: 0.68, delay: 0.72, ease: "power3.out" });
+        gsap.from(".gd", { y: 14, opacity: 0, duration: 0.55, delay: 0.94, ease: "power3.out" });
+        gsap.from(".gb", { y: 16, opacity: 0, duration: 0.5, stagger: 0.1, delay: 1.08, ease: "power3.out" });
+        gsap.from(".gm", { x: 28, opacity: 0, duration: 0.5, stagger: 0.07, delay: 0.48, ease: "power2.out" });
+        gsap.from(".ghud", { scale: 0.86, opacity: 0, duration: 0.62, stagger: 0.13, delay: 0.62, ease: "back.out(1.3)" });
+      }, rootRef);
+    });
+    return () => { if (ctx) ctx.revert(); };
   }, []);
 
   return (
@@ -805,7 +809,7 @@ export default function LandingPage() {
                 onClick={() => router.push(NAV_ROUTES[link])}
                 style={{
                   fontFamily: "'JetBrains Mono',monospace",
-                  fontSize: "0.58rem",
+                  fontSize: "0.82rem",
                   letterSpacing: "0.1em",
                   textTransform: "uppercase",
                   color: active ? GOLD : "#9ca3af",
