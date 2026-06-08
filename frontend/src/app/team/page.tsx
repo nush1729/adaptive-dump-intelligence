@@ -43,7 +43,7 @@ const TEAM = [
     focus: "Reinforcement Learning · CTDE Architecture · IoT Integration · Backend API",
     description: "Designed and built the full ADIOS intelligence stack — MaskablePPO with 5-channel enriched observations, CTDE framework enabling decentralised truck execution against a centralised digital twin, IoT telemetry wiring for real-time fleet metrics, and adaptive weight modulation in the scoring engine. Architected the FastAPI backend, constraint-aware action masking, and the metadata-versioned policy loading chain that ensures PPO runs without BC fallback.",
     contributions: [
-      "MaskablePPO training with ADIOSMultiInputExtractor (160K steps)",
+      "MaskablePPO training with ADIOSMultiInputExtractor (100K steps)",
       "CTDE architecture — TruckAgent per-truck inference with shared policy",
       "5-channel terrain observation design (geometry + semantics streams)",
       "IoT-adaptive heuristic weight modulation in ScoringEngine",
@@ -109,7 +109,7 @@ const TEAM = [
 const HIGHLIGHTS = [
   { label: "Problem", value: "CAT Optimal Dump Packing" },
   { label: "Approach", value: "Option 2 + Option 3" },
-  { label: "ML Training", value: "160K PPO Steps" },
+  { label: "ML Training", value: "100K PPO Steps" },
   { label: "Stack", value: "Next.js + FastAPI + PyTorch" },
 ];
 

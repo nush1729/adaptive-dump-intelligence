@@ -63,6 +63,12 @@ class SiteConfig:
     # Param 8: raise scheduler retries 25 → 40 (fewer deadlocks on dense packs)
     scheduler_max_delay_steps: int = 40
     iso_mask_cell_limit: int = 600
+    # Hard cap on how many candidate cells _apply_iso actually simulates per
+    # mask() call — each costs a full apply_dump_to_height + grid-wide BFS
+    # (~10-15ms). Sampling keeps mask() cost flat regardless of how many
+    # candidates remain (was: up to 600 cells -> ~8s/call once the pool sat
+    # just under iso_mask_cell_limit, compounding across retry attempts).
+    iso_mask_sample_size: int = 30
     training_payload_t: float = 100.0
     generic_payloads_t: Tuple[float, ...] = (50.0, 100.0, 200.0, 240.0, 400.0)
     # Param 11: IoT haul latency rolling window — raised 10 → 20 ticks

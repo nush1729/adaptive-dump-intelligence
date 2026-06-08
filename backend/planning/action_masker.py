@@ -127,6 +127,21 @@ class ConstrainedActionMasker:
             entry = terrain.entry
             reach_thresh = self.iso_threshold
 
+        # Each candidate costs one full apply_dump_to_height + grid-wide BFS —
+        # ~10-15ms apiece. With up to iso_mask_cell_limit (600) candidates and
+        # up to 50 retry attempts per dump, an exhaustive sweep is O(cells ×
+        # grid_size × attempts) and balloons to seconds per dump once the
+        # candidate pool sits just under the limit (observed: 599 cells ->
+        # ~8s for a single mask() call). Sampling a bounded subset keeps the
+        # per-call cost flat — the mask only needs to prune *some* clearly-bad
+        # cells, not exhaustively certify every candidate (the validator still
+        # re-checks the chosen cell with validate() before committing).
+        if len(valid_rc) > SITE_CONFIG.iso_mask_sample_size:
+            idx = np.random.default_rng().choice(
+                len(valid_rc), size=SITE_CONFIG.iso_mask_sample_size, replace=False
+            )
+            valid_rc = valid_rc[idx]
+
         for r, c in valid_rc:
             sim_h = apply_dump_to_height(
                 terrain.height, terrain.mask, int(r), int(c), payload_t, terrain.material, mutate=False

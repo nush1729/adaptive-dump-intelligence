@@ -375,12 +375,17 @@ python3 -m venv .venv
 source .venv/bin/activate          # Mac / Linux
 # .venv\Scripts\activate           # Windows
 
-# Install all Python dependencies
+# Install all Python dependencies (production/serving footprint)
 pip install -r requirements.txt
 
 # Also install sb3-contrib for MaskablePPO (required for PPO inference)
 pip install sb3-contrib
 ```
+
+> Training, linting, and testing need a few extra packages (tensorboard, pytest,
+> flake8) that the live server never imports — install those with
+> `pip install -r requirements-dev.txt` instead (it layers on top of
+> `requirements.txt`). Keeping them separate keeps the deploy footprint lean.
 
 ---
 

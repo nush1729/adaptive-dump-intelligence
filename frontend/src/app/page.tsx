@@ -695,7 +695,7 @@ const METRICS = [
   { icon: "◉", label: "TERRAIN ADAPTATION", to: 120, suffix: "ms", delta: "↓ 15ms", pos: true, d: [180, 165, 155, 148, 140, 130, 125, 122, 120], t: "line" as const, sub: "policy re-plan latency · trending down" },
   { icon: "◧", label: "IDLE TIME REDUCTION", to: 36.4, suffix: "%", delta: "↑ 6.8%", pos: false, d: [43, 41, 38, 37, 35, 34, 36, 33, 35], t: "line" as const, sub: "vs. static-grid dispatch baseline" },
   { icon: "◑", label: "FUEL OPTIMIZATION", to: 18.7, suffix: "%", delta: "↑ 3.2%", pos: true, d: [12, 13, 14, 15, 16, 17, 17, 18, 18], t: "line" as const, sub: "haul-route efficiency gain · fleet-wide" },
-  { icon: "◈", label: "RL TRAINING ITERS", to: 2.43, suffix: "M", delta: "↑ 120K", pos: true, d: [3, 5, 4, 7, 6, 9, 8, 10, 11], t: "bar" as const, decimals: 2, sub: "Maskable PPO · 100K-step checkpoints" },
+  { icon: "◈", label: "RL TRAINING STEPS", to: 100, suffix: "K", delta: "ep_rew −128→+12.7", pos: true, d: [3, 5, 4, 7, 6, 9, 8, 10, 11], t: "bar" as const, decimals: 0, sub: "Maskable PPO · MultiInputPolicy · ADIOSMultiInputExtractor" },
 ];
 
 const STEPS = [
