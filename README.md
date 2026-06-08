@@ -164,7 +164,7 @@ flowchart LR
 
 ---
 
-## Observation Space — What The Policy Sees
+## Observation Space — What The Policy Sees 
 
 Each truck gets a **Dict observation** with two components:
 
@@ -226,7 +226,7 @@ The `metadata.json` sidecar next to each checkpoint records its `context_dim`, `
 
 ---
 
-## Spacing Gap — Before vs. After
+## Spacing Gap — Before vs. After 
 
 ```mermaid
 xychart-beta
