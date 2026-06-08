@@ -1,7 +1,7 @@
 <!--
   README.md — Project overview, architecture, run guide, and ML training instructions for ADIOS.
   This file is the single source of truth for anyone trying to understand, run, or extend the system.
-  CAT Hackathon submission — Problem Statement 4: Optimal Dump Packing
+  CATERPILLER Hackathon submission — Problem Statement 4: Optimal Dump Packing
 -->
 
 <div align="center">
