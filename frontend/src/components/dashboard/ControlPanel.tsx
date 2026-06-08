@@ -26,10 +26,10 @@ function RangeField({ id, label, min, max, step = 0.01, value, onChange, decimal
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-between items-center">
-        <label htmlFor={id} className="font-mono text-[0.99rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>
+        <label htmlFor={id} className="font-mono text-[0.74rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>
           {label}
         </label>
-        <span className="font-mono text-[1.16rem] font-bold tabular-nums px-2 py-0.5 rounded" style={{ color: "var(--acid)", background: "var(--panel)", border: "1px solid var(--border)", minWidth: 44, textAlign: "right" }}>
+        <span className="font-mono text-[0.86rem] font-bold tabular-nums px-2 py-0.5 rounded" style={{ color: "var(--acid)", background: "var(--panel)", border: "1px solid var(--border)", minWidth: 50, textAlign: "right" }}>
           {value.toFixed(decimals)}
         </span>
       </div>
@@ -62,30 +62,30 @@ function CustomTruckForm({ onAdd, takenNames }: { onAdd: (name: string, spec: { 
   return (
     <div className="flex flex-col gap-1.5 px-2.5 py-2 rounded border mt-1"
       style={{ background: "var(--panel)", border: "1px dashed var(--border)" }}>
-      <div className="text-[0.9rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+      <div className="text-[0.78rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
         Register custom truck type
       </div>
       <input type="text" value={name} placeholder="Name (e.g. HaulMax9000)"
         onChange={(e) => setName(e.target.value)}
-        className="font-mono text-[1.01rem] rounded px-1.5 py-1 focus:outline-none"
+        className="font-mono text-[0.88rem] rounded px-1.5 py-1 focus:outline-none"
         style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }} />
       <div className="grid grid-cols-3 gap-1.5">
-        <label className="flex flex-col gap-0.5 text-[0.99rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+        <label className="flex flex-col gap-0.5 text-[0.86rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
           Payload (t)
           <input type="number" min={10} max={600} value={payload} onChange={(e) => setPayload(parseFloat(e.target.value) || 0)}
-            className="font-mono text-[1.01rem] rounded px-1.5 py-0.5 focus:outline-none"
+            className="font-mono text-[0.88rem] rounded px-1.5 py-0.5 focus:outline-none"
             style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }} />
         </label>
-        <label className="flex flex-col gap-0.5 text-[0.99rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+        <label className="flex flex-col gap-0.5 text-[0.86rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
           Turn radius (m)
           <input type="number" min={5} max={30} value={turnR} onChange={(e) => setTurnR(parseFloat(e.target.value) || 0)}
-            className="font-mono text-[1.01rem] rounded px-1.5 py-0.5 focus:outline-none"
+            className="font-mono text-[0.88rem] rounded px-1.5 py-0.5 focus:outline-none"
             style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }} />
         </label>
-        <label className="flex flex-col gap-0.5 text-[0.99rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+        <label className="flex flex-col gap-0.5 text-[0.86rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
           Base radius (m)
           <input type="number" min={1} max={20} value={baseR} onChange={(e) => setBaseR(parseFloat(e.target.value) || 0)}
-            className="font-mono text-[1.01rem] rounded px-1.5 py-0.5 focus:outline-none"
+            className="font-mono text-[0.88rem] rounded px-1.5 py-0.5 focus:outline-none"
             style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text)" }} />
         </label>
       </div>
@@ -98,7 +98,7 @@ function CustomTruckForm({ onAdd, takenNames }: { onAdd: (name: string, spec: { 
           ))}
         </span>
         <button onClick={submit} disabled={!canAdd}
-          className="px-3 py-1 rounded font-mono text-[0.96rem] uppercase tracking-wider border transition-all"
+          className="px-3 py-1 rounded font-mono text-[0.84rem] uppercase tracking-wider border transition-all"
           style={{
             background: canAdd ? "rgba(255,205,17,0.1)" : "var(--panel)",
             border: `1px solid ${canAdd ? "var(--acid)" : "var(--border)"}`,
@@ -109,7 +109,7 @@ function CustomTruckForm({ onAdd, takenNames }: { onAdd: (name: string, spec: { 
         </button>
       </div>
       {isDuplicate && (
-        <div className="text-[0.99rem] font-mono" style={{ color: "#FF3366" }}>
+        <div className="text-[0.86rem] font-mono" style={{ color: "#FF3366" }}>
           A truck type named &ldquo;{trimmed}&rdquo; already exists.
         </div>
       )}
@@ -119,7 +119,7 @@ function CustomTruckForm({ onAdd, takenNames }: { onAdd: (name: string, spec: { 
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="font-syncopate text-[1.01rem] tracking-[0.22em] uppercase border-b pb-1 mb-3"
+    <div className="font-syncopate text-[0.78rem] tracking-[0.22em] uppercase border-b pb-1 mb-3"
       style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
       {children}
     </div>
@@ -171,9 +171,9 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
         <div>
           <SectionLabel>Simulation</SectionLabel>
           <div className="flex flex-col gap-1 mb-3">
-            <label className="font-mono text-[0.99rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>Material</label>
+            <label className="font-mono text-[0.74rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>Material</label>
             <select value={material} onChange={(e) => setMaterial(e.target.value)}
-              className="p-1.5 rounded text-sm font-mono w-full focus:outline-none"
+              className="p-1.5 rounded text-[0.74rem] font-mono w-full focus:outline-none"
               style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
               <option value="default">Default (38°)</option>
               <option value="rock">Rock (40°)</option>
@@ -189,17 +189,17 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
             <RangeField id="min_spacing" label="Min Dump Spacing" min={0.5} max={10} step={0.5} value={minDumpSpacing} onChange={setMinDumpSpacing} decimals={1} />
           </div>
           <div className="flex flex-col gap-1 mt-3">
-            <label className="font-mono text-[0.99rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>Polygon Seed</label>
+            <label className="font-mono text-[0.74rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>Polygon Seed</label>
             <input type="number" value={seed} min={1} max={9999}
               onChange={(e) => setSeed(parseInt(e.target.value) || 42)}
-              className="p-1.5 rounded text-sm font-mono w-full focus:outline-none"
+              className="p-1.5 rounded text-[0.74rem] font-mono w-full focus:outline-none"
               style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
           </div>
           {/* ML Toggle */}
           <div className="flex items-center justify-between mt-3">
-            <span className="font-mono text-[0.99rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>ML / Hybrid Policy</span>
+            <span className="font-mono text-[0.74rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}>ML / Hybrid Policy</span>
             <button onClick={() => setUseML(!useML)}
-              className="px-3 py-1 rounded text-[1.13rem] font-mono transition-all border"
+              className="px-3 py-1 rounded text-[0.86rem] font-mono transition-all border"
               style={{
                 background: useML ? "rgba(255,205,17,0.1)" : "var(--panel)",
                 border: `1px solid ${useML ? "var(--acid)" : "var(--border)"}`,
@@ -210,12 +210,12 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
           </div>
           {/* Zone Mode Toggle */}
           <div className="flex items-center justify-between mt-2">
-            <span className="font-mono text-[0.99rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}
+            <span className="font-mono text-[0.74rem] tracking-widest uppercase" style={{ color: "var(--muted)" }}
               title="Geofenced dispatch — each truck class is hard-restricted to a predefined active face, mirroring real AHS (Cat MineStar / Komatsu FrontRunner) behaviour, instead of ADIOS's free-form per-cell optimisation">
               Zone Mode (Geofenced)
             </span>
             <button onClick={() => setZoneMode(!zoneMode)}
-              className="px-3 py-1 rounded text-[1.13rem] font-mono transition-all border"
+              className="px-3 py-1 rounded text-[0.86rem] font-mono transition-all border"
               style={{
                 background: zoneMode ? "rgba(255,205,17,0.1)" : "var(--panel)",
                 border: `1px solid ${zoneMode ? "var(--acid)" : "var(--border)"}`,
@@ -241,22 +241,22 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
                     border: `1px solid ${count > 0 ? "rgba(255,205,17,0.25)" : "var(--border)"}`,
                   }}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-[0.99rem] font-mono"
+                    <span className="flex items-center gap-1.5 text-[0.86rem] font-mono"
                       style={{ color: count > 0 ? "var(--text)" : "var(--muted)" }}>
                       <span style={{ width: 7, height: 7, borderRadius: "50%", background: FLEET_COLORS[model], display: "inline-block" }} />
                       {FLEET_LABELS[model]}
                     </span>
                     <span className="flex items-center gap-1.5">
                       <button onClick={() => setFleetCount(model, count - 1)} disabled={isRunning || count <= 0}
-                        className="w-6 h-6 rounded font-mono text-[1.16rem] leading-none border transition-all"
+                        className="w-6 h-6 rounded font-mono text-[1.0rem] leading-none border transition-all"
                         style={{ border: "1px solid var(--border)", color: "var(--muted)", cursor: isRunning || count <= 0 ? "not-allowed" : "pointer" }}>
                         −
                       </button>
-                      <span className="font-mono text-[1.13rem] font-bold tabular-nums" style={{ color: "var(--acid)", minWidth: 18, textAlign: "center" }}>
+                      <span className="font-mono text-[0.98rem] font-bold tabular-nums" style={{ color: "var(--acid)", minWidth: 18, textAlign: "center" }}>
                         {count}
                       </span>
                       <button onClick={() => setFleetCount(model, count + 1)} disabled={isRunning || count >= 12}
-                        className="w-6 h-6 rounded font-mono text-[1.16rem] leading-none border transition-all"
+                        className="w-6 h-6 rounded font-mono text-[1.0rem] leading-none border transition-all"
                         style={{ border: "1px solid var(--border)", color: "var(--muted)", cursor: isRunning || count >= 12 ? "not-allowed" : "pointer" }}>
                         +
                       </button>
@@ -264,7 +264,7 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
                   </div>
                   {count > 0 && (
                     <div className="flex items-center justify-between gap-2 pl-3.5">
-                      <span className="text-[1.01rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                      <span className="text-[0.88rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
                         Payload override
                       </span>
                       <span className="flex items-center gap-1">
@@ -273,13 +273,13 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
                           placeholder={`${stock}t`}
                           disabled={isRunning}
                           onChange={(e) => setPayloadOverride(model, e.target.value === "" ? null : parseFloat(e.target.value))}
-                          className="text-right font-mono text-[1.01rem] rounded px-1.5 py-0.5 focus:outline-none"
+                          className="text-right font-mono text-[0.88rem] rounded px-1.5 py-0.5 focus:outline-none"
                           style={{
                             width: 56, background: "var(--panel)",
                             border: `1px solid ${override != null ? "var(--acid)" : "var(--border)"}`,
                             color: override != null ? "var(--acid)" : "var(--text2)",
                           }} />
-                        <span className="text-[1.01rem] font-mono" style={{ color: "var(--muted)" }}>t</span>
+                        <span className="text-[0.88rem] font-mono" style={{ color: "var(--muted)" }}>t</span>
                       </span>
                     </div>
                   )}
@@ -297,31 +297,31 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
                     border: `1px solid ${count > 0 ? "rgba(255,205,17,0.25)" : "var(--border)"}`,
                   }}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-[0.99rem] font-mono"
+                    <span className="flex items-center gap-1.5 text-[0.86rem] font-mono"
                       style={{ color: count > 0 ? "var(--text)" : "var(--muted)" }}>
                       <span style={{ width: 7, height: 7, borderRadius: "50%", background: spec.color, display: "inline-block" }} />
                       {name} · {spec.payload_t}t · r={spec.turn_r}m
-                      <span className="ml-1 px-1 rounded text-[0.96rem] uppercase tracking-wider" style={{ background: "var(--surface)", color: "var(--muted)", border: "1px solid var(--border)" }}>
+                      <span className="ml-1 px-1 rounded text-[0.84rem] uppercase tracking-wider" style={{ background: "var(--surface)", color: "var(--muted)", border: "1px solid var(--border)" }}>
                         custom
                       </span>
                     </span>
                     <span className="flex items-center gap-1.5">
                       <button onClick={() => setFleetCount(name, count - 1)} disabled={isRunning || count <= 0}
-                        className="w-6 h-6 rounded font-mono text-[1.16rem] leading-none border transition-all"
+                        className="w-6 h-6 rounded font-mono text-[1.0rem] leading-none border transition-all"
                         style={{ border: "1px solid var(--border)", color: "var(--muted)", cursor: isRunning || count <= 0 ? "not-allowed" : "pointer" }}>
                         −
                       </button>
-                      <span className="font-mono text-[1.13rem] font-bold tabular-nums" style={{ color: "var(--acid)", minWidth: 18, textAlign: "center" }}>
+                      <span className="font-mono text-[0.98rem] font-bold tabular-nums" style={{ color: "var(--acid)", minWidth: 18, textAlign: "center" }}>
                         {count}
                       </span>
                       <button onClick={() => setFleetCount(name, count + 1)} disabled={isRunning || count >= 12}
-                        className="w-6 h-6 rounded font-mono text-[1.16rem] leading-none border transition-all"
+                        className="w-6 h-6 rounded font-mono text-[1.0rem] leading-none border transition-all"
                         style={{ border: "1px solid var(--border)", color: "var(--muted)", cursor: isRunning || count >= 12 ? "not-allowed" : "pointer" }}>
                         +
                       </button>
                       <button onClick={() => removeCustomTruck(name)} disabled={isRunning}
                         title="Remove this custom truck type"
-                        className="w-6 h-6 rounded font-mono text-[1.01rem] leading-none border transition-all"
+                        className="w-6 h-6 rounded font-mono text-[0.88rem] leading-none border transition-all"
                         style={{ border: "1px solid var(--border)", color: "#FF3366", cursor: isRunning ? "not-allowed" : "pointer" }}>
                         ×
                       </button>
@@ -329,7 +329,7 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
                   </div>
                   {count > 0 && (
                     <div className="flex items-center justify-between gap-2 pl-3.5">
-                      <span className="text-[1.01rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                      <span className="text-[0.88rem] font-mono uppercase tracking-wider" style={{ color: "var(--muted)" }}>
                         Payload override
                       </span>
                       <span className="flex items-center gap-1">
@@ -338,13 +338,13 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
                           placeholder={`${spec.payload_t}t`}
                           disabled={isRunning}
                           onChange={(e) => setPayloadOverride(name, e.target.value === "" ? null : parseFloat(e.target.value))}
-                          className="text-right font-mono text-[1.01rem] rounded px-1.5 py-0.5 focus:outline-none"
+                          className="text-right font-mono text-[0.88rem] rounded px-1.5 py-0.5 focus:outline-none"
                           style={{
                             width: 56, background: "var(--panel)",
                             border: `1px solid ${override != null ? "var(--acid)" : "var(--border)"}`,
                             color: override != null ? "var(--acid)" : "var(--text2)",
                           }} />
-                        <span className="text-[1.01rem] font-mono" style={{ color: "var(--muted)" }}>t</span>
+                        <span className="text-[0.88rem] font-mono" style={{ color: "var(--muted)" }}>t</span>
                       </span>
                     </div>
                   )}
@@ -355,7 +355,7 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
 
           <CustomTruckForm onAdd={addCustomTruck} takenNames={[...FLEET_CLASSES, ...Object.keys(customTrucks)]} />
 
-          <div className="mt-2 text-[0.9rem] font-mono" style={{ color: "var(--muted)" }}>
+          <div className="mt-2 text-[0.78rem] font-mono" style={{ color: "var(--muted)" }}>
             Total fleet: <span style={{ color: "var(--acid)" }}>{selectedFleet.length}</span> truck{selectedFleet.length === 1 ? "" : "s"} dispatched in rotation
           </div>
         </div>
@@ -371,7 +371,7 @@ export default function ControlPanel({ onRun, onTune, isTuning }: ControlPanelPr
             <RangeField id="spacing" label="Spacing · target pile separation" min={1} max={5} step={0.1} value={weights.spacing} onChange={(v) => setWeight("spacing", v)} />
           </div>
           <button onClick={onTune} disabled={isTuning || isRunning}
-            className="w-full mt-3 py-2 rounded font-syncopate text-[1.04rem] tracking-[0.15em] uppercase transition-all"
+            className="w-full mt-3 py-2 rounded font-syncopate text-[0.82rem] tracking-[0.15em] uppercase transition-all"
             style={{
               background: "transparent",
               border: `1px solid ${isTuning ? "var(--muted)" : "var(--ore)"}`,

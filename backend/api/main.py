@@ -32,10 +32,9 @@ from planning.orchestrator import ADIOSOrchestrator
 from planning.weight_tuner import WeightTuner
 from planning.scorer import ScoringEngine, DEFAULT_WEIGHTS
 from planning.isolation_validator import IsolationValidator
-from planning.action_masker import ConstrainedActionMasker
 from evaluation.metrics import summarize_episode
 from evaluation.benchmark import run_static, run_staffed
-from config import SITE_CONFIG, config_payload, IOT_FEATURE_DIM
+from config import SITE_CONFIG, config_payload
 
 # ── optional ML imports ───────────────────────────────────────────────────────
 ML_AVAILABLE = False
@@ -154,151 +153,6 @@ def _terrain_payload(terrain: Terrain, weights: Optional[dict] = None) -> dict:
         "entry": list(terrain.entry),
         "score_map": sm,
     })
-
-def _build_obs_dict(terrain: Terrain, truck_profile: str = "generic",
-                    payload_t: float = 100.0, truck_dump_count: int = 0,
-                    iot_features=None) -> dict:
-    """Build 5-channel Dict observation matching DumpPackingEnv._obs() exactly."""
-    from scipy.ndimage import gaussian_filter
-    from ml.environment import build_context_vector, PILE_THRESHOLD_M
-
-    h = terrain.height
-    mask = terrain.mask.astype(np.float32)
-    h_norm = np.clip(h / SITE_CONFIG.max_height_m, 0.0, 1.0).astype(np.float32)
-
-    dist = terrain.dist_to_boundary
-    dist_norm = dist / (dist.max() or 1.0)
-
-    pile_mask = (h > PILE_THRESHOLD_M).astype(np.float32)
-
-    pile_density = pile_mask * mask
-    density = gaussian_filter(pile_density, sigma=SITE_CONFIG.staffed_spacing_cells)
-    max_d = float(density.max())
-    density = (density / max_d).astype(np.float32) if max_d > 0 else density.astype(np.float32)
-
-    terrain_map = np.stack([h_norm, mask, dist_norm, pile_mask, density], axis=0)
-
-    if iot_features is None:
-        iot_features = np.zeros(IOT_FEATURE_DIM, dtype=np.float32)
-
-    context = build_context_vector(
-        truck_profile, payload_t, truck_dump_count,
-        terrain.material, np.asarray(iot_features, dtype=np.float32),
-    )
-    return {"terrain_map": terrain_map, "context_vector": context}
-
-def _run_ml_episode(terrain: Terrain, fleet, n_dumps: int, iso_threshold: float,
-                    min_dump_spacing: Optional[float] = None) -> tuple:
-    """Run one episode with the loaded ML policy. Returns (log, snapshots, latencies, positions, policy_type)."""
-    try:
-        policy, ptype = _load_policy_cached(raise_on_fail=True)
-    except RuntimeError:
-        return None, None, None, None, None
-
-    from iot.telemetry import IoTTelemetry
-    from ml.policy import TruckAgent
-    from ml.anomaly_detector import AnomalyDetector
-
-    iot = IoTTelemetry(n_trucks=len(fleet))
-    iot.reset()
-    anomaly_detector = AnomalyDetector()
-    truck_agents = {
-        t.truck_id: TruckAgent(t.truck_id, getattr(t, "profile_name", "generic"))
-        for t in fleet
-    }
-
-    spacing = min_dump_spacing if min_dump_spacing is not None else SITE_CONFIG.min_dump_spacing_cells
-    val = IsolationValidator(terrain, terrain.entry, iso_threshold, spacing)
-    log, snapshots = [], []
-    COLS = terrain.cols
-
-    dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // len(fleet) + 1)
-    dispatches = dispatches[:n_dumps]
-    reserved = set()
-    latencies = []
-    dump_positions = []
-    policy_type = getattr(policy, "artifact_type", ptype)
-
-    for i, (truck_id, payload_t) in enumerate(dispatches):
-        placed = False
-        t0 = time.perf_counter()
-
-        agent = truck_agents.get(truck_id)
-        iot.update_truck(truck_id, terrain.entry, payload_t, tick=i)
-        entry_height_m = float(terrain.height[terrain.entry[0], terrain.entry[1]])
-        iot_features = iot.get_iot_feature_vector(local_height_m=entry_height_m)
-        anomaly_detector.observe(
-            tick=i,
-            fleet_metrics=iot.get_fleet_metrics(),
-            ground_bearing_capacity=iot.ground_bearing_capacity(entry_height_m),
-        )
-
-        for _attempt in range(50):
-            action_mask = ConstrainedActionMasker(terrain, val, iso_threshold).mask(
-                payload_t, reserved_cells=reserved, include_iso=True, include_path=False
-            )
-
-            if not action_mask.any():
-                break
-
-            obs = _build_obs_dict(
-                terrain,
-                truck_profile=getattr(agent, "profile_name", "generic") if agent else "generic",
-                payload_t=payload_t,
-                truck_dump_count=agent.dump_count if agent and hasattr(agent, "dump_count") else 0,
-                iot_features=iot_features,
-            )
-            action = policy.predict(obs, action_mask.ravel().copy())
-            r, c = divmod(int(action), COLS)
-
-            safe, reach = val.validate(r, c, payload_t)
-            if not safe:
-                reserved.add((r, c))
-                log.append({"t": i, "truck": truck_id, "r": int(r), "c": int(c),
-                            "status": f"iso_rejected({reach:.2f})", "payload_t": payload_t,
-                            "volume": terrain.total_volume(), "coverage": terrain.coverage_fraction(),
-                            "valid_action_count": int(action_mask.sum()), "policy_source": policy_type})
-                continue
-
-            ok, reason = terrain.apply_dump(r, c, payload_t)
-            status = "dumped" if ok else reason
-            log.append({"t": i, "truck": truck_id, "r": int(r), "c": int(c), "status": status,
-                        "payload_t": payload_t, "reach": reach if ok else None,
-                        "volume": terrain.total_volume(), "coverage": terrain.coverage_fraction(),
-                        "valid_action_count": int(action_mask.sum()), "policy_source": policy_type})
-
-            if ok:
-                val.record_dump(r, c)
-                dump_positions.append((int(r), int(c)))
-                placed = True
-                reserved.discard((r, c))
-                if agent:
-                    agent.record_dump()
-                iot.record_dump(truck_id, tick=i)
-                break
-            else:
-                reserved.add((r, c))
-                continue
-
-        if not placed:
-            if not log or log[-1]["t"] != i:
-                log.append({"t": i, "truck": truck_id, "r": 0, "c": 0,
-                            "status": "no_space", "payload_t": payload_t,
-                            "volume": terrain.total_volume(), "coverage": terrain.coverage_fraction(),
-                            "policy_source": policy_type})
-
-        if placed:
-            snapshots.append({
-                "dump_n": terrain.dump_count, "truck": truck_id, "r": int(r), "c": int(c),
-                "volume": terrain.total_volume(),
-                "coverage": terrain.coverage_fraction(),
-                "efficiency": terrain.packing_efficiency(),
-                "policy": policy_type,
-                "surface": terrain.to_json_surface(),
-            })
-        latencies.append((time.perf_counter() - t0) * 1000)
-
-    return log, snapshots, latencies, dump_positions, policy_type, anomaly_detector
 
 # ── routes ────────────────────────────────────────────────────────────────────
 @app.get("/health")
@@ -420,36 +274,50 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
     fleet = make_fleet(cfg.fleet_models, payload_overrides=cfg.payload_overrides,
                        custom_specs=cfg.custom_truck_specs)
 
-    actual_policy = "heuristic"  # Track what was ACTUALLY used
-    log = None
-    anomaly_detector = None
+    # Single source of truth for ALL dispatch — heuristic AND ML both run
+    # through ADIOSOrchestrator.run_generator (the exact same path /ws/simulate
+    # uses). A previous version of this endpoint ran ML episodes through a
+    # separate, hand-rolled loop (_run_ml_episode) that bypassed the
+    # orchestrator entirely — skipping zone-mode geofencing, pathfinding/
+    # reachability checks, scheduling/deadlock resolution, and the CTDE
+    # TruckAgent pipeline. That duplication meant an ML run requested here
+    # could dispatch into completely different cells than the *same* config
+    # run via /ws/simulate (e.g. zone_mode=True was silently ignored), so the
+    # rendered terrain for "the same input" diverged between Audit Replay and
+    # the Dashboard live view. Routing both policies through one orchestrator
+    # call removes that divergence at the root — by construction, not by patching
+    # the symptom.
+    actual_policy = "heuristic"
+    policy_obj = None
     if cfg.use_ml:
         try:
-            log, snapshots, latencies, dump_positions, loaded_policy, anomaly_detector = _run_ml_episode(terrain, fleet, cfg.n_dumps, cfg.iso_threshold, cfg.min_dump_spacing)
-            if log is not None:
-                actual_policy = loaded_policy or "unknown_ml"
-            else:
-                # ML returned None — fall back
-                cfg.use_ml = False
+            policy_obj, loaded_ptype = _load_policy_cached(raise_on_fail=True)
+            actual_policy = loaded_ptype or "unknown_ml"
         except RuntimeError:
             cfg.use_ml = False
-            log = None
+            policy_obj = None
 
-    if not cfg.use_ml or log is None:
-        orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH, n_trucks=len(fleet), min_spacing=cfg.min_dump_spacing)
-        orch.validator.reach_thresh = cfg.iso_threshold
-        dispatches = [{"truck_id": t.truck_id, "payload_t": t.payload_t, "truck_profile": t.model}
-                      for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
-        dispatches = dispatches[:cfg.n_dumps]
-        latencies = []
-        dump_positions = []
-        t_last = time.perf_counter()
-        log = orch.run(dispatches, zone_mode=cfg.zone_mode)
-        snapshots = orch.snapshots
-        anomaly_detector = orch.anomaly_detector
-        latencies = [(time.perf_counter() - t_last) * 1000 / max(len(dispatches), 1)] * len(dispatches)
-        dump_positions = [(int(x["r"]), int(x["c"])) for x in log if x.get("status") == "dumped"]
-        actual_policy = "heuristic"
+    orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH, n_trucks=len(fleet), min_spacing=cfg.min_dump_spacing)
+    orch.validator.reach_thresh = cfg.iso_threshold
+    dispatches = [{"truck_id": t.truck_id, "payload_t": t.payload_t, "truck_profile": t.model}
+                  for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
+    dispatches = dispatches[:cfg.n_dumps]
+
+    log = []
+    latencies = []
+    dump_positions = []
+    t_last = time.perf_counter()
+    for log_entry, _snapshot, placed, r, c in orch.run_generator(
+        dispatches, policy=policy_obj, ptype=actual_policy, zone_mode=cfg.zone_mode
+    ):
+        now = time.perf_counter()
+        latencies.append((now - t_last) * 1000)
+        t_last = now
+        log.append(log_entry)
+        if placed:
+            dump_positions.append((int(r), int(c)))
+    snapshots = orch.snapshots
+    anomaly_detector = orch.anomaly_detector
 
     summary = summarize_episode(terrain, log, latencies, dump_positions, actual_policy)
     summary["mean_height"] = round(terrain.mean_height(), 3)
@@ -544,7 +412,7 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
         "static_surface": static_t.to_json_surface(),
         "staffed_surface": staffed_t.to_json_surface(),
         "snapshots": snapshots,
-        "log": log[-30:],
+        "log": log,
         "static_summary": static_summary,
         "staffed_summary": staffed_summary,
         "spacing_analysis": spacing_stats,
@@ -556,7 +424,7 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
         "zone_mode": cfg.zone_mode,
         "anomalies": anomaly_detector.to_json() if anomaly_detector is not None else {"alerts": [], "alert_count": 0},
     })
-    if cfg.zone_mode and not cfg.use_ml and getattr(orch, "zone_planner", None) is not None:
+    if cfg.zone_mode and getattr(orch, "zone_planner", None) is not None:
         payload["zone_layout"] = orch.zone_planner.to_json()
     return _sanitize_for_json(payload)
 
@@ -842,12 +710,29 @@ def get_schedule(cfg: SimConfig):
     n_dumps = cfg.n_dumps
 
     weights = cfg.weights or dict(DEFAULT_WEIGHTS)
+
+    # Route through the same orchestrator path as /simulate and /ws/simulate
+    # (see the comment in _run_simulation_sync) — a prior version of this
+    # endpoint ran ML episodes through the now-removed _run_ml_episode helper,
+    # which bypassed zone-mode geofencing and the orchestrator's pathfinding/
+    # scheduling, producing a different dispatch sequence than the rest of the
+    # app for "the same" config.
+    policy_obj = None
+    actual_policy = "heuristic"
+    if cfg.use_ml:
+        try:
+            policy_obj, loaded_ptype = _load_policy_cached(raise_on_fail=True)
+            actual_policy = loaded_ptype or "unknown_ml"
+        except RuntimeError:
+            cfg.use_ml = False
+            policy_obj = None
+
     orch = ADIOSOrchestrator(terrain, weights=weights, n_trucks=n_trucks, min_spacing=cfg.min_dump_spacing)
     orch.validator.reach_thresh = cfg.iso_threshold
-    dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // n_trucks + 1)
+    dispatches = [{"truck_id": t.truck_id, "payload_t": t.payload_t, "truck_profile": t.model}
+                  for t in fleet] * (n_dumps // n_trucks + 1)
     dispatches = dispatches[:n_dumps]
-
-    log = orch.run(dispatches, zone_mode=cfg.zone_mode)
+    log = [entry for entry, *_ in orch.run_generator(dispatches, policy=policy_obj, ptype=actual_policy, zone_mode=cfg.zone_mode)]
 
     # ── scheduler ───────────────────────────────────────────────────────────
     total_ticks = n_dumps * 8 + 50

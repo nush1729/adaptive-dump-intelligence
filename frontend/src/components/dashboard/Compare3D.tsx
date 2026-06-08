@@ -5,13 +5,14 @@
  *   Panel 2: Autonomous fixed-grid baseline (sparse, rigid lattice)
  *   Panel 3: ADIOS (heuristic or ML) adaptive terrain
  *
- * Uses plotly.js loaded via CDN script tag (avoids 3 MB bundle hit).
+ * Plotly is bundled locally (plotly.js-dist-min) and lazy-loaded via dynamic
+ * import on first render of this view — avoids both the ~3MB main-bundle hit
+ * and the brittleness of an external CDN <script> tag (which is vulnerable to
+ * network blocks, outages, and edge-cache poisoning serving non-JS payloads).
  */
 import React, { useEffect, useRef, useState } from "react";
 
-declare global {
-  interface Window { Plotly: any; }
-}
+type PlotlyModule = (typeof import("plotly.js-dist-min"))["default"];
 
 interface Compare3DProps {
   adiosSurface: number[][] | null;
@@ -21,54 +22,40 @@ interface Compare3DProps {
   policy?: string;
 }
 
-const PLOTLY_CDN =
-  "https://cdn.plot.ly/plotly-2.32.0.min.js";
+let plotlyModulePromise: Promise<PlotlyModule> | null = null;
 
-function useScript(src: string): boolean {
-  const [loaded, setLoaded] = useState(false);
+function loadPlotly(): Promise<PlotlyModule> {
+  if (!plotlyModulePromise) {
+    plotlyModulePromise = import("plotly.js-dist-min").then((m) => m.default);
+  }
+  return plotlyModulePromise;
+}
+
+function usePlotly(): PlotlyModule | null {
+  const [mod, setMod] = useState<PlotlyModule | null>(null);
   useEffect(() => {
-    if (window.Plotly) {
-      setLoaded(true);
-      return;
-    }
-    
-    let s = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement;
-    if (!s) {
-      s = document.createElement("script");
-      s.src = src;
-      s.async = true;
-      document.head.appendChild(s);
-    }
-    
-    const handleLoad = () => {
-      if (window.Plotly) setLoaded(true);
-    };
-    
-    s.addEventListener("load", handleLoad);
-    
-    // In case it's already loaded but event fired
-    if (window.Plotly) setLoaded(true);
-
-    return () => {
-      s.removeEventListener("load", handleLoad);
-    };
-  }, [src]);
-  return loaded;
+    let cancelled = false;
+    loadPlotly().then((m) => {
+      if (!cancelled) setMod(m);
+    });
+    return () => { cancelled = true; };
+  }, []);
+  return mod;
 }
 
 function PlotPanel({
-  surface, mask, title, color,
+  surface, mask, title, color, plotly,
 }: {
   surface: number[][] | null;
   mask: boolean[][] | null;
   title: string;
   color: string;
+  plotly: PlotlyModule | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const ready = useScript(PLOTLY_CDN);
 
   useEffect(() => {
-    if (!ready || !ref.current || !surface || !mask) return;
+    if (!plotly || !ref.current || !surface || !mask) return;
     const ROWS = surface.length;
     const COLS = surface[0].length;
 
@@ -85,7 +72,7 @@ function PlotPanel({
     }
 
     try {
-      window.Plotly.react(
+      plotly.react(
         ref.current,
         [{
           type: "surface",
@@ -129,17 +116,17 @@ function PlotPanel({
     } catch (err) {
       console.error("Plotly render failed:", err);
     }
-  }, [ready, surface, mask, title, color]);
+  }, [plotly, surface, mask, title, color]);
 
   return (
     <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
-      {(!surface || !ready) && (
+      {(!surface || !plotly) && (
         <div style={{
           position: "absolute", inset: 0, display: "flex",
           alignItems: "center", justifyContent: "center",
           fontFamily: "JetBrains Mono", fontSize: "0.72rem", color: "var(--muted)",
         }}>
-          {!ready ? "Loading Plotly…" : "Run simulation first"}
+          {!plotly ? "Loading Plotly…" : "Run simulation first"}
         </div>
       )}
       <div ref={ref} style={{ width: "100%", height: "100%" }} />
@@ -148,6 +135,7 @@ function PlotPanel({
 }
 
 export default function Compare3D({ adiosSurface, staticSurface, staffedSurface, mask, policy }: Compare3DProps) {
+  const plotly = usePlotly();
   const adiosLabel =
     policy === "maskable_ppo" ? "ADIOS — Maskable PPO" :
     policy === "imitation_bc" ? "ADIOS — Imitation BC" :
@@ -155,29 +143,36 @@ export default function Compare3D({ adiosSurface, staticSurface, staffedSurface,
     "ADIOS — Heuristic Pack";
   return (
     <div style={{
-      display: "flex", height: "100%", gap: 2,
+      display: "flex", flexDirection: "column", height: "100%", gap: 2,
       background: "var(--void)",
     }}>
-      <PlotPanel
-        surface={staffedSurface ?? null}
-        mask={mask}
-        title="Staffed — Manual Pattern"
-        color="#00A3B3"
-      />
-      <div style={{ width: 1, background: "var(--border)" }} />
-      <PlotPanel
-        surface={staticSurface}
-        mask={mask}
-        title="Autonomous — Fixed Grid"
-        color="#FF5722"
-      />
-      <div style={{ width: 1, background: "var(--border)" }} />
-      <PlotPanel
-        surface={adiosSurface}
-        mask={mask}
-        title={adiosLabel}
-        color="#FFC000"
-      />
+      <div style={{ display: "flex", flex: 1, minHeight: 0, gap: 2 }}>
+        <PlotPanel
+          surface={staffedSurface ?? null}
+          mask={mask}
+          title="Staffed — Manual Pattern"
+          color="#00A3B3"
+          plotly={plotly}
+        />
+        <div style={{ width: 1, background: "var(--border)" }} />
+        <PlotPanel
+          surface={staticSurface}
+          mask={mask}
+          title="Autonomous — Fixed Grid"
+          color="#FF5722"
+          plotly={plotly}
+        />
+      </div>
+      <div style={{ height: 1, background: "var(--border)" }} />
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <PlotPanel
+          surface={adiosSurface}
+          mask={mask}
+          title={adiosLabel}
+          color="#FFC000"
+          plotly={plotly}
+        />
+      </div>
     </div>
   );
 }

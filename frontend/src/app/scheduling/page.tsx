@@ -18,10 +18,10 @@ interface SchedulePayload {
 function StatChip({ label, value, accent = false }: { label: string; value: string | number; accent?: boolean }) {
   return (
     <div className="adios-panel px-3 py-2 min-w-[96px]">
-      <div className="font-mono text-[1.01rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
+      <div className="font-mono text-[0.9rem] uppercase tracking-[0.14em]" style={{ color: "var(--muted)" }}>
         {label}
       </div>
-      <div className="font-mono text-[1.52rem] font-bold" style={{ color: accent ? "var(--acid)" : "var(--text)" }}>
+      <div className="font-mono text-[1.35rem] font-bold" style={{ color: accent ? "var(--acid)" : "var(--text)" }}>
         {value}
       </div>
     </div>
@@ -41,14 +41,22 @@ export default function SchedulingPage() {
     customTrucks: s.customTrucks,
     weights: s.weights,
     zoneMode: s.zoneMode,
+    nDumps: s.nDumps,
+    seed: s.seed,
+    useML: s.useML,
   }));
 
   const [data, setData] = useState<SchedulePayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
-  const [nDumps, setNDumps] = useState(40);
-  const [seed, setSeed] = useState(42);
+  const [nDumps, setNDumps] = useState(dash.nDumps);
+  const [seed, setSeed] = useState(dash.seed);
+  // Live-sync local overrides with the dashboard's run configuration so a
+  // dispatch run reflects whatever the user just configured there, while
+  // still allowing a per-replay override afterward (mirrors audit/page.tsx).
+  useEffect(() => { setNDumps(dash.nDumps); }, [dash.nDumps]);
+  useEffect(() => { setSeed(dash.seed); }, [dash.seed]);
   const [tick, setTick] = useState(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -73,6 +81,7 @@ export default function SchedulingPage() {
           min_dump_spacing: dash.minDumpSpacing,
           weights: dash.weights,
           zone_mode: dash.zoneMode,
+          use_ml: dash.useML,
           seed,
         }),
       });
@@ -85,7 +94,7 @@ export default function SchedulingPage() {
       setLoading(false);
     }
   }, [nDumps, seed, dash.material, dash.selectedFleet, dash.payloadOverrides, dash.customTrucks,
-      dash.isoThreshold, dash.minDumpSpacing, dash.weights, dash.zoneMode]);
+      dash.isoThreshold, dash.minDumpSpacing, dash.weights, dash.zoneMode, dash.useML]);
 
   useEffect(() => { load(); }, []);
 
@@ -120,7 +129,7 @@ export default function SchedulingPage() {
   const controlsPanel = (
     <div className="h-full overflow-y-auto p-4 flex flex-col gap-4">
       <div className="section-label">Dispatch Controls</div>
-      <div className="font-mono text-[0.96rem] uppercase tracking-widest" style={{ color: "var(--muted)" }}>
+      <div className="font-mono text-[0.85rem] uppercase tracking-widest" style={{ color: "var(--muted)" }}>
         Fleet, material &amp; scoring synced from Dashboard
       </div>
       <div className="flex flex-col gap-3">
@@ -128,7 +137,7 @@ export default function SchedulingPage() {
           { label: "Dumps", min: 10, max: 80, val: nDumps, set: setNDumps },
           { label: "Seed", min: 0, max: 9999, val: seed, set: setSeed },
         ].map(({ label, min, max, val, set }) => (
-          <label key={label} className="flex flex-col gap-1 font-mono text-[1.19rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
+          <label key={label} className="flex flex-col gap-1 font-mono text-[1.06rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
             {label}
             <input
               type="number"
@@ -145,7 +154,7 @@ export default function SchedulingPage() {
       <button
         onClick={load}
         disabled={loading}
-        className="w-full rounded py-3 text-[1.1rem] font-syncopate tracking-[0.18em] uppercase font-bold transition-all"
+        className="w-full rounded py-3 text-[0.98rem] font-syncopate tracking-[0.18em] uppercase font-bold transition-all"
         style={{
           background: loading ? "transparent" : "var(--acid)",
           color: loading ? "var(--acid)" : "#000",
@@ -193,37 +202,37 @@ export default function SchedulingPage() {
     >
       <div className="flex flex-col h-full overflow-hidden">
         <div className="flex items-center gap-4 px-4 lg:px-5 py-3 border-b" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-          <span className="font-syncopate text-[1.09rem] tracking-[0.2em] uppercase font-bold" style={{ color: "var(--acid)" }}>
+          <span className="font-syncopate text-[0.97rem] tracking-[0.2em] uppercase font-bold" style={{ color: "var(--acid)" }}>
             Dispatch Scheduler
           </span>
-          <div className="ml-auto font-mono text-[1.16rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
+          <div className="ml-auto font-mono text-[1.03rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
             {loading ? "Loading" : data ? `${data.timeline.length} dispatches` : "Awaiting data"}
           </div>
         </div>
 
         {error && (
-          <div className="px-5 py-2 border-b font-mono text-[1.09rem]" style={{ background: "rgba(255,51,102,0.1)", borderColor: "rgba(255,51,102,0.3)", color: "#FF3366" }}>
+          <div className="px-5 py-2 border-b font-mono text-[0.97rem]" style={{ background: "rgba(255,51,102,0.1)", borderColor: "rgba(255,51,102,0.3)", color: "#FF3366" }}>
             API Error: {error} - Is the backend running at <span style={{ color: "var(--acid)" }}>{API}</span>?
           </div>
         )}
 
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <div className="flex items-center justify-between gap-3 px-4 py-2 border-b" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <span className="font-syncopate text-[1.01rem] tracking-[0.18em] uppercase" style={{ color: "var(--muted)" }}>
+            <span className="font-syncopate text-[0.9rem] tracking-[0.18em] uppercase" style={{ color: "var(--muted)" }}>
               Gantt - Dispatch Timeline
             </span>
             {data && (
               <div className="flex items-center gap-2 overflow-x-auto">
                 <button
                   onClick={() => { setTick(0); setPlaying(false); }}
-                  className="rounded px-3 py-1 font-mono text-[1.13rem] font-bold"
+                  className="rounded px-3 py-1 font-mono text-[1.01rem] font-bold"
                   style={{ background: "transparent", border: "1px solid var(--acid)", color: "var(--acid)", cursor: "pointer" }}
                 >
                   Reset
                 </button>
                 <button
                   onClick={() => setPlaying((p) => !p)}
-                  className="rounded px-4 py-1 font-mono text-[1.19rem] font-bold"
+                  className="rounded px-4 py-1 font-mono text-[1.06rem] font-bold"
                   style={{
                     background: playing ? "var(--ore)" : "var(--acid)",
                     color: "#000",
@@ -234,7 +243,7 @@ export default function SchedulingPage() {
                 >
                   {playing ? "⏸ Pause" : "▶ Play"}
                 </button>
-                <span className="font-mono text-[1.19rem] min-w-[52px]" style={{ color: "var(--acid)" }}>
+                <span className="font-mono text-[1.06rem] min-w-[52px]" style={{ color: "var(--acid)" }}>
                   t = {tick}
                 </span>
                 <input
@@ -252,7 +261,7 @@ export default function SchedulingPage() {
           <div className="px-4 pt-3">
             {selectedEntry ? (
               <div className="dispatch-detail-card rounded px-4 py-3">
-                <div className="text-center font-syncopate text-[1.01rem] tracking-[0.2em] uppercase mb-3" style={{ color: "var(--acid)" }}>
+                <div className="text-center font-syncopate text-[0.9rem] tracking-[0.2em] uppercase mb-3" style={{ color: "var(--acid)" }}>
                   Selected Dispatch Event
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-center">
@@ -265,14 +274,14 @@ export default function SchedulingPage() {
                     ["Status", selectedEntry.status.toUpperCase()],
                   ].map(([k, v]) => (
                     <div key={k} className="min-w-0">
-                      <div className="font-mono text-[0.96rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>{k}</div>
-                      <div className="font-mono text-[1.33rem] font-bold truncate" style={{ color: selectedEntry.status === "dumped" ? "var(--acid)" : "var(--ore)" }}>{v}</div>
+                      <div className="font-mono text-[0.85rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>{k}</div>
+                      <div className="font-mono text-[1.18rem] font-bold truncate" style={{ color: selectedEntry.status === "dumped" ? "var(--acid)" : "var(--ore)" }}>{v}</div>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="adios-panel rounded px-4 py-3 text-center font-mono text-[1.19rem]" style={{ color: "var(--text2)" }}>
+              <div className="adios-panel rounded px-4 py-3 text-center font-mono text-[1.06rem]" style={{ color: "var(--text2)" }}>
                 Click any Gantt chart block to inspect dispatch event.
               </div>
             )}
@@ -282,14 +291,14 @@ export default function SchedulingPage() {
             {data ? (
               <GanttChart timeline={data.timeline} totalTicks={data.total_ticks} selectedSeq={selectedSeq} onSelect={setSelectedSeq} currentTick={tick} />
             ) : (
-              <div className="h-48 flex items-center justify-center font-mono text-[1.09rem] tracking-[0.1em]" style={{ color: "var(--muted)" }}>
+              <div className="h-48 flex items-center justify-center font-mono text-[0.97rem] tracking-[0.1em]" style={{ color: "var(--muted)" }}>
                 {loading ? "Loading schedule..." : error ? "Backend offline" : "No data"}
               </div>
             )}
           </div>
 
           <div className="border-t px-4 py-2 min-h-[42px] flex items-center justify-center text-center" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-            <span className="font-mono text-[1.19rem]" style={{ color: "var(--muted)" }}>
+            <span className="font-mono text-[1.06rem]" style={{ color: "var(--muted)" }}>
               Click any Gantt chart block to inspect dispatch event.
             </span>
           </div>

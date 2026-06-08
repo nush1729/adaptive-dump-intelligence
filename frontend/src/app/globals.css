@@ -346,7 +346,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .adios-status-bar {
   flex-shrink: 0; height: 36px; display: flex; align-items: center; gap: 18px;
   padding: 0 16px; background: var(--surface); border-top: 1px solid var(--border);
-  font-family: "JetBrains Mono", monospace; font-size: 0.92rem; color: var(--text2);
+  font-family: "JetBrains Mono", monospace; font-size: 0.8rem; color: var(--text2);
   letter-spacing: 0.04em; overflow: hidden; white-space: nowrap;
 }
 .adios-status-bar .dot {

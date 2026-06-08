@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import PageShell from "@/components/layout/PageShell";
 import { RailItem } from "@/components/layout/CollapsedRail";
@@ -47,8 +47,9 @@ const STATUS_COLOR: Record<string, string> = {
 };
 function sc(s: string) { return STATUS_COLOR[s] ?? "#7AA8BC"; }
 
-function policyLabel(policy: unknown) {
-  const p = String(policy ?? "heuristic");
+function policyLabel(policy: unknown, configuredUseML?: boolean) {
+  if (policy == null) return configuredUseML ? "Maskable PPO" : "Heuristic";
+  const p = String(policy);
   if (p === "maskable_ppo") return "Maskable PPO";
   if (p === "imitation_bc") return "Imitation BC";
   if (p === "hybrid") return "Hybrid Policy";
@@ -58,7 +59,7 @@ function policyLabel(policy: unknown) {
 
 function StatusBadge({ status }: { status: string }) {
   return (
-    <span className="rounded px-2 py-0.5 font-mono text-[0.93rem] uppercase tracking-[0.08em]" style={{
+    <span className="rounded px-2 py-0.5 font-mono text-[0.83rem] uppercase tracking-[0.08em]" style={{
       background: sc(status) + "22",
       color: sc(status),
       border: `1px solid ${sc(status)}44`,
@@ -71,8 +72,8 @@ function StatusBadge({ status }: { status: string }) {
 function KPIOverlay({ label, val }: { label: string; val: string }) {
   return (
     <div className="adios-panel px-3 py-2 backdrop-blur">
-      <div className="font-mono text-[0.99rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>{label}</div>
-      <div className="font-mono text-[1.45rem] font-bold" style={{ color: "var(--acid)" }}>{val}</div>
+      <div className="font-mono text-[0.88rem] uppercase tracking-[0.1em]" style={{ color: "var(--muted)" }}>{label}</div>
+      <div className="font-mono text-[1.29rem] font-bold" style={{ color: "var(--acid)" }}>{val}</div>
     </div>
   );
 }
@@ -104,10 +105,15 @@ export default function AuditPage() {
   const [material, setMaterial] = useState(dash.material);
   const [nDumps, setNDumps] = useState<number>(dash.nDumps);
   const [useML, setUseML] = useState(dash.useML);
-  // Live-sync with the dashboard's ML/Hybrid toggle — a user can still
-  // override it locally afterward, but a fresh dashboard change is reflected
-  // immediately rather than only at first mount.
+  // Live-sync with the dashboard's run configuration — a user can still
+  // override these locally afterward, but a fresh dashboard change (e.g.
+  // running with a different seed/dump-count/material/policy) is reflected
+  // immediately rather than only at first mount, so replay matches the
+  // run the user just configured instead of a stale snapshot from mount time.
   useEffect(() => { setUseML(dash.useML); }, [dash.useML]);
+  useEffect(() => { setSeed(dash.seed); }, [dash.seed]);
+  useEffect(() => { setMaterial(dash.material); }, [dash.material]);
+  useEffect(() => { setNDumps(dash.nDumps); }, [dash.nDumps]);
 
   const loadAuditLog = useCallback(async () => {
     setLoading(true);
@@ -162,7 +168,21 @@ export default function AuditPage() {
   }, [seed, material, nDumps, useML, dash.selectedFleet, dash.payloadOverrides, dash.customTrucks, dash.isoThreshold,
       dash.minDumpSpacing, dash.weights, dash.zoneMode]);
 
-  useEffect(() => { loadAuditLog(); runSim(); }, []);
+  // Guard against React StrictMode's intentional double-invocation of mount
+  // effects in dev — without this, the page fired TWO concurrent full ML
+  // episodes (each ~100 dumps of PPO inference) plus two /audit fetches on
+  // every load. Beyond wasting a policy-inference run, two large CPU-bound
+  // requests racing the backend's startup/thread-pool can cause one connection
+  // to be reset, which surfaces to the user as "Failed to fetch — is the
+  // backend running?" on first load. A ref-guarded one-shot fixes the race
+  // at its source rather than retrying or padding with timeouts.
+  const didInitRef = useRef(false);
+  useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+    loadAuditLog();
+    runSim();
+  }, []);
 
   useEffect(() => {
     if (!playing || !simResult) return;
@@ -199,21 +219,21 @@ export default function AuditPage() {
   const controlsPanel = (
     <div className="h-full overflow-y-auto p-4 flex flex-col gap-4">
       <div className="section-label">Replay Controls</div>
-      <label className="flex flex-col gap-1 font-mono text-[1.19rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
+      <label className="flex flex-col gap-1 font-mono text-[0.92rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
         Material
         <select value={material} onChange={(e) => setMaterial(e.target.value)} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
           {["default", "rock", "ore", "overburden"].map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
       </label>
-      <label className="flex flex-col gap-1 font-mono text-[1.19rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
+      <label className="flex flex-col gap-1 font-mono text-[0.92rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
         Dumps
         <input type="number" value={nDumps} min={10} max={150} onChange={(e) => setNDumps(Number(e.target.value))} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
       </label>
-      <label className="flex flex-col gap-1 font-mono text-[1.19rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
+      <label className="flex flex-col gap-1 font-mono text-[0.92rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
         Seed
         <input type="number" value={seed} min={0} max={9999} onChange={(e) => setSeed(Number(e.target.value))} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
       </label>
-      <label className="flex flex-col gap-1 font-mono text-[1.19rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
+      <label className="flex flex-col gap-1 font-mono text-[0.92rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
         Policy
         <select value={useML ? "ml" : "heuristic"} onChange={(e) => setUseML(e.target.value === "ml")} className="rounded px-2 py-1 text-sm" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
           <option value="heuristic">Heuristic</option>
@@ -223,7 +243,7 @@ export default function AuditPage() {
       <button
         onClick={runSim}
         disabled={loading}
-        className="rounded py-3 font-syncopate text-[1.19rem] uppercase tracking-[0.18em] font-bold"
+        className="rounded py-3 font-syncopate text-[0.92rem] uppercase tracking-[0.18em] font-bold"
         style={{
           background: loading ? "transparent" : "var(--acid)",
           color: loading ? "var(--acid)" : "#000",
@@ -242,18 +262,18 @@ export default function AuditPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCursor(0)}
-              className="rounded px-3 py-1 font-mono text-[1.13rem] font-bold"
+              className="rounded px-3 py-1 font-mono text-[0.88rem] font-bold"
               style={{ background: "transparent", border: "1px solid var(--acid)", color: "var(--acid)", cursor: "pointer" }}
             >⏮ Start</button>
             <button
               onClick={() => setCursor((c) => Math.max(0, c - 1))}
               disabled={cursor === 0}
-              className="rounded px-3 py-1 font-mono text-[1.13rem] font-bold"
+              className="rounded px-3 py-1 font-mono text-[0.88rem] font-bold"
               style={{ background: "transparent", border: "1px solid var(--acid)", color: cursor === 0 ? "var(--muted)" : "var(--acid)", cursor: cursor === 0 ? "not-allowed" : "pointer" }}
             >◀ Prev</button>
             <button
               onClick={() => setPlaying((p) => !p)}
-              className="rounded px-4 py-1 font-mono text-[1.19rem] font-bold"
+              className="rounded px-4 py-1 font-mono text-[0.92rem] font-bold"
               style={{
                 background: playing ? "var(--ore)" : "var(--acid)",
                 color: "#000", border: "none", cursor: "pointer",
@@ -264,7 +284,7 @@ export default function AuditPage() {
           <button
             onClick={() => setCursor((c) => Math.min(simResult.log.length - 1, c + 1))}
             disabled={cursor === simResult.log.length - 1}
-            className="rounded py-1.5 font-mono text-[1.13rem] font-bold w-full"
+            className="rounded py-1.5 font-mono text-[0.88rem] font-bold w-full"
             style={{ background: "transparent", border: "1px solid var(--acid)", color: "var(--acid)", cursor: cursor === simResult.log.length - 1 ? "not-allowed" : "pointer" }}
           >Next ▶</button>
           <input type="range" min={0} max={simResult.log.length - 1} value={cursor} onChange={(e) => { setPlaying(false); setCursor(Number(e.target.value)); }} className="w-full accent-[#FFC000]" />
@@ -280,7 +300,7 @@ export default function AuditPage() {
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--surface)" }}>
       {currentEntry && (
         <div className="p-4 border-b" style={{ background: "var(--panel)", borderColor: "var(--border)" }}>
-          <div className="font-syncopate text-[1.07rem] uppercase tracking-[0.18em] mb-3" style={{ color: "var(--muted)" }}>
+          <div className="font-syncopate text-[0.82rem] uppercase tracking-[0.18em] mb-3" style={{ color: "var(--muted)" }}>
             Decision at t={currentEntry.t}
           </div>
           <div className="grid grid-cols-2 gap-3 mb-3">
@@ -291,15 +311,15 @@ export default function AuditPage() {
               ["Reach", currentEntry.reach != null ? currentEntry.reach.toFixed(3) : "--"],
             ].map(([k, v]) => (
               <div key={k}>
-                <div className="font-mono text-[0.94rem] font-bold uppercase tracking-[0.08em]" style={{ color: "var(--muted)" }}>{k}</div>
-                <div className="font-mono text-[1.19rem] font-bold" style={{ color: "var(--text)" }}>{v}</div>
+                <div className="font-mono text-[0.72rem] font-bold uppercase tracking-[0.08em]" style={{ color: "var(--muted)" }}>{k}</div>
+                <div className="font-mono text-[0.92rem] font-bold" style={{ color: "var(--text)" }}>{v}</div>
               </div>
             ))}
           </div>
           <StatusBadge status={currentEntry.status} />
         </div>
       )}
-      <div className="font-syncopate text-[0.99rem] uppercase tracking-[0.18em] px-4 py-2 border-b" style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
+      <div className="font-syncopate text-[0.88rem] uppercase tracking-[0.18em] px-4 py-2 border-b" style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
         Decision Log ({simResult?.log.length ?? 0})
       </div>
       <div className="flex-1 overflow-y-auto">
@@ -310,8 +330,8 @@ export default function AuditPage() {
             borderLeft: idx === cursor ? "2px solid var(--acid)" : "2px solid transparent",
           }}>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[1.19rem] font-bold min-w-7" style={{ color: "var(--muted)" }}>#{idx}</span>
-              <span className="font-mono text-[1.07rem] font-medium flex-1 truncate" style={{ color: "var(--text)" }}>{`${entry.truck} -> (${entry.r},${entry.c})`}</span>
+              <span className="font-mono text-[1.06rem] font-bold min-w-7" style={{ color: "var(--muted)" }}>#{idx}</span>
+              <span className="font-mono text-[0.95rem] font-medium flex-1 truncate" style={{ color: "var(--text)" }}>{`${entry.truck} -> (${entry.r},${entry.c})`}</span>
               <StatusBadge status={entry.status} />
             </div>
           </button>
@@ -345,17 +365,17 @@ export default function AuditPage() {
     >
       <div className="h-full flex flex-col overflow-hidden">
         <div className="flex items-center gap-4 px-4 lg:px-5 py-3 border-b" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-          <span className="font-syncopate text-[1.09rem] tracking-[0.2em] uppercase font-bold" style={{ color: "var(--acid)" }}>Audit Replay</span>
-          <span className="ml-2 rounded px-2 py-0.5 font-mono text-[1.04rem] uppercase tracking-[0.1em]" style={{ background: "rgba(255,192,0,0.15)", color: "var(--acid)", border: "1px solid var(--acid)" }}>
-            {policyLabel(simResult?.summary?.policy)}
+          <span className="font-syncopate text-[0.86rem] tracking-[0.2em] uppercase font-bold" style={{ color: "var(--acid)" }}>Audit Replay</span>
+          <span className="ml-2 rounded px-2 py-0.5 font-mono text-[0.82rem] uppercase tracking-[0.1em]" style={{ background: "rgba(255,192,0,0.15)", color: "var(--acid)", border: "1px solid var(--acid)" }}>
+            {policyLabel(simResult?.summary?.policy, useML)}
           </span>
-          <div className="ml-auto flex items-center gap-3 font-mono text-[1.16rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
+          <div className="ml-auto flex items-center gap-3 font-mono text-[0.9rem] uppercase tracking-widest" style={{ color: "var(--text2)" }}>
             {simResult ? `${cursor + 1}/${simResult.log.length}` : loading ? "Simulating" : "Awaiting run"}
           </div>
         </div>
 
         {error && (
-          <div className="px-5 py-2 border-b font-mono text-[1.09rem]" style={{ background: "rgba(255,51,102,0.08)", borderColor: "rgba(255,51,102,0.25)", color: "#FF3366" }}>
+          <div className="px-5 py-2 border-b font-mono text-[0.97rem]" style={{ background: "rgba(255,51,102,0.08)", borderColor: "rgba(255,51,102,0.25)", color: "#FF3366" }}>
             {error} - Is the backend running at <span style={{ color: "var(--acid)" }}>{API}</span>?
           </div>
         )}
@@ -394,11 +414,11 @@ export default function AuditPage() {
                 ? "Pure backend execution time (time.perf_counter diff) — does not include network/HTTP/serialization overhead. The Dashboard's 'Latency' KPI shows full end-to-end network round-trip time instead; the two intentionally measure different things."
                 : undefined}
                 style={k === "Compute Latency" ? { cursor: "help" } : undefined}>
-                <div className="font-mono text-[0.96rem] uppercase tracking-[0.1em] flex items-center gap-1" style={{ color: "var(--muted)" }}>
+                <div className="font-mono text-[0.74rem] uppercase tracking-[0.1em] flex items-center gap-1" style={{ color: "var(--muted)" }}>
                   {k}
                   {k === "Compute Latency" && <span style={{ fontSize: "0.7rem", opacity: 0.6, fontWeight: 700 }}>ⓘ</span>}
                 </div>
-                <div className="font-mono text-[1.19rem] font-bold" style={{ color: "var(--acid)" }}>{v}</div>
+                <div className="font-mono text-[0.92rem] font-bold" style={{ color: "var(--acid)" }}>{v}</div>
               </div>
             ))}
           </div>
@@ -449,27 +469,27 @@ export default function AuditPage() {
               </h2>
               <div className="grid grid-cols-3 gap-4 font-mono text-black">
                 <div className="p-3 border border-gray-300 rounded text-center">
-                  <span className="block text-[1.07rem] uppercase text-gray-500 font-bold">Total Deposited Volume</span>
+                  <span className="block text-[0.95rem] uppercase text-gray-500 font-bold">Total Deposited Volume</span>
                   <span className="text-lg font-extrabold text-black">{Number(simResult.summary.total_volume ?? 0).toFixed(1)} m³</span>
                 </div>
                 <div className="p-3 border border-gray-300 rounded text-center">
-                  <span className="block text-[1.07rem] uppercase text-gray-500 font-bold">Spatial Footprint Coverage</span>
+                  <span className="block text-[0.95rem] uppercase text-gray-500 font-bold">Spatial Footprint Coverage</span>
                   <span className="text-lg font-extrabold text-black">{simResult.summary.coverage_pct}%</span>
                 </div>
                 <div className="p-3 border border-gray-300 rounded text-center">
-                  <span className="block text-[1.07rem] uppercase text-gray-500 font-bold">Packing Efficiency</span>
+                  <span className="block text-[0.95rem] uppercase text-gray-500 font-bold">Packing Efficiency</span>
                   <span className="text-lg font-extrabold text-black">{simResult.summary.packing_efficiency}%</span>
                 </div>
                 <div className="p-3 border border-gray-300 rounded text-center">
-                  <span className="block text-[1.07rem] uppercase text-gray-500 font-bold">Height Uniformity</span>
+                  <span className="block text-[0.95rem] uppercase text-gray-500 font-bold">Height Uniformity</span>
                   <span className="text-lg font-extrabold text-black">{(Number(simResult.summary.height_uniformity) * 100).toFixed(1)}%</span>
                 </div>
                 <div className="p-3 border border-gray-300 rounded text-center">
-                  <span className="block text-[1.07rem] uppercase text-gray-500 font-bold">Isolation Constraints Rej</span>
+                  <span className="block text-[0.95rem] uppercase text-gray-500 font-bold">Isolation Constraints Rej</span>
                   <span className="text-lg font-extrabold text-black">{simResult.summary.rejected} / {simResult.summary.total_dispatched}</span>
                 </div>
                 <div className="p-3 border border-gray-300 rounded text-center">
-                  <span className="block text-[1.07rem] uppercase text-gray-500 font-bold">Compute Latency (Backend)</span>
+                  <span className="block text-[0.95rem] uppercase text-gray-500 font-bold">Compute Latency (Backend)</span>
                   <span className="text-lg font-extrabold text-black">{simResult.summary.latency_ms} ms</span>
                 </div>
               </div>
@@ -480,7 +500,7 @@ export default function AuditPage() {
               <h2 className="text-sm font-bold uppercase tracking-wider font-mono mb-3 text-black border-b border-gray-300 pb-1">
                 Detailed Dispatch Audit Log
               </h2>
-              <table className="w-full text-left font-mono text-[1.13rem] text-black border-collapse">
+              <table className="w-full text-left font-mono text-[1.01rem] text-black border-collapse">
                 <thead>
                   <tr className="border-b-2 border-black bg-gray-100">
                     <th className="py-2 px-1">Step</th>
@@ -500,7 +520,7 @@ export default function AuditPage() {
                       <td className="py-1 px-1 text-right">{entry.payload_t}t</td>
                       <td className="py-1 px-1 text-right">{entry.reach != null ? entry.reach.toFixed(3) : "--"}</td>
                       <td className="py-1 px-1 text-center">
-                        <span className="uppercase text-[1.04rem] px-2 py-0.5 rounded font-bold" style={{
+                        <span className="uppercase text-[0.93rem] px-2 py-0.5 rounded font-bold" style={{
                           border: `1px solid ${entry.status === "dumped" ? "#10B981" : "#EF4444"}`,
                           color: entry.status === "dumped" ? "#065F46" : "#991B1B",
                           backgroundColor: entry.status === "dumped" ? "#D1FAE5" : "#FEE2E2",
@@ -515,7 +535,7 @@ export default function AuditPage() {
             </div>
 
             {/* Footer */}
-            <div className="mt-12 pt-4 border-t border-gray-300 text-center font-mono text-[1.04rem] text-gray-500">
+            <div className="mt-12 pt-4 border-t border-gray-300 text-center font-mono text-[0.93rem] text-gray-500">
               <p>CONFIDENTIAL — FOR CATERPILLAR INTERNAL USE ONLY</p>
               <p className="mt-1">
                 ADIOS System Version 3.0.

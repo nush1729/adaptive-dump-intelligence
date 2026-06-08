@@ -117,7 +117,7 @@ export const useSimStore = create<SimStore>((set) => ({
   customTrucks: {},
   minDumpSpacing: UI_DEFAULTS.minDumpSpacing,
   weights: { volume: 1.5, distance: 1.8, slope: 0.5, segregation: 0.8, spacing: 3.0 },
-  useML: false,
+  useML: true,
   zoneMode: false,
   dataSource: "simulation",
   setDataSource: (s) => set({ dataSource: s }),

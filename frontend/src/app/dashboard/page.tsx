@@ -42,17 +42,31 @@ function rampColor(t: number): [number, number, number] {
   return SCORE_RAMP[SCORE_RAMP.length - 1][1];
 }
 
+/** Percentile rank of `v` within an ascending-sorted array, in [0, 1].
+ *  Shared by the heatmap canvas render and the hover tooltip so both use
+ *  an identical colour mapping (display-only — never affects scores/decisions). */
+function percentileRank(sorted: number[], v: number): number {
+  if (sorted.length <= 1) return 0.5;
+  let lo = 0, hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (sorted[mid] < v) lo = mid + 1; else hi = mid;
+  }
+  return lo / (sorted.length - 1);
+}
+
 const SCORE_BANDS = [
-  { label: "Penalised / Avoid", lo: 0.0, hi: 0.33, color: "#FF5722", desc: "Far from entry, already tall, or near a constraint violation" },
-  { label: "Marginal", lo: 0.33, hi: 0.66, color: "#FFC000", desc: "Acceptable but not optimal — usable as fallback cells" },
-  { label: "Top Candidate", lo: 0.66, hi: 1.0, color: "#80FF00", desc: "Near entry, low accumulated height — the planner's preferred dispatch target" },
+  { label: "Bottom third (by rank)", lo: 0.0, hi: 0.33, color: "#FF5722", desc: "Far from entry, already tall, or near a constraint violation" },
+  { label: "Middle third (by rank)", lo: 0.33, hi: 0.66, color: "#FFC000", desc: "Acceptable but not optimal — usable as fallback cells" },
+  { label: "Top third (by rank)", lo: 0.66, hi: 1.0, color: "#80FF00", desc: "Near entry, low accumulated height — closest to the planner's preferred dispatch target" },
 ];
 
 function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null; mask: boolean[][] | null }) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const wrapRef = React.useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{ r: number; c: number; v: number; x: number; y: number } | null>(null);
-  const [stats, setStats] = useState<{ min: number; max: number; median: number; bandCounts: number[]; total: number } | null>(null);
+  const [stats, setStats] = useState<{ min: number; max: number; median: number; bandCounts: number[]; total: number; sorted: number[] } | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
 
   useEffect(() => {
     if (!scoreMap || !mask || !canvasRef.current) { setStats(null); return; }
@@ -72,7 +86,20 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
           values.push(v);
         }
       }
-    const rng = mx - mn || 1;
+
+    // Percentile-rank colour mapping (NOT linear min-max): the planner's
+    // underlying score formula is a reciprocal of weighted penalties
+    // (1 / (1 + penalties)), which produces a heavily right-skewed raw
+    // distribution — the vast majority of cells cluster near the low end,
+    // with only a thin high-scoring band. A linear (v-min)/(max-min) mapping
+    // therefore renders ~80%+ of the terrain as visually-identical "bad",
+    // hiding the meaningful relative differences the planner actually uses
+    // to rank cells. Mapping each cell to its percentile rank instead spreads
+    // the existing relative ordering across the full colour range, so the
+    // visualisation reflects the true comparison without altering any score
+    // or dispatch decision (sort lookup is read-only/display-side).
+    const sorted = [...values].sort((a, b) => a - b);
+
     const bandCounts = [0, 0, 0];
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -81,7 +108,7 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
         if (v == null || !mask[r][c]) {
           img.data[idx] = 10; img.data[idx+1] = 12; img.data[idx+2] = 15; img.data[idx+3] = 255;
         } else {
-          const t = (v - mn) / rng;
+          const t = percentileRank(sorted, v);
           const [rr, gg, bb] = rampColor(t);
           img.data[idx] = rr; img.data[idx+1] = gg; img.data[idx+2] = bb; img.data[idx+3] = 255;
           bandCounts[t < 0.33 ? 0 : t < 0.66 ? 1 : 2]++;
@@ -90,9 +117,8 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
     }
     ctx.putImageData(img, 0, 0);
 
-    values.sort((a, b) => a - b);
-    const median = values.length ? values[Math.floor(values.length / 2)] : 0;
-    setStats({ min: mn, max: mx, median, bandCounts, total: values.length });
+    const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+    setStats({ min: mn, max: mx, median, bandCounts, total: values.length, sorted });
   }, [scoreMap, mask]);
 
   const handleMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -117,51 +143,69 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
     <div className="h-full flex flex-col bg-[#050608]">
       <div className="flex flex-col gap-3 px-6 py-4 border-b" style={{ background: "rgba(10,12,15,0.78)", borderColor: "var(--border)" }}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <div className="font-syncopate text-[1.13rem] uppercase tracking-[0.2em]" style={{ color: "var(--acid)" }}>
-              Score Map — Dispatch Suitability
-            </div>
-            <div className="font-mono text-[1.0rem] mt-1 max-w-2xl leading-relaxed" style={{ color: "var(--text2)" }}>
-              Each cell shows the planner's computed score for dumping there next: a weighted blend of
-              proximity to the haul-road entry, accumulated pile height, slope/uniformity penalties, and
-              isolation-safety constraints. <strong style={{ color: "var(--text)" }}>Brighter green = higher score = preferred target.</strong> Hover
-              any cell to inspect its exact value and grid coordinates.
-            </div>
+          <div className="font-syncopate text-[1.01rem] uppercase tracking-[0.2em]" style={{ color: "var(--acid)" }}>
+            Score Map — Dispatch Suitability
           </div>
+          <button
+            onClick={() => setLegendOpen((o) => !o)}
+            className="font-mono text-[0.72rem] uppercase tracking-[0.1em] rounded px-2.5 py-1 shrink-0"
+            style={{ background: "transparent", border: "1px solid var(--border)", color: "var(--muted)", cursor: "pointer" }}
+          >
+            {legendOpen ? "▲ Hide legend" : "▼ Show legend"}
+          </button>
         </div>
 
-        {/* Legend: gradient bar with numeric tick labels + discrete band breakdown */}
-        {stats && (
-          <div className="flex flex-col gap-2.5 mt-1">
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-[0.86rem] uppercase tracking-[0.08em] shrink-0" style={{ color: "var(--muted)" }}>Score scale</span>
-              <div className="relative flex-1 max-w-md h-3 rounded-full overflow-hidden" style={{ background: "linear-gradient(90deg, #FF5722 0%, #FFC000 50%, #80FF00 100%)" }} />
-              <div className="flex items-center gap-4 font-mono text-[0.86rem] shrink-0" style={{ color: "var(--text2)" }}>
-                <span>min <strong style={{ color: "#FF5722" }}>{stats.min.toFixed(2)}</strong></span>
-                <span>median <strong style={{ color: "#FFC000" }}>{stats.median.toFixed(2)}</strong></span>
-                <span>max <strong style={{ color: "#80FF00" }}>{stats.max.toFixed(2)}</strong></span>
-              </div>
+        {legendOpen && (
+          <>
+            <div className="font-mono text-[0.89rem] mt-1 max-w-2xl leading-relaxed" style={{ color: "var(--text2)" }}>
+              Each cell shows the planner's computed score for dumping there next: a weighted blend of
+              proximity to the haul-road entry, accumulated pile height, slope/uniformity penalties, and
+              isolation-safety constraints. <strong style={{ color: "var(--text)" }}>Brighter green = ranks higher = preferred target.</strong> Hover
+              any cell to inspect its exact score value and grid coordinates.
             </div>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5">
-              {SCORE_BANDS.map((b, i) => (
-                <div key={b.label} className="flex items-center gap-2">
-                  <span className="inline-block w-3 h-3 rounded-sm shrink-0" style={{ background: b.color, boxShadow: `0 0 8px ${b.color}66` }} />
-                  <span className="font-mono text-[0.86rem]" style={{ color: "var(--text)" }}>
-                    {b.label} <span style={{ color: "var(--muted)" }}>— {b.desc}</span>
-                  </span>
-                  <span className="font-mono text-[0.86rem] font-bold" style={{ color: b.color }}>
-                    {stats.total > 0 ? ((stats.bandCounts[i] / stats.total) * 100).toFixed(0) : 0}%
-                  </span>
+            <div className="font-mono text-[0.74rem] mt-0.5 max-w-2xl leading-relaxed" style={{ color: "var(--muted)" }}>
+              Colour reflects each cell's <strong style={{ color: "var(--text2)" }}>percentile rank</strong> among all dispatchable
+              cells (not its raw score value) — the planner's score formula concentrates most cells
+              near the low end, so a direct min/max colour scale would render most of the terrain as
+              visually identical. Ranking spreads the same underlying comparison the planner uses across
+              the full colour range, without changing any score or decision.
+            </div>
+
+            {/* Legend: gradient bar with numeric tick labels + discrete band breakdown */}
+            {stats && (
+              <div className="flex flex-col gap-2.5 mt-1">
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[0.77rem] uppercase tracking-[0.08em] shrink-0" style={{ color: "var(--muted)" }}>Percentile rank scale</span>
+                  <div className="relative flex-1 max-w-md h-3 rounded-full overflow-hidden" style={{ background: "linear-gradient(90deg, #FF5722 0%, #FFC000 50%, #80FF00 100%)" }} />
+                  <div className="flex items-center gap-4 font-mono text-[0.77rem] shrink-0" style={{ color: "var(--text2)" }}>
+                    <span>raw min <strong style={{ color: "#FF5722" }}>{stats.min.toFixed(2)}</strong></span>
+                    <span>raw median <strong style={{ color: "#FFC000" }}>{stats.median.toFixed(2)}</strong></span>
+                    <span>raw max <strong style={{ color: "#80FF00" }}>{stats.max.toFixed(2)}</strong></span>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5">
+                  {SCORE_BANDS.map((b, i) => (
+                    <div key={b.label} className="flex items-center gap-2">
+                      <span className="inline-block w-3 h-3 rounded-sm shrink-0" style={{ background: b.color, boxShadow: `0 0 8px ${b.color}66` }} />
+                      <span className="font-mono text-[0.77rem]" style={{ color: "var(--text)" }}>
+                        {b.label} <span style={{ color: "var(--muted)" }}>— {b.desc}</span>
+                      </span>
+                      <span className="font-mono text-[0.77rem] font-bold" style={{ color: b.color }}>
+                        {stats.total > 0 ? ((stats.bandCounts[i] / stats.total) * 100).toFixed(0) : 0}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
-      <div ref={wrapRef} className="relative flex-1 flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 adios-grid-overlay opacity-10" />
-        <div className="absolute inset-10 rounded" style={{ background: "radial-gradient(circle at center, rgba(255,192,0,0.08), transparent 58%)" }} />
+      <div ref={wrapRef} className="relative flex-1 overflow-auto">
+        <div className="absolute inset-0 adios-grid-overlay opacity-10 pointer-events-none" />
+        <div className="absolute inset-10 rounded pointer-events-none" style={{ background: "radial-gradient(circle at center, rgba(255,192,0,0.08), transparent 58%)" }} />
       {scoreMap ? (
+          <div className="relative min-h-full flex items-center justify-center p-6">
           <div className="relative rounded border p-3 shadow-2xl" style={{ background: "rgba(14,17,21,0.82)", borderColor: "rgba(255,192,0,0.24)", boxShadow: "0 24px 80px rgba(0,0,0,0.42)" }}>
             <canvas
               ref={canvasRef}
@@ -171,6 +215,7 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
               style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)" }}
             />
           </div>
+          </div>
       ) : (
           <div className="adios-panel px-6 py-5 text-center">
             <span className="text-[#6b7280] font-mono text-sm">Run simulation to see score heatmap</span>
@@ -179,7 +224,7 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
         {/* Hover tooltip — exact score + coordinates, follows cursor */}
         {hover && (
           <div
-            className="absolute pointer-events-none rounded border px-3 py-2 font-mono text-[0.86rem] z-30 shadow-xl"
+            className="absolute pointer-events-none rounded border px-3 py-2 font-mono text-[0.77rem] z-30 shadow-xl"
             style={{
               left: Math.min(hover.x + 16, (wrapRef.current?.clientWidth ?? 0) - 190),
               top: Math.max(hover.y - 56, 8),
@@ -190,7 +235,7 @@ function HeatmapView({ scoreMap, mask }: { scoreMap: (number | null)[][] | null;
             }}
           >
             <div className="flex items-center gap-2 mb-1">
-              <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: `rgb(${rampColor((hover.v - (stats?.min ?? 0)) / ((stats ? stats.max - stats.min : 1) || 1)).join(",")})` }} />
+              <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: `rgb(${rampColor(stats ? percentileRank(stats.sorted, hover.v) : 0.5).join(",")})` }} />
               <span style={{ color: "var(--acid)", fontWeight: 700 }}>score {hover.v.toFixed(3)}</span>
             </div>
             <div style={{ color: "var(--muted)" }}>cell (row {hover.r}, col {hover.c})</div>
@@ -401,7 +446,7 @@ export default function DashboardPage() {
               <button 
                 key={tab}
                 onClick={() => setActiveView(tab as any)}
-                className={`font-mono uppercase tracking-widest text-[0.92rem] transition-all duration-300 pb-1 border-b-2
+                className={`font-mono uppercase tracking-widest text-[0.71rem] transition-all duration-300 pb-1 border-b-2
                   ${activeView === tab ? 'border-[#FFC000] text-[#FFC000]' : 'border-transparent text-[var(--muted)] hover:text-[var(--text)]'}`}
               >
                 {tab === '3d' ? 'Live Terrain' : tab === 'heatmap' ? 'Score Map' : tab === 'trend' ? 'Trend' : tab === 'compare' ? 'Benchmark VS' : 'Plotly 3D'}
@@ -412,7 +457,7 @@ export default function DashboardPage() {
           {/* Data Source toggle — Simulation always available; Live CSV unlocks once
               a terrain grid has been uploaded via /upload_terrain and staged in the store. */}
           <div className="flex items-center gap-1.5 shrink-0" title="Choose where the terrain comes from. Live CSV requires uploading a height-map grid first.">
-            <span className="font-mono text-[0.7rem] uppercase tracking-[0.12em] mr-1" style={{ color: "var(--muted)" }}>Source</span>
+            <span className="font-mono text-[0.57rem] uppercase tracking-[0.12em] mr-1" style={{ color: "var(--muted)" }}>Source</span>
             {(["simulation", "live_csv"] as const).map((src) => {
               const locked = src === "live_csv" && !terrainCsvId;
               return (
@@ -420,7 +465,7 @@ export default function DashboardPage() {
                   key={src}
                   disabled={locked}
                   onClick={() => setDataSource(src)}
-                  className={`font-mono px-2 py-1 text-[0.74rem] uppercase rounded border transition-colors ${
+                  className={`font-mono px-2 py-1 text-[0.59rem] uppercase rounded border transition-colors ${
                     dataSource === src
                       ? "border-[#FFC000] text-[#FFC000]"
                       : locked
@@ -446,19 +491,19 @@ export default function DashboardPage() {
             <button
               onClick={() => csvInputRef.current?.click()}
               disabled={csvUploading}
-              className="font-mono px-2 py-1 text-[0.7rem] uppercase rounded border transition-colors border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-50"
+              className="font-mono px-2 py-1 text-[0.57rem] uppercase rounded border transition-colors border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-50"
               title="Upload a CSV height-map grid (rows × cols of metre heights; blank/negative = outside boundary) to use as the live terrain source"
             >
               {csvUploading ? "Uploading…" : terrainCsvId ? "Replace CSV" : "Upload CSV"}
             </button>
             {terrainCsvMeta && (
-              <span className="font-mono text-[0.62rem]" style={{ color: "var(--muted)" }}
+              <span className="font-mono text-[0.52rem]" style={{ color: "var(--muted)" }}
                 title={`${terrainCsvMeta.active_cells} active cells · height ${terrainCsvMeta.height_range_m[0].toFixed(1)}–${terrainCsvMeta.height_range_m[1].toFixed(1)}m`}>
                 {terrainCsvMeta.rows}×{terrainCsvMeta.cols}
               </span>
             )}
             {csvError && (
-              <span className="font-mono text-[0.62rem]" style={{ color: "#FF5722" }} title={csvError}>
+              <span className="font-mono text-[0.52rem]" style={{ color: "#FF5722" }} title={csvError}>
                 upload failed
               </span>
             )}
@@ -469,14 +514,14 @@ export default function DashboardPage() {
               messages handled server-side in /ws/simulate's _poll_controls. */}
           {isRunning && (
             <div className="flex items-center gap-1.5 shrink-0" title="Supervisory control — pause, resume, or slow down the live dispatch loop">
-              <span className="font-mono text-[0.7rem] uppercase tracking-[0.12em] mr-1" style={{ color: "var(--muted)" }}>Operator</span>
+              <span className="font-mono text-[0.57rem] uppercase tracking-[0.12em] mr-1" style={{ color: "var(--muted)" }}>Operator</span>
               <button
                 onClick={() => {
                   const ws = liveWsRef.current;
                   if (!ws || ws.readyState !== WebSocket.OPEN) return;
                   ws.send(JSON.stringify({ type: supervisorPaused ? "resume" : "pause" }));
                 }}
-                className={`font-mono px-2 py-1 text-[0.74rem] uppercase rounded border transition-colors ${
+                className={`font-mono px-2 py-1 text-[0.59rem] uppercase rounded border transition-colors ${
                   supervisorPaused
                     ? "border-[var(--green)] text-[var(--green)]"
                     : "border-[#FFC000] text-[#FFC000]"
@@ -484,7 +529,7 @@ export default function DashboardPage() {
               >
                 {supervisorPaused ? "▸ Resume" : "Ⅱ Pause"}
               </button>
-              <span className="font-mono text-[0.62rem]" style={{ color: "var(--muted)" }}>Pace</span>
+              <span className="font-mono text-[0.52rem]" style={{ color: "var(--muted)" }}>Pace</span>
               <input
                 type="range" min={0} max={2} step={0.25}
                 value={supervisorStepDelay}
@@ -499,11 +544,11 @@ export default function DashboardPage() {
                 className="w-20 accent-[#FFC000]"
                 title="Throttle dispatch — adds a delay (seconds) between each truck's decision so an operator can observe in real time"
               />
-              <span className="font-mono text-[0.62rem] tabular-nums" style={{ color: "var(--muted)", minWidth: 28 }}>
+              <span className="font-mono text-[0.52rem] tabular-nums" style={{ color: "var(--muted)", minWidth: 28 }}>
                 {supervisorStepDelay.toFixed(2)}s
               </span>
               {supervisorPaused && (
-                <span className="font-mono text-[0.62rem] uppercase tracking-[0.08em] px-1.5 py-0.5 rounded" style={{ color: "var(--void)", background: "var(--green)" }}>
+                <span className="font-mono text-[0.52rem] uppercase tracking-[0.08em] px-1.5 py-0.5 rounded" style={{ color: "var(--void)", background: "var(--green)" }}>
                   Paused by operator
                 </span>
               )}
@@ -514,7 +559,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3">
             {(["iso","top","front"] as const).map((p) => (
               <button key={p} onClick={() => setCamPreset(p)}
-                className={`font-mono px-2 py-1 text-[0.78rem] uppercase rounded border ${
+                className={`font-mono px-2 py-1 text-[0.57rem] uppercase rounded border ${
                   camPreset === p ? 'border-[#FFC000] text-[#FFC000]' : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]'
                 }`}
               >
@@ -524,7 +569,7 @@ export default function DashboardPage() {
             {/* Wireframe Toggle */}
             <button 
               onClick={() => setWireframe(w => !w)}
-              className={`font-mono px-2 py-1 text-[0.78rem] uppercase rounded border ${
+              className={`font-mono px-2 py-1 text-[0.57rem] uppercase rounded border ${
                 wireframe ? 'border-[#FFC000] text-[#FFC000]' : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)] transition-colors'
               }`}
             >
@@ -542,13 +587,13 @@ export default function DashboardPage() {
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex flex-col gap-1.5 max-w-[min(90%,560px)]">
               {liveAnomalies.slice(0, 2).map((a, i) => (
                 <div key={`${a.tick}-${a.metric}-${i}`}
-                  className="px-3 py-2 rounded font-mono text-[0.84rem] backdrop-blur-md flex items-center gap-2"
+                  className="px-3 py-2 rounded font-mono text-[0.59rem] backdrop-blur-md flex items-center gap-2"
                   style={{
                     background: "rgba(255,68,0,0.12)",
                     border: "1px solid rgba(255,68,0,0.5)",
                     color: "#FF6A3D",
                   }}>
-                  <span className="uppercase tracking-widest text-[0.74rem] font-bold px-1.5 py-0.5 rounded"
+                  <span className="uppercase tracking-widest text-[0.59rem] font-bold px-1.5 py-0.5 rounded"
                     style={{ background: "rgba(255,68,0,0.25)" }}>
                     Anomaly
                   </span>
@@ -576,6 +621,20 @@ export default function DashboardPage() {
               />
             </Suspense>
 
+            {/* Note: adjacent dumps that physically overlap are grouped into a
+                single visual mound by connected-component clustering — a high
+                dump count can render as one or two large piles rather than
+                many separate ones. This is expected terrain accumulation, not
+                missing dumps (verify exact counts via the metrics panel). */}
+            {currentSurface && (
+              <div className="absolute bottom-3 right-3 z-20 max-w-[340px] px-2.5 py-1.5 rounded font-mono text-[0.52rem] leading-snug pointer-events-none"
+                style={{ background: "rgba(5,6,8,0.55)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                Adjacent dumps that overlap are rendered as one merged pile —
+                a high dump count can look like just a few mounds even though
+                every dump is accumulated. Check the metrics panel for exact counts.
+              </div>
+            )}
+
             {/* Idle state — shown when no simulation has been run yet */}
             {!currentSurface && !isRunning && (
               <div className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none">
@@ -595,10 +654,10 @@ export default function DashboardPage() {
                   {/* Center dot */}
                   <div className="w-4 h-4 rounded-full" style={{ background: "#FFC000", boxShadow: "0 0 20px rgba(255,192,0,0.6), 0 0 40px rgba(255,192,0,0.3)" }} />
                 </div>
-                <div className="font-syncopate text-[1.16rem] uppercase tracking-[0.3em] mb-3" style={{ color: "var(--acid)" }}>
+                <div className="font-syncopate text-[0.93rem] uppercase tracking-[0.3em] mb-3" style={{ color: "var(--acid)" }}>
                   Ready to Simulate
                 </div>
-                <div className="font-mono text-[1.07rem] uppercase tracking-[0.18em] mb-6" style={{ color: "var(--muted)" }}>
+                <div className="font-mono text-[0.78rem] uppercase tracking-[0.18em] mb-6" style={{ color: "var(--muted)" }}>
                   Configure parameters and press Execute
                 </div>
                 <div className="flex items-center gap-4">
@@ -608,8 +667,8 @@ export default function DashboardPage() {
                     { label: "IoT Telemetry", sub: "fleet context" },
                   ].map(({ label, sub }) => (
                     <div key={label} className="text-center px-4 py-2" style={{ border: "1px solid rgba(255,192,0,0.1)", borderRadius: 4, background: "rgba(255,192,0,0.04)" }}>
-                      <div className="font-mono text-[1.01rem] uppercase tracking-[0.12em]" style={{ color: "#FFC000" }}>{label}</div>
-                      <div className="font-mono text-[0.96rem] mt-0.5" style={{ color: "#4B5563" }}>{sub}</div>
+                      <div className="font-mono text-[0.82rem] uppercase tracking-[0.12em]" style={{ color: "#FFC000" }}>{label}</div>
+                      <div className="font-mono text-[0.78rem] mt-0.5" style={{ color: "#4B5563" }}>{sub}</div>
                     </div>
                   ))}
                 </div>
@@ -626,11 +685,11 @@ export default function DashboardPage() {
                   <div className="absolute inset-2 rounded-full border-2 border-transparent"
                     style={{ borderBottomColor: "var(--ore)", animation: "spin 1.5s linear infinite reverse" }} />
                 </div>
-                <div className="font-syncopate text-[1.16rem] uppercase tracking-[0.25em]"
+                <div className="font-syncopate text-[0.93rem] uppercase tracking-[0.25em]"
                   style={{ color: "var(--acid)", animation: "pulse 2s ease-in-out infinite" }}>
                   Simulating Terrain
                 </div>
-                <div className="font-mono text-[1.04rem] uppercase tracking-widest mt-2" style={{ color: "var(--muted)" }}>
+                <div className="font-mono text-[0.84rem] uppercase tracking-widest mt-2" style={{ color: "var(--muted)" }}>
                   Streaming dump decisions…
                 </div>
               </div>
@@ -675,7 +734,7 @@ export default function DashboardPage() {
 
           {/* Plotly Layer */}
           <div className={`absolute inset-0 p-6 transition-opacity duration-700 ${activeView === 'plotly' ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 -z-10 pointer-events-none'}`}>
-             <div className="h-full w-full adios-panel backdrop-blur-xl overflow-hidden shadow-2xl">
+             <div className="h-full w-full adios-panel backdrop-blur-xl overflow-hidden shadow-2xl relative">
                <Compare3D
                  adiosSurface={result?.surface ?? null}
                  staticSurface={result?.static_surface ?? null}
@@ -683,6 +742,24 @@ export default function DashboardPage() {
                  mask={result?.mask ?? null}
                  policy={result?.summary?.policy}
                />
+               {/* Snapshot of the config that produced these surfaces — these
+                   plots redraw on every new run result (no internal caching),
+                   but two different runs can still look visually similar:
+                   the Static/Staffed baselines intentionally use FIXED
+                   real-world spacing constants (~7.4m grid / ~3.0m manual)
+                   on every run by design, as a stable yardstick — only their
+                   scale (volume/coverage/height) and the polygon shape (seed)
+                   vary, not the lattice pattern. Surface that here so the
+                   "all three look the same" perception reads as intentional
+                   baseline behaviour, not a stale/cached view. */}
+               {result && (
+                 <div className="absolute bottom-3 left-3 z-20 max-w-[420px] px-2.5 py-1.5 rounded font-mono text-[0.52rem] leading-snug pointer-events-none"
+                   style={{ background: "rgba(5,6,8,0.55)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                   Rendered from last run — seed {seed} · {material} · {nDumps} dumps · {result?.summary?.policy ?? "policy n/a"}.
+                   Static/Staffed baselines use fixed real-world spacing (~7.4m / ~3.0m) on every run by design —
+                   only scale and site shape vary, so their lattice pattern looks consistent run-to-run. Re-execute to refresh.
+                 </div>
+               )}
              </div>
           </div>
 

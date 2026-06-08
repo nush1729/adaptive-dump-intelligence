@@ -57,27 +57,38 @@ function Spark({ d, color, type = "line" }: { d: number[]; color: string; type?:
   if (type === "bar") {
     const mx = Math.max(...d, 1);
     return (
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 32, width: 54, flexShrink: 0 }}>
-        {d.map((v, i) => (
-          <div key={i} style={{
-            flex: 1, borderRadius: "2px 2px 0 0",
-            background: `linear-gradient(180deg, ${color} 0%, ${color}33 100%)`,
-            height: `${(v / mx) * 100}%`,
-            animation: `bar-grow .55s ease-out ${i * .07}s both`,
-          }} />
-        ))}
+      <div style={{ display: "flex", flexDirection: "column", gap: 3, width: 76, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 2.5, height: 36 }}>
+          {d.map((v, i) => (
+            <div key={i} style={{ flex: 1, position: "relative", height: "100%", display: "flex", alignItems: "flex-end" }}>
+              <div style={{
+                width: "100%", borderRadius: "2px 2px 0 0",
+                background: `linear-gradient(180deg, ${color} 0%, ${color}33 100%)`,
+                height: `${Math.max((v / mx) * 100, 6)}%`,
+                boxShadow: i === d.length - 1 ? `0 0 6px ${color}99` : "none",
+                animation: `bar-grow .55s ease-out ${i * .07}s both`,
+              }} />
+            </div>
+          ))}
+        </div>
+        <div style={{ height: 1, background: `${color}26` }} />
       </div>
     );
   }
-  const W = 54, H = 32;
+  const W = 76, H = 36;
   const mn = Math.min(...d), mx = Math.max(...d), rng = mx - mn || 1;
-  const pts = d.map((v, i) => `${(i / (d.length - 1)) * W},${H - ((v - mn) / rng) * (H - 6) - 3}`).join(" ");
+  const pts = d.map((v, i) => `${(i / (d.length - 1)) * W},${H - ((v - mn) / rng) * (H - 8) - 4}`).join(" ");
   const lastArr = pts.split(" ").pop()!.split(",").map(Number);
+  const avgY = H - ((d.reduce((a, b) => a + b, 0) / d.length - mn) / rng) * (H - 8) - 4;
   return (
     <svg width={W} height={H} style={{ overflow: "visible", flexShrink: 0 }}>
+      {/* Baseline grid — gives the spark a frame of reference instead of floating in empty space */}
+      <line x1={0} y1={H - 1} x2={W} y2={H - 1} stroke={`${color}1f`} strokeWidth={1} />
+      <line x1={0} y1={avgY} x2={W} y2={avgY} stroke={`${color}33`} strokeWidth={1} strokeDasharray="2 3" />
       <polygon points={`0,${H} ${pts} ${W},${H}`} fill={`${color}16`} />
       <polyline points={pts} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={lastArr[0]} cy={lastArr[1]} r={2.5} fill={color} style={{ animation: "blink 2.2s ease-in-out infinite" }} />
+      <circle cx={lastArr[0]} cy={lastArr[1]} r={2.6} fill={color} style={{ animation: "blink 2.2s ease-in-out infinite" }} />
+      <circle cx={lastArr[0]} cy={lastArr[1]} r={5} fill="none" stroke={color} strokeWidth={1} opacity={0.4} />
     </svg>
   );
 }
@@ -679,12 +690,12 @@ function PIcon({ type }: { type: string }) {
 
 /* ─── Data ───────────────────────────────────────────────── */
 const METRICS = [
-  { icon: "⬡", label: "FLEET EFFICIENCY", to: 92.7, suffix: "%", delta: "↑ 8.6%", pos: true, d: [60, 65, 58, 72, 68, 80, 79, 88, 92], t: "line" as const },
-  { icon: "◈", label: "DISPATCH OPTIMIZATION", to: 98.3, suffix: "%", delta: "↑ 11.2%", pos: true, d: [4, 6, 5, 8, 7, 10, 9, 11, 10], t: "bar" as const },
-  { icon: "◉", label: "TERRAIN ADAPTATION", to: 120, suffix: "ms", delta: "↓ 15ms", pos: true, d: [180, 165, 155, 148, 140, 130, 125, 122, 120], t: "line" as const },
-  { icon: "◧", label: "IDLE TIME REDUCTION", to: 36.4, suffix: "%", delta: "↑ 6.8%", pos: false, d: [43, 41, 38, 37, 35, 34, 36, 33, 35], t: "line" as const },
-  { icon: "◑", label: "FUEL OPTIMIZATION", to: 18.7, suffix: "%", delta: "↑ 3.2%", pos: true, d: [12, 13, 14, 15, 16, 17, 17, 18, 18], t: "line" as const },
-  { icon: "◈", label: "RL TRAINING ITERS", to: 2.43, suffix: "M", delta: "↑ 120K", pos: true, d: [3, 5, 4, 7, 6, 9, 8, 10, 11], t: "bar" as const, decimals: 2 },
+  { icon: "⬡", label: "FLEET EFFICIENCY", to: 92.7, suffix: "%", delta: "↑ 8.6%", pos: true, d: [60, 65, 58, 72, 68, 80, 79, 88, 92], t: "line" as const, sub: "9-cycle rolling average · target 90%" },
+  { icon: "◈", label: "DISPATCH OPTIMIZATION", to: 98.3, suffix: "%", delta: "↑ 11.2%", pos: true, d: [4, 6, 5, 8, 7, 10, 9, 11, 10], t: "bar" as const, sub: "route convergence · 9 sim batches" },
+  { icon: "◉", label: "TERRAIN ADAPTATION", to: 120, suffix: "ms", delta: "↓ 15ms", pos: true, d: [180, 165, 155, 148, 140, 130, 125, 122, 120], t: "line" as const, sub: "policy re-plan latency · trending down" },
+  { icon: "◧", label: "IDLE TIME REDUCTION", to: 36.4, suffix: "%", delta: "↑ 6.8%", pos: false, d: [43, 41, 38, 37, 35, 34, 36, 33, 35], t: "line" as const, sub: "vs. static-grid dispatch baseline" },
+  { icon: "◑", label: "FUEL OPTIMIZATION", to: 18.7, suffix: "%", delta: "↑ 3.2%", pos: true, d: [12, 13, 14, 15, 16, 17, 17, 18, 18], t: "line" as const, sub: "haul-route efficiency gain · fleet-wide" },
+  { icon: "◈", label: "RL TRAINING ITERS", to: 2.43, suffix: "M", delta: "↑ 120K", pos: true, d: [3, 5, 4, 7, 6, 9, 8, 10, 11], t: "bar" as const, decimals: 2, sub: "Maskable PPO · 100K-step checkpoints" },
 ];
 
 const STEPS = [
@@ -1133,6 +1144,53 @@ export default function LandingPage() {
               <div style={{ fontFamily: "'Orbitron',sans-serif", fontSize: "1.08rem", color: "#4ade80", fontWeight: 700 }}>+18% EFFICIENCY</div>
             </div>
 
+            {/* Live telemetry strip — fills the empty pocket below the truck trackers, clear of the centered truck */}
+            <div className="ghud" style={{
+              position: "absolute", top: "56%", left: "3%",
+              padding: "9px 13px",
+              background: "rgba(4,6,8,0.9)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 4, backdropFilter: "blur(14px)",
+              pointerEvents: "none",
+              boxShadow: "0 6px 24px rgba(0,0,0,0.55)",
+              minWidth: 158,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#00D4FF", boxShadow: "0 0 7px #00D4FF", animation: "blink 2.4s ease-in-out infinite" }} />
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.72rem", color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".1em" }}>Live Telemetry</span>
+              </div>
+              {[
+                { k: "Payload Avg", v: "94.2 t", c: "#fff" },
+                { k: "Cycle Time", v: "6.8 min", c: "#fff" },
+                { k: "Fleet Util.", v: "88%", c: "#4ade80" },
+              ].map(({ k, v, c }) => (
+                <div key={k} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 14, marginBottom: 4 }}>
+                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.68rem", color: "#6b7280", letterSpacing: ".06em", textTransform: "uppercase" }}>{k}</span>
+                  <span style={{ fontFamily: "'Orbitron',sans-serif", fontSize: "0.86rem", color: c, fontWeight: 700 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Terrain grade readout — directly below telemetry strip, same left rail */}
+            <div className="ghud" style={{
+              position: "absolute", top: "71%", left: "3%",
+              display: "flex", alignItems: "center", gap: 9,
+              padding: "6px 12px",
+              background: "rgba(3,5,5,0.88)",
+              border: `1px solid ${GOLD}28`,
+              borderRadius: 3, backdropFilter: "blur(12px)",
+              pointerEvents: "none",
+            }}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M2,16 L9,7 L13,11 L18,4" stroke={GOLD} strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" />
+                <circle cx="18" cy="4" r="1.6" fill={GOLD} style={{ animation: "blink 2.1s ease-in-out infinite" }} />
+              </svg>
+              <div>
+                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.66rem", color: "#6b7280", letterSpacing: ".09em", textTransform: "uppercase" }}>Terrain Grade</div>
+                <div style={{ fontFamily: "'Orbitron',sans-serif", fontSize: "0.84rem", color: GOLD, fontWeight: 700 }}>+4.2° AVG SLOPE</div>
+              </div>
+            </div>
+
             {/* PPO active badge */}
             <div className="ghud" style={{
               position: "absolute", top: "22%", left: "3%",
@@ -1165,7 +1223,7 @@ export default function LandingPage() {
 
           {/* ── RIGHT: Live metrics panel ── */}
           <div style={{
-            width: "22%", display: "flex", flexDirection: "column",
+            width: "24%", display: "flex", flexDirection: "column",
             justifyContent: "center", alignSelf: "stretch", paddingTop: 8, paddingBottom: 8,
           }}>
             <div style={{
@@ -1229,6 +1287,11 @@ export default function LandingPage() {
                       </span>
                       <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.62rem", color: m.pos ? "#4ade80" : "#f87171" }}>{m.delta}</span>
                     </div>
+                    <div style={{
+                      fontFamily: "'DM Sans',sans-serif", fontSize: "0.6rem",
+                      color: "#4b5563", letterSpacing: ".02em", marginTop: 2,
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    }}>{(m as any).sub}</div>
                   </div>
 
                   {/* Sparkline */}
