@@ -23,12 +23,12 @@ function NavBar({ active }: { active: string }) {
       </div>
       <div style={{ display: "flex", gap: 22 }}>
         {Object.keys(NAV_ROUTES).map((link) => (
-          <button key={link} onClick={() => router.push(NAV_ROUTES[link])} style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", letterSpacing: "0.12em", color: active === link ? "#FFB800" : "#6B7280", background: "transparent", border: "none", cursor: "pointer", padding: "2px 0", borderBottom: active === link ? "1px solid #FFB800" : "1px solid transparent", transition: "color 0.2s" }}>
+          <button key={link} onClick={() => router.push(NAV_ROUTES[link])} style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", letterSpacing: "0.12em", color: active === link ? "#FFB800" : "#6B7280", background: "transparent", border: "none", cursor: "pointer", padding: "2px 0", borderBottom: active === link ? "1px solid #FFB800" : "1px solid transparent", transition: "color 0.2s" }}>
             {link}
           </button>
         ))}
       </div>
-      <motion.button onClick={() => router.push("/dashboard")} whileHover={{ background: "#FFB800", color: "#000" }} style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.58rem", letterSpacing: "0.16em", color: "#FFB800", background: "transparent", border: "1px solid #FFB800", borderRadius: 2, padding: "7px 16px", cursor: "pointer", transition: "all 0.2s" }}>
+      <motion.button onClick={() => router.push("/dashboard")} whileHover={{ background: "#FFB800", color: "#000" }} style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.78rem", letterSpacing: "0.16em", color: "#FFB800", background: "transparent", border: "1px solid #FFB800", borderRadius: 2, padding: "7px 16px", cursor: "pointer", transition: "all 0.2s" }}>
         LAUNCH →
       </motion.button>
     </nav>
@@ -96,14 +96,14 @@ export default function TechStackPage() {
 
         {/* Hero */}
         <section style={{ padding: "60px 64px 48px", borderBottom: "1px solid rgba(255,184,0,0.07)" }}>
-          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", color: "#6B7280", letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 16, height: 1, background: "#FFB800" }} />
             Tech Stack
           </div>
           <h1 style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 900, fontSize: "clamp(2rem,4.5vw,3.5rem)", letterSpacing: "0.06em", textTransform: "uppercase", lineHeight: 1.1, marginBottom: 20 }}>
             Production-grade.<br /><span style={{ color: "#FFB800" }}>End to End.</span>
           </h1>
-          <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.72rem", color: "#6B7280", lineHeight: 1.8, maxWidth: 600 }}>
+          <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.97rem", color: "#6B7280", lineHeight: 1.8, maxWidth: 600 }}>
             ADIOS is built on a full-stack Python + TypeScript pipeline — from raw terrain data through RL policy inference to 3D real-time visualisation.
           </p>
         </section>
@@ -115,15 +115,15 @@ export default function TechStackPage() {
               <motion.div key={layer.layer} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: li * 0.08 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: layer.color, boxShadow: `0 0 8px ${layer.color}` }} />
-                  <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.78rem", letterSpacing: "0.18em", color: layer.color, textTransform: "uppercase" }}>{layer.layer}</div>
+                  <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "1.05rem", letterSpacing: "0.18em", color: layer.color, textTransform: "uppercase" }}>{layer.layer}</div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
                   {layer.items.map((item) => (
                     <div key={item.name} style={{ padding: "14px 18px", border: `1px solid ${layer.color}18`, borderRadius: 3, background: `${layer.color}04`, display: "flex", gap: 14, alignItems: "flex-start" }}>
                       <div style={{ width: 3, height: 3, borderRadius: "50%", background: layer.color, flexShrink: 0, marginTop: 6 }} />
                       <div>
-                        <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.62rem", color: "#FFF", fontWeight: 700, marginBottom: 4, letterSpacing: "0.04em" }}>{item.name}</div>
-                        <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", color: "#6B7280", lineHeight: 1.6 }}>{item.role}</div>
+                        <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.84rem", color: "#FFF", fontWeight: 700, marginBottom: 4, letterSpacing: "0.04em" }}>{item.name}</div>
+                        <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", lineHeight: 1.6 }}>{item.role}</div>
                       </div>
                     </div>
                   ))}
@@ -134,8 +134,8 @@ export default function TechStackPage() {
 
           {/* Architecture note */}
           <div style={{ marginTop: 40, padding: "20px 24px", border: "1px solid rgba(255,184,0,0.12)", borderRadius: 4, background: "rgba(255,184,0,0.04)" }}>
-            <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.68rem", letterSpacing: "0.14em", color: "#FFB800", marginBottom: 10 }}>SYSTEM ARCHITECTURE</div>
-            <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem", color: "#6B7280", lineHeight: 1.75, margin: 0 }}>
+            <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.92rem", letterSpacing: "0.14em", color: "#FFB800", marginBottom: 10 }}>SYSTEM ARCHITECTURE</div>
+            <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.78rem", color: "#6B7280", lineHeight: 1.75, margin: 0 }}>
               Data flows from IoT telemetry + terrain state → 5-channel observation build → ADIOSMultiInputExtractor (dual CNN + context MLP) → MaskablePPO policy → action validation (IsolationValidator) → terrain update → FastAPI → WebSocket → Next.js React Three Fiber real-time render.
             </p>
           </div>

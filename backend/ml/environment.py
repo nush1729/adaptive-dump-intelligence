@@ -46,7 +46,7 @@ from planning.isolation_validator import IsolationValidator
 from planning.action_masker import ConstrainedActionMasker, turning_radius_accessible
 from config import (
     SITE_CONFIG, MATERIALS, material_config,
-    TRUCK_PROFILES, N_TRUCK_TYPES, MAX_PAYLOAD_T, CONTEXT_DIM,
+    TRUCK_PROFILES, N_TRUCK_TYPES, MAX_PAYLOAD_T, CONTEXT_DIM, IOT_FEATURE_DIM,
 )
 
 from scipy.ndimage import distance_transform_edt, gaussian_filter
@@ -85,10 +85,21 @@ def build_context_vector(
     compaction_norm = 1.0 - SITE_CONFIG.compaction_floor
     angle_norm = mat.angle_of_repose_deg / 45.0
 
+    iot = np.asarray(iot_features, dtype=np.float32).ravel()
+    if iot.shape[0] != IOT_FEATURE_DIM:
+        # Enforce the fixed-width IoT slot the trained policy expects —
+        # pad short vectors with zeros, truncate long ones. Keeps the
+        # observation shape stable even if a caller's telemetry vector
+        # drifts in length (e.g. a config change to IOT_FEATURE_DIM).
+        fixed = np.zeros(IOT_FEATURE_DIM, dtype=np.float32)
+        n = min(iot.shape[0], IOT_FEATURE_DIM)
+        fixed[:n] = iot[:n]
+        iot = fixed
+
     ctx = np.concatenate([
         type_vec,
         [payload_norm, dump_norm, density_norm, compaction_norm, angle_norm],
-        iot_features.astype(np.float32),
+        iot,
     ]).astype(np.float32)
     return ctx
 
@@ -182,6 +193,12 @@ class DumpPackingEnv(gym.Env):
         2: {"n_trucks": 4, "truck_profiles": None, "max_dumps": 80, "seed_range": (0, 9999)},
     }
 
+    def _profile_payload(self, profile_name: str) -> float:
+        """Resolve a truck profile's dispatch payload the same way live fleets
+        do (Truck.payload_t derives from the model's rated capacity) — so the
+        policy trains on the same payload distribution it sees at inference."""
+        return TRUCK_PROFILES.get(profile_name, TRUCK_PROFILES["generic"]).max_payload_t
+
     def _apply_curriculum_stage(self, stage: int) -> None:
         cfg = self._CURRICULUM_STAGES.get(stage, self._CURRICULUM_STAGES[2])
         self.n_trucks = cfg["n_trucks"]
@@ -220,6 +237,7 @@ class DumpPackingEnv(gym.Env):
         self._truck_idx = 0
         self._truck_dump_counts = {name: 0 for name in self.truck_profiles}
         self._dump_positions = []
+        self.payload_t = self._profile_payload(self.truck_profiles[0])
         return self._obs(), {}
 
     # ── step ─────────────────────────────────────────────────────────────────
@@ -239,6 +257,14 @@ class DumpPackingEnv(gym.Env):
         profile_name = self.truck_profiles[self._truck_idx % len(self.truck_profiles)]
         if not turning_radius_accessible(self.terrain, r, c, profile_name):
             reward -= 0.5
+
+        # Payload tracks the dispatched truck's real capacity (mirrors make_fleet /
+        # live inference, where payload_t = the truck model's max_payload_t) — NOT
+        # a single frozen scalar. Training on a constant payload_t taught the
+        # policy's payload_norm context feature to always read ~0.2 (100/500),
+        # so at inference (where real fleets dispatch 104-400t trucks, payload_norm
+        # 0.2-0.8) the network saw out-of-distribution inputs and degraded badly.
+        self.payload_t = self._profile_payload(profile_name)
 
         # Isolation constraint
         safe, reach = self.validator.validate(r, c, self.payload_t)
@@ -415,6 +441,11 @@ class DumpPackingEnv(gym.Env):
 
         profile_name = self.truck_profiles[self._truck_idx % len(self.truck_profiles)]
         truck_dump_count = self._truck_dump_counts.get(profile_name, 0)
+        # Use the *about-to-act* truck's real payload — keeps the context vector
+        # the policy observes in sync with the truck it is actually choosing a
+        # cell for (mirrors live inference, where each TruckAgent's payload_t is
+        # passed alongside its own profile_name).
+        obs_payload_t = self._profile_payload(profile_name)
 
         progress = self._dump_count / max(self.max_dumps, 1)
         rng = self.np_random if self.np_random else np.random.default_rng(42)
@@ -435,14 +466,19 @@ class DumpPackingEnv(gym.Env):
         ], dtype=np.float32)
 
         context = build_context_vector(
-            profile_name, self.payload_t, truck_dump_count,
+            profile_name, obs_payload_t, truck_dump_count,
             self.terrain.material, iot,
         )
         return {"terrain_map": terrain_map, "context_vector": context}
 
     def action_masks(self) -> np.ndarray:
+        # Mask using the truck that's about to act (matches what _obs() reports
+        # and what live inference passes — _build_obs_dict + ConstrainedActionMasker
+        # are both keyed on the dispatching truck's own payload/profile).
+        upcoming_profile = self.truck_profiles[self._truck_idx % len(self.truck_profiles)]
+        upcoming_payload = self._profile_payload(upcoming_profile)
         masker = ConstrainedActionMasker(self.terrain, self.validator, self.iso_threshold)
-        return masker.mask(self.payload_t, include_iso=True, include_path=False).ravel()
+        return masker.mask(upcoming_payload, include_iso=True, include_path=False).ravel()
 
     def render(self):
         pass

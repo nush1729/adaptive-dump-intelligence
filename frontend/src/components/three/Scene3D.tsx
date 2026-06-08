@@ -137,14 +137,89 @@ interface EntryMarkerProps {
   cols: number;
 }
 
+export interface ZoneOverlayInfo {
+  profile: string;
+  truck_class: string;
+  cell_count: number;
+  mask: number[][];
+}
+
 export interface Scene3DProps {
   surface: number[][] | null;
   mask: boolean[][] | null;
   entry?: [number, number] | null;
   dumpMarkers?: Array<{ r: number; c: number }>;
+  zones?: ZoneOverlayInfo[] | null;
   heightScale?: number;
   showWireframe?: boolean;
   camPreset?: "iso" | "top" | "front" | "orbit";
+}
+
+// ── Zone-mode geofence overlay ────────────────────────────────────────────────
+// One translucent tinted plane per truck-class zone, hovering just above the
+// terrain surface so the partition reads clearly without occluding piles.
+const ZONE_COLORS = ["#4FD1C5", "#FFC000", "#FF5722", "#9B6BFF", "#5CE65C", "#FF6BD6"];
+
+function ZoneOverlay({ zones, rows, cols, surface, heightScale }: {
+  zones: ZoneOverlayInfo[]; rows: number; cols: number; surface: number[][]; heightScale: number;
+}) {
+  return (
+    <>
+      {zones.map((zone, i) => {
+        const m = zone.mask;
+        let minR = rows, maxR = -1, minC = cols, maxC = -1, maxH = 0;
+        for (let r = 0; r < m.length; r++) {
+          for (let c = 0; c < m[r].length; c++) {
+            if (m[r][c]) {
+              if (r < minR) minR = r;
+              if (r > maxR) maxR = r;
+              if (c < minC) minC = c;
+              if (c > maxC) maxC = c;
+              const h = surface[r]?.[c] ?? 0;
+              if (h > maxH) maxH = h;
+            }
+          }
+        }
+        if (maxR < minR || maxC < minC) return null;
+
+        const w = (maxC - minC + 1);
+        const d = (maxR - minR + 1);
+        const cx = (minC + maxC) / 2 - cols / 2;
+        const cz = (minR + maxR) / 2 - rows / 2;
+        const y = maxH * heightScale + 0.6;
+        const color = ZONE_COLORS[i % ZONE_COLORS.length];
+
+        return (
+          <group key={zone.profile}>
+            <mesh position={[cx, y, cz]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[w, d]} />
+              <meshBasicMaterial color={color} transparent opacity={0.13} side={THREE.DoubleSide} depthWrite={false} />
+            </mesh>
+            {/* Boundary outline so the geofence edge reads clearly from any angle */}
+            <lineSegments position={[cx, y + 0.05, cz]} rotation={[-Math.PI / 2, 0, 0]}>
+              <edgesGeometry args={[new THREE.PlaneGeometry(w, d)]} />
+              <lineBasicMaterial color={color} transparent opacity={0.65} />
+            </lineSegments>
+            <Html position={[cx, y + 1.5, cz]} distanceFactor={70} style={{ pointerEvents: "none" }}>
+              <div style={{
+                background: "rgba(5,5,10,0.88)",
+                border: `1px solid ${color}`,
+                color,
+                padding: "3px 9px",
+                borderRadius: 3,
+                fontFamily: "JetBrains Mono",
+                fontSize: "10px",
+                letterSpacing: "0.06em",
+                whiteSpace: "nowrap",
+              }}>
+                ZONE · {zone.truck_class.toUpperCase()} ({zone.cell_count} cells)
+              </div>
+            </Html>
+          </group>
+        );
+      })}
+    </>
+  );
 }
 
 // ── Height → vivid colour ramp ────────────────────────────────────────────────
@@ -466,6 +541,7 @@ export default function Scene3D({
   mask,
   entry,
   dumpMarkers = [],
+  zones = null,
   heightScale = 1.8,
   showWireframe = false,
   camPreset = "iso",
@@ -494,6 +570,11 @@ export default function Scene3D({
       }}>
         <div>1 GRID CELL = 1 m</div>
         <div>VERTICAL SCALE ×{heightScale.toFixed(1)} (visual only — true heights shown on hover)</div>
+        {zones && zones.length > 0 && (
+          <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid rgba(79,209,197,0.25)" }}>
+            ZONE MODE — tinted planes mark each truck class&apos;s geofenced dispatch area
+          </div>
+        )}
       </div>
       <Canvas
         camera={{ position: [75, 55, 75], fov: 48, near: 0.1, far: 2000 }}
@@ -512,6 +593,11 @@ export default function Scene3D({
           heightScale={heightScale}
           showWireframe={showWireframe}
         />
+      )}
+
+      {/* Zone-mode geofence overlay — translucent tinted planes per truck-class zone */}
+      {zones && zones.length > 0 && surface && (
+        <ZoneOverlay zones={zones} rows={ROWS} cols={COLS} surface={surface} heightScale={heightScale} />
       )}
 
       {/* Entry marker */}

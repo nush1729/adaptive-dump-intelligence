@@ -12,7 +12,8 @@ class Truck:
         self.model = model
         self.payload_t = payload_t
 
-def make_fleet(models: list, payload_overrides: dict | None = None) -> list:
+def make_fleet(models: list, payload_overrides: dict | None = None,
+               custom_specs: dict | None = None) -> list:
     """
     Create a fleet of trucks from a list of model names.
 
@@ -21,14 +22,24 @@ def make_fleet(models: list, payload_overrides: dict | None = None) -> list:
         payload_overrides: Optional {model_name: payload_tonnes} map — lets a
             caller simulate a custom-tonnage fleet mix without changing the
             base CAT_SPECS table. Falls back to the spec default per model.
+        custom_specs: Optional {model_name: {payload_t, turn_r, base_r, color}}
+            map for user-registered truck types not in CAT_SPECS — supplies
+            the payload for unknown model names instead of the 100t fallback.
+            Kinematics ride on the "generic" TRUCK_PROFILES entry.
 
     Returns:
         List of Truck instances
     """
     overrides = payload_overrides or {}
+    customs = custom_specs or {}
     fleet = []
     for i, model in enumerate(models):
-        default_payload = CAT_SPECS.get(model, {}).get("payload_tonnes", 100)
+        if model in CAT_SPECS:
+            default_payload = CAT_SPECS[model]["payload_tonnes"]
+        elif model in customs:
+            default_payload = customs[model].get("payload_t", 100)
+        else:
+            default_payload = 100
         payload = overrides.get(model, default_payload)
         truck_id = f"{model}_{i+1}"
         fleet.append(Truck(truck_id, model, payload))

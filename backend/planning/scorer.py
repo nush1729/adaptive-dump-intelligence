@@ -1,12 +1,12 @@
 """
 scorer.py — Scoring engine that ranks every candidate dump cell on the terrain.
 
-Each cell gets a composite score from five components:
-  volume     — how much material the cell can absorb (payload / density / height)
-  coverage   — how much unfilled polygon area this dump reaches
-  slope      — penalise cells on steep ground (stability concern)
-  isolation  — reward cells that don't fragment the polygon into cut-off sections
-  spacing    — penalise cells too close to existing dumps (tighter = higher score)
+Each cell gets a composite score from five penalty components:
+  volume      — penalise cells already piled high (favour low-accumulation ground)
+  distance    — penalise cells far from the haul-road entry point
+  slope       — penalise cells on steep ground (stability concern)
+  segregation — penalise cells already holding an incompatible material
+  spacing     — penalise cells too close to / too far from the staffed spacing target
 
 At runtime, _iot_modulated_weights() scales these weights based on live IoT
 telemetry — so the engine adapts without retraining the ML policy.
@@ -32,19 +32,24 @@ def _iot_modulated_weights(base_weights: dict, iot_features=None) -> dict:
       [6] ground_bearing_capacity: soil/pile load-bearing capacity, 1 = firm (0-1)
       [7] queue_length_norm      : entry-queue pressure, normalised (0-1)
 
-    Modulation rules:
-    - High fleet congestion (>0.7):  increase spacing weight to spread trucks out
-    - Low utilisation (<0.3):        increase coverage weight to fill faster
-    - High zone density (>0.6):      increase spacing to avoid cluster collisions
-    - Low haul latency (<0.2):       trucks arriving fast, slightly relax coverage
-    - Poor visibility (<0.5):        favour cells closer to entry / flatter slope
-                                     (raise slope weight, dampen far-reaching coverage)
-    - Degraded equipment (<0.7):     prefer gentler slopes and shorter hauls —
-                                     raise slope weight to protect worn machines
+    Modulation rules (each maps to a weight that genuinely controls that
+    behaviour in the score formula — see ScoringEngine.score_map):
+    - High fleet congestion (>0.7):  raise spacing weight to spread trucks out
+    - Low utilisation (<0.3):        lower distance weight so the planner reaches
+                                     further into unfilled polygon sections instead
+                                     of clustering near the entry
+    - High zone density (>0.6):      raise spacing weight to push dumps apart and
+                                     avoid cluster collisions in the active zone
+    - Low haul latency (<0.2):       trucks arriving fast — slightly relax the
+                                     distance penalty (less urgency to stay near entry)
+    - Poor visibility (<0.5):        favour safer, closer, flatter cells — raise
+                                     slope weight and raise distance weight
+    - Degraded equipment (<0.7):     prefer gentler slopes — raise slope weight
+                                     to protect worn machines on rough ground
     - Weak ground bearing (<0.6):    raise slope weight sharply — soft ground under
                                      load risk; avoid stacking onto unstable terrain
-    - Long queue (>0.5):             raise coverage weight to spread dumps and
-                                     shorten wait times at the active face
+    - Long queue (>0.5):             lower distance weight to spread dumps across
+                                     the polygon and shorten wait times at the face
     """
     if iot_features is None or len(iot_features) < 4:
         return dict(base_weights)
@@ -59,17 +64,18 @@ def _iot_modulated_weights(base_weights: dict, iot_features=None) -> dict:
     if congestion > 0.7:
         w["spacing"] = w.get("spacing", 3.0) * (1.0 + 0.5 * (congestion - 0.7) / 0.3)
 
-    # Low utilisation → prioritise coverage to fill underused polygon sections
+    # Low utilisation → relax distance penalty so the planner reaches further
+    # into underused polygon sections rather than clustering near the entry
     if utilisation < 0.3:
-        w["coverage"] = w.get("coverage", 1.8) * 1.4
+        w["distance"] = w.get("distance", 1.8) * 0.7
 
-    # Dense active zone → push trucks to periphery (raise isolation penalty)
+    # Dense active zone → raise spacing weight to push dumps apart
     if zone_density > 0.6:
-        w["isolation"] = w.get("isolation", 0.8) * (1.0 + 0.4 * (zone_density - 0.6) / 0.4)
+        w["spacing"] = w.get("spacing", 3.0) * (1.0 + 0.4 * (zone_density - 0.6) / 0.4)
 
-    # Fast truck arrival (low latency) → slightly relax coverage greed
+    # Fast truck arrival (low latency) → slightly relax distance urgency
     if latency_norm < 0.2:
-        w["coverage"] = w.get("coverage", 1.8) * 0.85
+        w["distance"] = w.get("distance", 1.8) * 0.85
 
     # ── Phase 2 synthetic channels ───────────────────────────────────────────
     if len(iot_features) >= 8:
@@ -78,10 +84,10 @@ def _iot_modulated_weights(base_weights: dict, iot_features=None) -> dict:
         ground_bearing = float(iot_features[6])
         queue_norm    = float(iot_features[7])
 
-        # Poor visibility → favour safer, closer, flatter cells over far coverage
+        # Poor visibility → favour safer, closer, flatter cells
         if visibility < 0.5:
             w["slope"] = w.get("slope", 0.5) * (1.0 + 0.6 * (0.5 - visibility) / 0.5)
-            w["coverage"] = w.get("coverage", 1.8) * 0.8
+            w["distance"] = w.get("distance", 1.8) * (1.0 + 0.3 * (0.5 - visibility) / 0.5)
 
         # Degraded fleet equipment → bias toward gentler terrain to reduce strain
         if equip_health < 0.7:
@@ -91,9 +97,10 @@ def _iot_modulated_weights(base_weights: dict, iot_features=None) -> dict:
         if ground_bearing < 0.6:
             w["slope"] = w.get("slope", 0.5) * (1.0 + 0.8 * (0.6 - ground_bearing) / 0.6)
 
-        # Long entry queue → spread dumps to relieve congestion at the active face
+        # Long entry queue → relax distance penalty to spread dumps and
+        # shorten wait times at the active face
         if queue_norm > 0.5:
-            w["coverage"] = w.get("coverage", 1.8) * (1.0 + 0.3 * (queue_norm - 0.5) / 0.5)
+            w["distance"] = w.get("distance", 1.8) * (1.0 - 0.3 * (queue_norm - 0.5) / 0.5)
 
     return w
 
@@ -128,24 +135,24 @@ def explain_modulation(base_weights: dict, iot_features=None) -> dict:
         if congestion > 0.7:
             triggers.append(f"high fleet congestion ({congestion:.0%}) → spacing weight raised to spread trucks out")
         if utilisation < 0.3:
-            triggers.append(f"low utilisation ({utilisation:.0%}) → coverage weight raised to fill faster")
+            triggers.append(f"low utilisation ({utilisation:.0%}) → distance weight relaxed to reach further into unfilled ground")
         if zone_density > 0.6:
-            triggers.append(f"dense active zone ({zone_density:.0%}) → isolation weight raised to push trucks to periphery")
+            triggers.append(f"dense active zone ({zone_density:.0%}) → spacing weight raised to push dumps apart")
         if latency_norm < 0.2:
-            triggers.append(f"fast truck arrival (latency {latency_norm:.0%}) → coverage weight relaxed slightly")
+            triggers.append(f"fast truck arrival (latency {latency_norm:.0%}) → distance weight relaxed slightly")
         if len(iot_features) >= 8:
             visibility     = float(iot_features[4])
             equip_health   = float(iot_features[5])
             ground_bearing = float(iot_features[6])
             queue_norm     = float(iot_features[7])
             if visibility < 0.5:
-                triggers.append(f"poor visibility ({visibility:.0%}) → favouring closer/flatter cells (slope weight up, coverage down)")
+                triggers.append(f"poor visibility ({visibility:.0%}) → favouring closer/flatter cells (slope and distance weights up)")
             if equip_health < 0.7:
                 triggers.append(f"degraded equipment ({equip_health:.0%} health) → slope weight raised to protect worn machines")
             if ground_bearing < 0.6:
                 triggers.append(f"weak ground bearing ({ground_bearing:.0%}) → slope weight sharply raised to avoid soft ground")
             if queue_norm > 0.5:
-                triggers.append(f"long entry queue ({queue_norm:.0%}) → coverage weight raised to spread dumps")
+                triggers.append(f"long entry queue ({queue_norm:.0%}) → distance weight relaxed to spread dumps across the face")
 
     return {"deltas": deltas, "triggers": triggers}
 
@@ -202,11 +209,11 @@ class ScoringEngine:
                     segregation_penalty[r_idx, c_idx] = 1.0 - compat
 
         # spacing penalty: prefer cells near staffed spacing target from existing piles
-        w_dist = active_weights.get('coverage', 1.8)
-        w_slope = active_weights.get('slope', 0.5)
-        w_height = active_weights.get('volume', 1.5)
-        w_seg = active_weights.get('isolation', DEFAULT_WEIGHTS['isolation'])
-        w_spacing = active_weights.get('spacing', 3.0)
+        w_dist = active_weights.get('distance', DEFAULT_WEIGHTS['distance'])
+        w_slope = active_weights.get('slope', DEFAULT_WEIGHTS['slope'])
+        w_height = active_weights.get('volume', DEFAULT_WEIGHTS['volume'])
+        w_seg = active_weights.get('segregation', DEFAULT_WEIGHTS['segregation'])
+        w_spacing = active_weights.get('spacing', DEFAULT_WEIGHTS['spacing'])
 
         pile_present = (terrain.height > SITE_CONFIG.pile_detection_threshold_m)
         if pile_present.any():

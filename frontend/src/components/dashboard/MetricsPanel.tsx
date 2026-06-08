@@ -6,16 +6,22 @@ import { fetchFleetIntelligence } from "@/lib/api";
 import type { FleetIntelligence, SpacingAnalysis } from "@/types/adios";
 
 /* ── KPI Card ─────────────────────────────────────────────────── */
-function KPICard({ label, value, sub, color = "var(--cat)" }: {
-  label: string; value: string; sub?: string; color?: string;
+function KPICard({ label, value, sub, color = "var(--cat)", hint }: {
+  label: string; value: string; sub?: string; color?: string; hint?: string;
 }) {
   return (
-    <div style={{
-      background: "var(--panel)", border: "1px solid var(--border)",
-      borderRadius: 4, padding: "9px 11px", position: "relative", overflow: "hidden",
-    }}>
+    <div
+      title={hint}
+      style={{
+        background: "var(--panel)", border: "1px solid var(--border)",
+        borderRadius: 4, padding: "9px 11px", position: "relative", overflow: "hidden",
+        cursor: hint ? "help" : undefined,
+      }}>
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: `linear-gradient(90deg, ${color}, transparent)` }} />
-      <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.72rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+      <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.82rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text2)", marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 4 }}>
+        {label}
+        {hint && <span style={{ fontSize: "0.7rem", opacity: 0.6, fontWeight: 700 }}>ⓘ</span>}
+      </div>
       <div style={{ fontFamily: "JetBrains Mono", fontSize: "1.2rem", fontWeight: 700, color, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</div>
       {sub && <div style={{ fontSize: "0.68rem", color: "var(--text2)", marginTop: 2, fontFamily: "JetBrains Mono", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{sub}</div>}
     </div>
@@ -118,17 +124,15 @@ function SpacingBar({ value, target, baseline }: { value: number; target: number
 
 /* ── Main ─────────────────────────────────────────────────────── */
 export default function MetricsPanel() {
-  const { result, volumeHistory, liveLog, health, lastRunPolicy, liveWhy, liveDumpStage } = useSimStore();
+  const { result, volumeHistory, liveLog, health, lastRunPolicy, liveWhy, liveDumpStage, selectedFleet, customTrucks } = useSimStore();
   const [fleetIntel, setFleetIntel] = useState<FleetIntelligence | null>(null);
 
   useEffect(() => {
-    fetchFleetIntelligence(42, 4).then((d) => { if (d?.trucks) setFleetIntel(d); }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!result) return;
-    fetchFleetIntelligence(42, 4).then((d) => { if (d?.trucks) setFleetIntel(d); }).catch(() => {});
-  }, [result]);
+    let stale = false;
+    fetchFleetIntelligence(42, selectedFleet.length || 4, selectedFleet, customTrucks)
+      .then((d) => { if (!stale && d?.trucks) setFleetIntel(d); }).catch(() => {});
+    return () => { stale = true; };
+  }, [selectedFleet, customTrucks, result]);
 
   const summary = result?.summary;
   const staticS = result?.static_summary;
@@ -184,7 +188,12 @@ export default function MetricsPanel() {
                 <div key={t.id} style={{ background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 3, padding: "5px 8px", display: "grid", gridTemplateColumns: "26px 1fr auto", alignItems: "center", gap: 6 }}>
                   <div style={{ width: 26, height: 26, borderRadius: 2, background: "rgba(255,205,17,0.1)", border: "1px solid rgba(255,205,17,0.22)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "JetBrains Mono", fontSize: "0.58rem", fontWeight: 700, color: "var(--cat)" }}>{t.id}</div>
                   <div>
-                    <div style={{ fontSize: "0.7rem", fontFamily: "JetBrains Mono", color: "var(--text)", lineHeight: 1 }}>{t.profile}</div>
+                    <div style={{ fontSize: "0.7rem", fontFamily: "JetBrains Mono", color: "var(--text)", lineHeight: 1, display: "flex", alignItems: "center", gap: 5 }}>
+                      {t.profile}
+                      {t.is_custom && (
+                        <span style={{ fontSize: "0.52rem", fontFamily: "JetBrains Mono", color: "var(--cyan)", border: "1px solid rgba(0,212,255,0.35)", borderRadius: 2, padding: "0 4px", letterSpacing: "0.06em" }}>CUSTOM</span>
+                      )}
+                    </div>
                     <div style={{ fontSize: "0.58rem", fontFamily: "JetBrains Mono", color: "var(--muted)", marginTop: 1 }}>R={t.turning_radius_m}m · {t.max_payload_t}t</div>
                   </div>
                   <div style={{ fontSize: "0.58rem", fontFamily: "JetBrains Mono", color: "var(--muted)", textAlign: "right" }}>
@@ -287,7 +296,9 @@ export default function MetricsPanel() {
           <KPICard label="Coverage" value={summary ? `${summary.coverage_pct.toFixed(1)}%` : "—"} sub="polygon" />
           <KPICard label="Uniformity" value={summary ? `${(summary.height_uniformity * 100).toFixed(1)}%` : "—"} sub="1−σ/μ" />
           <KPICard label="Iso Events" value={summary ? String(summary.isolation_events) : "—"} sub="rejected" color="var(--ore)" />
-          <KPICard label="Latency" value={summary ? `${summary.latency_ms}ms` : "—"} sub="end-to-end" color="var(--cyan)" />
+          <KPICard label="Latency" value={summary ? `${summary.latency_ms}ms` : "—"} sub="end-to-end (network)"
+            hint="End-to-end network latency: full round trip from React → FastAPI → ML inference → React. Includes HTTP/serialization overhead, not just compute. The Audit page's 'Compute Latency' shows pure backend execution time (time.perf_counter diff) — the two numbers measure different things by design."
+            color="var(--cyan)" />
           <KPICard label="Dispatched" value={summary ? String(summary.total_dispatched) : "—"} sub="trucks" />
         </div>
 

@@ -23,12 +23,12 @@ function NavBar({ active }: { active: string }) {
       </div>
       <div style={{ display: "flex", gap: 22 }}>
         {Object.keys(NAV_ROUTES).map((link) => (
-          <button key={link} onClick={() => router.push(NAV_ROUTES[link])} style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", letterSpacing: "0.12em", color: active === link ? "#FFB800" : "#6B7280", background: "transparent", border: "none", cursor: "pointer", padding: "2px 0", borderBottom: active === link ? "1px solid #FFB800" : "1px solid transparent", transition: "color 0.2s" }}>
+          <button key={link} onClick={() => router.push(NAV_ROUTES[link])} style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", letterSpacing: "0.12em", color: active === link ? "#FFB800" : "#6B7280", background: "transparent", border: "none", cursor: "pointer", padding: "2px 0", borderBottom: active === link ? "1px solid #FFB800" : "1px solid transparent", transition: "color 0.2s" }}>
             {link}
           </button>
         ))}
       </div>
-      <motion.button onClick={() => router.push("/dashboard")} whileHover={{ background: "#FFB800", color: "#000" }} style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.58rem", letterSpacing: "0.16em", color: "#FFB800", background: "transparent", border: "1px solid #FFB800", borderRadius: 2, padding: "7px 16px", cursor: "pointer", transition: "all 0.2s" }}>
+      <motion.button onClick={() => router.push("/dashboard")} whileHover={{ background: "#FFB800", color: "#000" }} style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.78rem", letterSpacing: "0.16em", color: "#FFB800", background: "transparent", border: "1px solid #FFB800", borderRadius: 2, padding: "7px 16px", cursor: "pointer", transition: "all 0.2s" }}>
         LAUNCH →
       </motion.button>
     </nav>
@@ -84,33 +84,33 @@ export default function IntelligencePage() {
 
         {/* Hero */}
         <section style={{ padding: "60px 64px 48px", borderBottom: "1px solid rgba(255,184,0,0.07)" }}>
-          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", color: "#6B7280", letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 16, height: 1, background: "#FFB800" }} />
             Intelligence Engine
           </div>
           <h1 style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 900, fontSize: "clamp(2rem,4.5vw,3.5rem)", letterSpacing: "0.06em", textTransform: "uppercase", lineHeight: 1.1, marginBottom: 20 }}>
             Physics-Informed<br /><span style={{ color: "#FFB800" }}>RL Architecture</span>
           </h1>
-          <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.72rem", color: "#6B7280", lineHeight: 1.8, maxWidth: 640 }}>
+          <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.97rem", color: "#6B7280", lineHeight: 1.8, maxWidth: 640 }}>
             ADIOS combines Centralised Training with Decentralised Execution (CTDE), dual-stream CNN terrain processing, and IoT-enriched context to produce high-quality dump placement decisions at every step.
           </p>
         </section>
 
         {/* Architecture */}
         <section style={{ padding: "48px 64px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", color: "#6B7280", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 28 }}>Observation Space</div>
+          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 28 }}>Observation Space</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             {ARCHITECTURE.map((arch) => (
               <motion.div key={arch.title} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} style={{ border: `1px solid ${arch.color}28`, borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ padding: "12px 20px", borderBottom: `1px solid ${arch.color}18`, background: `${arch.color}08` }}>
-                  <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.7rem", letterSpacing: "0.14em", color: arch.color }}>{arch.title}</div>
-                  <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.5rem", color: "#6B7280", marginTop: 3 }}>{arch.subtitle}</div>
+                  <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.94rem", letterSpacing: "0.14em", color: arch.color }}>{arch.title}</div>
+                  <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", marginTop: 3 }}>{arch.subtitle}</div>
                 </div>
                 <div>
                   {arch.items.map((item) => (
                     <div key={item.label} style={{ padding: "10px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", gap: 14, alignItems: "flex-start" }}>
-                      <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", color: arch.color, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0, minWidth: 160 }}>{item.label}</div>
-                      <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", color: "#6B7280", lineHeight: 1.6 }}>{item.desc}</div>
+                      <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: arch.color, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0, minWidth: 160 }}>{item.label}</div>
+                      <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", lineHeight: 1.6 }}>{item.desc}</div>
                     </div>
                   ))}
                 </div>
@@ -121,13 +121,13 @@ export default function IntelligencePage() {
 
         {/* CTDE */}
         <section style={{ padding: "48px 64px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", color: "#6B7280", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 28 }}>CTDE Execution Loop</div>
+          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 28 }}>CTDE Execution Loop</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
             {CTDE_STEPS.map((step) => (
               <motion.div key={step.n} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: parseInt(step.n) * 0.08 }} style={{ padding: "20px 18px", border: `1px solid ${step.color}22`, borderRadius: 4, background: `${step.color}06` }}>
-                <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", color: "#4B5563", marginBottom: 10 }}>{step.n}</div>
-                <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.7rem", letterSpacing: "0.12em", color: step.color, marginBottom: 10, textTransform: "uppercase" }}>{step.label}</div>
-                <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.54rem", color: "#9CA3AF", lineHeight: 1.65, margin: 0 }}>{step.desc}</p>
+                <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#4B5563", marginBottom: 10 }}>{step.n}</div>
+                <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.94rem", letterSpacing: "0.12em", color: step.color, marginBottom: 10, textTransform: "uppercase" }}>{step.label}</div>
+                <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.73rem", color: "#9CA3AF", lineHeight: 1.65, margin: 0 }}>{step.desc}</p>
               </motion.div>
             ))}
           </div>
@@ -135,12 +135,12 @@ export default function IntelligencePage() {
 
         {/* Training Pipeline */}
         <section style={{ padding: "48px 64px 64px" }}>
-          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", color: "#6B7280", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 28 }}>Training Pipeline</div>
+          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: 28 }}>Training Pipeline</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {TRAINING.map((t, i) => (
               <motion.div key={t.phase} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.35, delay: i * 0.07 }} style={{ display: "flex", gap: 24, padding: "16px 20px", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 3, alignItems: "flex-start" }}>
-                <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.65rem", color: "#FFB800", letterSpacing: "0.1em", flexShrink: 0, minWidth: 220 }}>{t.phase}</div>
-                <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem", color: "#6B7280", lineHeight: 1.7 }}>{t.detail}</div>
+                <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.88rem", color: "#FFB800", letterSpacing: "0.1em", flexShrink: 0, minWidth: 220 }}>{t.phase}</div>
+                <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.78rem", color: "#6B7280", lineHeight: 1.7 }}>{t.detail}</div>
               </motion.div>
             ))}
           </div>

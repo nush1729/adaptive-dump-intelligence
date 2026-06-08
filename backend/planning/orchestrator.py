@@ -233,6 +233,21 @@ class ADIOSOrchestrator:
                     }, None, False, r, c
                     continue
 
+                # Deadlock detection — mirrors the resolution logic in the
+                # /schedule endpoint (main.py): a reservation cycle means two+
+                # trucks are mutually blocking each other's path corridors, so
+                # we break it by force-releasing the most stalled truck(s).
+                if scheduler.has_cycle():
+                    stuck = scheduler.livelock_trucks(thresh=8)
+                    for stuck_id in stuck:
+                        scheduler.release(stuck_id)
+                    if stuck:
+                        yield {
+                            "t": i, "truck": truck_id, "r": int(r), "c": int(c),
+                            "status": "deadlock_resolved", "payload_t": payload_t,
+                            "deadlock_trucks": [str(s) for s in stuck],
+                        }, None, False, r, c
+
                 # Snapshot whether this cell already carried material — i.e.
                 # whether the dump will trigger compaction (apply_dump_to_height
                 # multiplies existing height by a compaction factor before adding)

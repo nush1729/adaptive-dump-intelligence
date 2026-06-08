@@ -19,9 +19,9 @@ Endpoints:
 import asyncio
 import json, os, sys, time
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Any, List, Optional, Dict
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -34,7 +34,8 @@ from planning.scorer import ScoringEngine, DEFAULT_WEIGHTS
 from planning.isolation_validator import IsolationValidator
 from planning.action_masker import ConstrainedActionMasker
 from evaluation.metrics import summarize_episode
-from config import SITE_CONFIG, config_payload
+from evaluation.benchmark import run_static, run_staffed
+from config import SITE_CONFIG, config_payload, IOT_FEATURE_DIM
 
 # ── optional ML imports ───────────────────────────────────────────────────────
 ML_AVAILABLE = False
@@ -79,16 +80,18 @@ class SimConfig(BaseModel):
     rows: int = SITE_CONFIG.rows
     cols: int = SITE_CONFIG.cols
     material: str = "default"
-    n_dumps: int = SITE_CONFIG.benchmark_dumps
+    n_dumps: int = Field(default=SITE_CONFIG.benchmark_dumps, gt=0)
     fleet_models: List[str] = list(SITE_CONFIG.default_fleet)
     payload_overrides: Optional[Dict[str, float]] = None
+    custom_truck_specs: Optional[Dict[str, Dict[str, Any]]] = None
     weights: Optional[dict] = None
-    iso_threshold: float = SITE_CONFIG.iso_threshold
-    min_dump_spacing: Optional[float] = None
+    iso_threshold: float = Field(default=SITE_CONFIG.iso_threshold, ge=0.0, le=1.0)
+    min_dump_spacing: Optional[float] = Field(default=None, gt=0.0)
     auto_tune: bool = False
     seed: int = SITE_CONFIG.default_seed
     use_ml: bool = False
     zone_mode: bool = False
+    terrain_csv_id: Optional[str] = None
 
 class TuneConfig(BaseModel):
     material: str = "default"
@@ -176,7 +179,7 @@ def _build_obs_dict(terrain: Terrain, truck_profile: str = "generic",
     terrain_map = np.stack([h_norm, mask, dist_norm, pile_mask, density], axis=0)
 
     if iot_features is None:
-        iot_features = np.zeros(4, dtype=np.float32)
+        iot_features = np.zeros(IOT_FEATURE_DIM, dtype=np.float32)
 
     context = build_context_vector(
         truck_profile, payload_t, truck_dump_count,
@@ -316,13 +319,97 @@ def health():
 def fleet_specs():
     return CAT_SPECS
 
+# In-memory store for uploaded terrain grids — keyed by an opaque id returned
+# from /upload_terrain. Process-lifetime only (mirrors the rest of ADIOS's
+# stateless-between-restarts design); large enough grids would warrant a real
+# cache with eviction, but uploads are infrequent operator actions, not a hot path.
+_uploaded_terrains: Dict[str, np.ndarray] = {}
+_UPLOAD_MAX_CELLS = 100 * 100 * 4  # generous bound — keeps parsing/memory bounded
+
+
+@app.post("/upload_terrain")
+async def upload_terrain(file: UploadFile = File(...)):
+    """Ingest a CSV height-map grid (rows = terrain rows, cols = terrain cols,
+    cell values = height in metres; blank/negative/non-numeric = outside the
+    site boundary) and stage it for use as a live simulation terrain source.
+
+    Returns a `terrain_id` to pass back as `SimConfig.terrain_csv_id`.
+    """
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(400, "Expected a .csv file")
+
+    raw = await file.read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(400, "File is not valid UTF-8 text")
+
+    rows_out: list[list[float]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        cells = []
+        for tok in line.replace("\t", ",").split(","):
+            tok = tok.strip()
+            if tok == "":
+                cells.append(np.nan)
+                continue
+            try:
+                cells.append(float(tok))
+            except ValueError:
+                cells.append(np.nan)
+        rows_out.append(cells)
+
+    if len(rows_out) < 2:
+        raise HTTPException(400, "CSV must contain at least 2 rows of numeric height data")
+
+    width = max(len(r) for r in rows_out)
+    if width < 2:
+        raise HTTPException(400, "CSV must contain at least 2 columns of numeric height data")
+    if len(rows_out) * width > _UPLOAD_MAX_CELLS:
+        raise HTTPException(400, f"Grid too large — max {_UPLOAD_MAX_CELLS} cells (got {len(rows_out)}x{width})")
+
+    grid = np.full((len(rows_out), width), np.nan, dtype=np.float32)
+    for i, r in enumerate(rows_out):
+        grid[i, :len(r)] = r
+
+    finite = grid[np.isfinite(grid)]
+    if finite.size == 0:
+        raise HTTPException(400, "CSV contains no valid numeric height values")
+    if (finite < 0).all():
+        raise HTTPException(400, "CSV contains no non-negative height values — nothing to dispatch onto")
+
+    terrain_id = f"csv_{abs(hash((file.filename, raw[:4096], len(raw))))}"
+    _uploaded_terrains[terrain_id] = grid
+
+    return {
+        "terrain_id": terrain_id,
+        "rows": grid.shape[0],
+        "cols": grid.shape[1],
+        "active_cells": int(np.isfinite(grid).sum()),
+        "height_range_m": [float(np.nanmin(grid[np.isfinite(grid)])), float(np.nanmax(grid[np.isfinite(grid)]))],
+    }
+
+
+def _build_terrain(cfg: SimConfig) -> Terrain:
+    """Resolve the terrain source for a config — uploaded CSV grid if staged
+    via /upload_terrain, otherwise the synthetic demo polygon (default path)."""
+    if cfg.terrain_csv_id:
+        grid = _uploaded_terrains.get(cfg.terrain_csv_id)
+        if grid is None:
+            raise HTTPException(404, f"Unknown terrain_csv_id '{cfg.terrain_csv_id}' — re-upload the CSV")
+        return Terrain.from_height_grid(grid, material=cfg.material)
+    return Terrain.make_demo_polygon(cfg.rows, cfg.cols, cfg.material, cfg.seed)
+
+
 def _run_simulation_sync(cfg: SimConfig) -> dict:
     """
     Synchronous simulation runner.
     This is the CPU-bound work that gets offloaded to a thread pool.
     """
     t0 = time.time()
-    terrain = Terrain.make_demo_polygon(cfg.rows, cfg.cols, cfg.material, cfg.seed)
+    terrain = _build_terrain(cfg)
     weights = cfg.weights or dict(DEFAULT_WEIGHTS)
 
     if cfg.auto_tune:
@@ -330,7 +417,8 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
         tuner = WeightTuner(weights, n_trials=20)
         weights, _ = tuner.tune(factory)
 
-    fleet = make_fleet(cfg.fleet_models, payload_overrides=cfg.payload_overrides)
+    fleet = make_fleet(cfg.fleet_models, payload_overrides=cfg.payload_overrides,
+                       custom_specs=cfg.custom_truck_specs)
 
     actual_policy = "heuristic"  # Track what was ACTUALLY used
     log = None
@@ -366,40 +454,39 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
     summary = summarize_episode(terrain, log, latencies, dump_positions, actual_policy)
     summary["mean_height"] = round(terrain.mean_height(), 3)
 
-    # static baseline
+    # Baselines — two real-world reference patterns from the site survey:
+    #   - "static_grid"   : autonomous fixed-lattice fallback, spaced at the
+    #                       real autonomous spacing (~7.38m) — sparse, rigid,
+    #                       prone to coverage gaps near irregular polygon edges.
+    #   - "staffed_manual": human-operator pattern, spaced at the tighter real
+    #                       staffed spacing (~3.03m) with organic per-dump
+    #                       jitter rather than a rigid lattice.
+    # Each runs on its own fresh terrain copy (same seed/material/fleet) so
+    # results are directly comparable to the ADIOS run above.
+    def _baseline_summary(result: dict) -> dict:
+        """Normalise a run_static/run_staffed result dict into the summary
+        shape the frontend expects (StaticSummary: volume/coverage_pct/
+        packing_efficiency, plus the extra KPIs for the benchmark table)."""
+        return {
+            "volume": result["volume_m3"],
+            "total_volume": result["volume_m3"],
+            "coverage_pct": result["coverage_pct"],
+            "packing_efficiency": result["packing_efficiency"],
+            "height_uniformity": result["height_uniformity"],
+            "filled_uniformity": result["filled_uniformity"],
+            "rejection_rate": result["rejection_rate"],
+            "iso_rejection_rate": result["iso_rejection_rate"],
+            "mean_spacing_m": result["mean_spacing_m"],
+            "policy": result["policy"],
+        }
+
     static_t = Terrain.make_demo_polygon(cfg.rows, cfg.cols, cfg.material, cfg.seed)
-    static_val = IsolationValidator(static_t, static_t.entry, cfg.iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
-    step = int(SITE_CONFIG.target_spacing_cells)
-    rs, cs = np.where(static_t.mask)
-    dumps_done = 0
-    static_log = []
-    static_positions = []
-    dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
-    dispatches = dispatches[:cfg.n_dumps]
-    grid_cells = [(int(r), int(c)) for r in range(int(rs.min()), int(rs.max()) + 1, step)
-                  for c in range(int(cs.min()), int(cs.max()) + 1, step) if static_t.mask[r, c]]
-    cell_i = 0
-    for i, (truck_id, payload_t) in enumerate(dispatches):
-        placed = False
-        while cell_i < len(grid_cells):
-            r, c = grid_cells[cell_i]
-            cell_i += 1
-            safe, reach = static_val.validate(r, c, payload_t)
-            if not safe:
-                continue
-            ok, reason = static_t.apply_dump(r, c, payload_t)
-            if ok:
-                static_val.record_dump(r, c)
-                static_positions.append((r, c))
-                dumps_done += 1
-                placed = True
-                static_log.append({"t": i, "truck": truck_id, "r": r, "c": c, "status": "dumped", "payload_t": payload_t})
-                break
-        if not placed:
-            static_log.append({"t": i, "truck": truck_id, "r": 0, "c": 0, "status": "no_space", "payload_t": payload_t})
-        if dumps_done >= cfg.n_dumps:
-            break
-    static_summary = summarize_episode(static_t, static_log, [], static_positions, "static_grid")
+    static_result = run_static(static_t, fleet, n_dumps=cfg.n_dumps)
+    static_summary = _baseline_summary(static_result)
+
+    staffed_t = Terrain.make_demo_polygon(cfg.rows, cfg.cols, cfg.material, cfg.seed)
+    staffed_result = run_staffed(staffed_t, fleet, n_dumps=cfg.n_dumps, seed=cfg.seed)
+    staffed_summary = _baseline_summary(staffed_result)
 
     # Spacing analysis for the run
     dump_positions_arr = np.array(dump_positions) if dump_positions else np.empty((0, 2))
@@ -455,9 +542,11 @@ def _run_simulation_sync(cfg: SimConfig) -> dict:
         "summary": summary,
         "weights_used": weights,
         "static_surface": static_t.to_json_surface(),
+        "staffed_surface": staffed_t.to_json_surface(),
         "snapshots": snapshots,
         "log": log[-30:],
         "static_summary": static_summary,
+        "staffed_summary": staffed_summary,
         "spacing_analysis": spacing_stats,
         "policy_metadata": {
             "artifact_type": actual_policy,
@@ -591,44 +680,89 @@ def spacing_analysis(cfg: SpacingAnalysisConfig):
     })
 
 
+class FleetIntelligenceRequest(BaseModel):
+    seed: int = SITE_CONFIG.default_seed
+    n_trucks: int = 4
+    fleet_models: Optional[List[str]] = None
+    custom_truck_specs: Optional[Dict[str, Dict[str, Any]]] = None
+
+
 @app.get("/fleet_intelligence")
 def fleet_intelligence(seed: int = SITE_CONFIG.default_seed, n_trucks: int = 4):
     """
     Returns per-truck operational context: truck profiles, turning radii,
     payload capacities, and IoT feature vector at steady state.
     """
+    return _fleet_intelligence_impl(seed, n_trucks, None, None)
+
+
+@app.post("/fleet_intelligence")
+def fleet_intelligence_post(req: FleetIntelligenceRequest):
+    """
+    Same as GET /fleet_intelligence, but lets the caller pass the fleet's
+    actual model names (incl. user-registered custom truck types) so the
+    roster reflects the live dashboard configuration instead of a fixed
+    4-profile demo snapshot.
+    """
+    return _fleet_intelligence_impl(req.seed, req.n_trucks, req.fleet_models, req.custom_truck_specs)
+
+
+def _fleet_intelligence_impl(seed: int, n_trucks: int,
+                             fleet_models: Optional[List[str]],
+                             custom_truck_specs: Optional[Dict[str, Dict[str, Any]]]):
     from iot.telemetry import IoTTelemetry
     from config import TRUCK_PROFILES, SITE_CONFIG
 
-    iot = IoTTelemetry(n_trucks=n_trucks)
+    customs = custom_truck_specs or {}
+
+    # Resolve the roster to display: prefer the caller's actual fleet model
+    # names (deduplicated, in order) so custom-registered trucks show up;
+    # fall back to the first n_trucks built-in profiles for the demo default.
+    if fleet_models:
+        seen = []
+        for m in fleet_models:
+            if m not in seen:
+                seen.append(m)
+        truck_names = seen[:max(n_trucks, len(seen))] if len(seen) <= n_trucks else seen
+    else:
+        truck_names = list(TRUCK_PROFILES.keys())[:n_trucks]
+
+    iot = IoTTelemetry(n_trucks=len(truck_names))
     iot.reset()
 
-    trucks = []
-    truck_names = list(TRUCK_PROFILES.keys())[:n_trucks]
+    def resolve_profile(name: str):
+        if name in TRUCK_PROFILES:
+            return TRUCK_PROFILES[name]
+        return TRUCK_PROFILES["generic"]
+
     for i, name in enumerate(truck_names):
-        profile = TRUCK_PROFILES[name]
+        profile = resolve_profile(name)
+        payload = customs.get(name, {}).get("payload_t", profile.max_payload_t)
         # Simulate a mid-shift snapshot: stagger arrivals so roughly half the
         # fleet is still active/in-transit and half has just dumped — a fleet
         # where every truck has already dumped reads as fully idle (congestion,
         # zone density, queue all flatten to 0), which misrepresents live ops.
         tid = f"T{i+1}"
-        iot.update_truck(tid, (50 + i * 4, 50 - i * 3), profile.max_payload_t * 0.9, tick=i * 3)
+        iot.update_truck(tid, (50 + i * 4, 50 - i * 3), payload * 0.9, tick=i * 3)
         if i % 2 == 0:
             iot.record_dump(tid, tick=i * 3 + 2)
-    iot.step_environment(queue_length=max(1, n_trucks // 2))
+    iot.step_environment(queue_length=max(1, len(truck_names) // 2))
 
     iot_vec = iot.get_iot_feature_vector().tolist()
     fleet_metrics = iot.get_fleet_metrics()
 
     truck_info = []
-    for name, profile in list(TRUCK_PROFILES.items())[:n_trucks]:
+    for i, name in enumerate(truck_names):
+        profile = resolve_profile(name)
+        spec = customs.get(name, {})
         truck_info.append({
-            "id": f"T{len(truck_info)+1}",
+            "id": f"T{i+1}",
             "profile": name,
-            "max_payload_t": profile.max_payload_t,
-            "turning_radius_m": profile.turning_radius_m,
+            "max_payload_t": spec.get("payload_t", profile.max_payload_t),
+            "turning_radius_m": spec.get("turn_r", profile.turning_radius_m),
             "axle_load_t": profile.axle_load_t,
-            "min_corridor_width_m": profile.turning_radius_m * 2,
+            "min_corridor_width_m": spec.get("turn_r", profile.turning_radius_m) * 2,
+            "is_custom": name not in TRUCK_PROFILES,
         })
 
     return _sanitize_for_json({
@@ -685,31 +819,35 @@ def anomalies(seed: int = SITE_CONFIG.default_seed, n_trucks: int = 4, ticks: in
 
 # ── WebSocket: real-time streaming ───────────────────────────────────────────
 
-@app.get("/schedule")
-def get_schedule(n_trucks: int = 4, n_dumps: int = 40, seed: int = 42):
+@app.post("/schedule")
+def get_schedule(cfg: SimConfig):
     """
     Build a truck dispatch timeline using the real TimeSpaceScheduler
-    and the actual ADIOSOrchestrator log to map physical paths to time.
+    and the actual ADIOSOrchestrator log to map physical paths to time,
+    using the same shared sim configuration as /simulate (material, fleet,
+    payload overrides, custom truck specs, ISO threshold, weights, zone mode).
     """
     import numpy as np
     from planning.scheduler import TimeSpaceScheduler
     from planning.pathfinder import find_path
 
-    rng = np.random.default_rng(seed)
+    rng = np.random.default_rng(cfg.seed)
 
     # ── terrain + fleet + orchestrator ───────────────────────────────────────
-    terrain = Terrain.make_demo_polygon(100, 100, "default", seed)
-    truck_names = [f"T{i+1}" for i in range(n_trucks)]
-    payloads = rng.choice(list(SITE_CONFIG.generic_payloads_t), size=n_trucks, replace=True)
-    
-    orch = ADIOSOrchestrator(terrain, n_trucks=n_trucks)
-    dispatches = []
-    for i in range(n_dumps):
-        tid = i % n_trucks
-        p = round(float(payloads[tid]) * float(rng.uniform(0.9, 1.1)), 1)
-        dispatches.append((truck_names[tid], p))
-        
-    log = orch.run(dispatches)
+    terrain = _build_terrain(cfg)
+    fleet = make_fleet(cfg.fleet_models, payload_overrides=cfg.payload_overrides,
+                       custom_specs=cfg.custom_truck_specs)
+    n_trucks = len(fleet)
+    truck_names = [t.truck_id for t in fleet]
+    n_dumps = cfg.n_dumps
+
+    weights = cfg.weights or dict(DEFAULT_WEIGHTS)
+    orch = ADIOSOrchestrator(terrain, weights=weights, n_trucks=n_trucks, min_spacing=cfg.min_dump_spacing)
+    orch.validator.reach_thresh = cfg.iso_threshold
+    dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // n_trucks + 1)
+    dispatches = dispatches[:n_dumps]
+
+    log = orch.run(dispatches, zone_mode=cfg.zone_mode)
 
     # ── scheduler ───────────────────────────────────────────────────────────
     total_ticks = n_dumps * 8 + 50
@@ -719,7 +857,7 @@ def get_schedule(n_trucks: int = 4, n_dumps: int = 40, seed: int = 42):
     truck_free_at = [0] * n_trucks
 
     start_r, start_c = terrain.entry
-    
+
     for i, event in enumerate(log):
         tid = int(i % n_trucks)
         truck = truck_names[tid]
@@ -786,20 +924,17 @@ async def ws_simulate(ws: WebSocket):
     try:
         raw = await ws.receive_text()
         cfg = SimConfig(**json.loads(raw))
-        terrain = Terrain.make_demo_polygon(cfg.rows, cfg.cols, cfg.material, cfg.seed)
+        terrain = _build_terrain(cfg)
         weights = cfg.weights or dict(DEFAULT_WEIGHTS)
-        fleet = make_fleet(cfg.fleet_models, payload_overrides=cfg.payload_overrides)
+        fleet = make_fleet(cfg.fleet_models, payload_overrides=cfg.payload_overrides,
+                           custom_specs=cfg.custom_truck_specs)
 
-        # FIX: use ScoringEngine for intelligent cell selection
-        from planning.scorer import ScoringEngine
-        eng = ScoringEngine(terrain, terrain.entry, weights)
-        val = IsolationValidator(terrain, terrain.entry, cfg.iso_threshold)
+        spacing = cfg.min_dump_spacing if cfg.min_dump_spacing is not None else SITE_CONFIG.min_dump_spacing_cells
+        val = IsolationValidator(terrain, terrain.entry, cfg.iso_threshold, spacing)
 
         dispatches = [{"truck_id": t.truck_id, "payload_t": t.payload_t, "truck_profile": t.model}
                       for t in fleet] * (cfg.n_dumps // len(fleet) + 1)
         dispatches = dispatches[:cfg.n_dumps]
-        success_count = 0
-        reject_count  = 0
 
         policy = None
         ptype = "heuristic"
@@ -813,6 +948,39 @@ async def ws_simulate(ws: WebSocket):
         reject_count = 0
         zone_layout_sent = not cfg.zone_mode
         alerts_sent = 0
+
+        # ── operator supervisory state ───────────────────────────────────────
+        # Polled non-blockingly between dispatch steps (see _poll_controls below)
+        # so a human operator can pause/resume or slow down a live run without
+        # reconnecting — the "human override / supervisory control layer".
+        sup = {"paused": False, "step_delay_s": 0.0}
+
+        async def _poll_controls():
+            """Drain any queued operator-control messages without blocking the
+            dispatch loop. Returns once no message is immediately available."""
+            while True:
+                try:
+                    raw_ctl = await asyncio.wait_for(ws.receive_text(), timeout=0.001)
+                except (asyncio.TimeoutError, TimeoutError):
+                    return
+                except WebSocketDisconnect:
+                    raise
+                try:
+                    ctl = json.loads(raw_ctl)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                ctype = ctl.get("type")
+                if ctype == "pause":
+                    sup["paused"] = True
+                    await ws.send_json({"type": "control_ack", "action": "pause"})
+                elif ctype == "resume":
+                    sup["paused"] = False
+                    await ws.send_json({"type": "control_ack", "action": "resume"})
+                elif ctype == "set_speed":
+                    delay = ctl.get("step_delay_s")
+                    if isinstance(delay, (int, float)) and 0 <= delay <= 5:
+                        sup["step_delay_s"] = float(delay)
+                        await ws.send_json({"type": "control_ack", "action": "set_speed", "step_delay_s": sup["step_delay_s"]})
 
         for log_entry, snapshot, placed, r, c in orch.run_generator(dispatches, policy=policy, ptype=ptype, zone_mode=cfg.zone_mode):
             if not zone_layout_sent and getattr(orch, "zone_planner", None) is not None:
@@ -828,6 +996,15 @@ async def ws_simulate(ws: WebSocket):
                 alerts_sent = len(orch.anomaly_detector.alerts)
                 for alert in new_alerts:
                     await ws.send_json(_sanitize_for_json({"type": "anomaly", **alert}))
+
+            if log_entry["status"] == "deadlock_resolved":
+                await ws.send_json(_sanitize_for_json({
+                    "type": "deadlock",
+                    "dump": log_entry["t"],
+                    "trucks": log_entry.get("deadlock_trucks", []),
+                    "r": r, "c": c,
+                }))
+                continue
 
             if log_entry["status"] == "no_space":
                 await ws.send_json(_sanitize_for_json({
@@ -863,7 +1040,17 @@ async def ws_simulate(ws: WebSocket):
                     "dump_stage":   log_entry.get("dump_stage"),
                     "why":          log_entry.get("why"),
                 }))
-                await asyncio.sleep(0)  # Yield control to the event loop
+                # Drain operator-control messages, then honour pause/speed state
+                # before advancing — gives a human supervisor a live override
+                # surface (pause, resume, throttle) over an in-flight run.
+                await _poll_controls()
+                while sup["paused"]:
+                    await asyncio.sleep(0.2)
+                    await _poll_controls()
+                if sup["step_delay_s"] > 0:
+                    await asyncio.sleep(sup["step_delay_s"])
+                else:
+                    await asyncio.sleep(0)  # Yield control to the event loop
 
         # completion summary
         summary = {

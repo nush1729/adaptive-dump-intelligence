@@ -108,6 +108,39 @@ class Terrain:
         return site_uniformity(self)
 
     @staticmethod
+    def from_height_grid(height: np.ndarray, material: str = "default", entry: Tuple[int, int] | None = None) -> 'Terrain':
+        """Build a Terrain from a real (e.g. CSV-uploaded) height-map grid.
+
+        Cells are masked-active wherever the supplied height is finite and
+        non-negative — mirrors how a survey/LiDAR export marks "no data" with
+        NaN or sentinel negatives outside the site boundary. `entry` defaults
+        to the lowest sufficiently-wide row, matching make_demo_polygon's
+        dynamic-entry heuristic so live-CSV terrains dispatch identically to
+        synthetic ones.
+        """
+        height = np.asarray(height, dtype=np.float32)
+        rows, cols = height.shape
+        mask = np.isfinite(height) & (height >= 0)
+        height = np.where(mask, height, 0.0).astype(np.float32)
+
+        if entry is None:
+            mc = np.argwhere(mask)
+            if len(mc) == 0:
+                entry = (rows // 2, cols // 2)
+            else:
+                entry_r = int(mc[0, 0])
+                col_mid = int(np.mean(mc[:, 1]))
+                for rr in range(rows - 1, -1, -1):
+                    if np.sum(mask[rr, :]) >= 15:
+                        cols_in_row = np.where(mask[rr, :])[0]
+                        entry_r = rr
+                        col_mid = int(cols_in_row[len(cols_in_row) // 2])
+                        break
+                entry = (entry_r, col_mid)
+
+        return Terrain(height, mask, entry, material)
+
+    @staticmethod
     def make_demo_polygon(rows: int, cols: int, material: str, seed: int) -> 'Terrain':
         rng = np.random.default_rng(seed)
 

@@ -101,10 +101,12 @@ export default function BenchmarkPanel() {
 
   // Fetch real data from backend
   useEffect(() => {
+    let stale = false;
     Promise.all([
       fetch(`${API}/benchmark`).then((r) => r.json()).catch(() => null),
       fetch(`${API}/eval_result`).then((r) => r.json()).catch(() => null),
     ]).then(([bdata, edata]) => {
+      if (stale) return;
       if (bdata && bdata.per_polygon && bdata.summaries) {
         // Full benchmark_results.json
         setData(bdata);
@@ -128,6 +130,7 @@ export default function BenchmarkPanel() {
       if (edata && edata.ml_efficiency != null) setEvalR(edata);
       setLoading(false);
     });
+    return () => { stale = true; };
   }, []);
 
   // ── Derive real data per seed ─────────────────────────────────────────────
@@ -326,7 +329,7 @@ export default function BenchmarkPanel() {
               <YAxis tick={{ fill: "var(--muted)", fontSize: 9,
                 fontFamily: "JetBrains Mono" }} />
               <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem",
+              <Legend wrapperStyle={{ fontFamily: "JetBrains Mono", fontSize: "0.68rem",
                 color: "var(--text2)", paddingTop: 8 }} />
               <Bar dataKey="ADIOS"  fill="#FFC000" fillOpacity={0.85} radius={[2,2,0,0]} />
               {hasML && <Bar dataKey="ML" fill="#7B68EE" fillOpacity={0.85} radius={[2,2,0,0]} />}
@@ -347,7 +350,7 @@ export default function BenchmarkPanel() {
               )}
               <Radar name="Static" dataKey="Static"
                 stroke="#FF5722" fill="#FF5722" fillOpacity={0.14} />
-              <Legend wrapperStyle={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem" }} />
+              <Legend wrapperStyle={{ fontFamily: "JetBrains Mono", fontSize: "0.68rem" }} />
               <Tooltip content={<CustomTooltip />} />
             </RadarChart>
           </ResponsiveContainer>

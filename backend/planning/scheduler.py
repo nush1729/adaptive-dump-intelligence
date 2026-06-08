@@ -66,8 +66,11 @@ class TimeSpaceScheduler:
             self.wait_for[tid] = blockers
             # ERROR 2-F fix: detect and break deadlock cycles at dispatch time
             if self.has_cycle() and _depth < 3:
-                # Break cycle: release the blocker with the highest starvation count
-                worst = max(blockers, key=lambda x: self.starvation.get(x, 0))
+                # Break cycle: release the blocker with the highest starvation count.
+                # Tie-break on tid for determinism — `blockers` is a set, whose
+                # iteration order is hash-based and would otherwise make deadlock
+                # resolution (and thus replay/audit reproducibility) non-deterministic.
+                worst = max(blockers, key=lambda x: (self.starvation.get(x, 0), x))
                 self.release(worst)
                 # Retry once with the freed slot
                 return self.try_reserve(tid, path, t0, _depth + 1)

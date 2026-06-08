@@ -82,6 +82,24 @@ function Spark({ d, color, type = "line" }: { d: number[]; color: string; type?:
   );
 }
 
+/* ─── Scroll-reveal wrapper ──────────────────────────────── */
+function Reveal({ children, delay = 0, y = 36 }: { children: React.ReactNode; delay?: number; y?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-80px" });
+  return (
+    <div
+      ref={ref}
+      style={{
+        transform: inView ? "translateY(0)" : `translateY(${y}px)`,
+        opacity: inView ? 1 : 0,
+        transition: `transform .7s cubic-bezier(.22,1,.36,1) ${delay}s, opacity .7s ease ${delay}s`,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* ─── CAT Dump Truck — realistic 3/4 perspective ───────────── */
 function CatTruck({ scale = 1 }: { scale?: number }) {
   // Depth offset for 3/4 perspective top and front faces
@@ -549,8 +567,8 @@ function TerrainHolo() {
         display: "flex", alignItems: "center", gap: 8, background: "rgba(245,180,0,0.04)",
       }}>
         <div style={{ width: 6, height: 6, borderRadius: "50%", background: GOLD, animation: "blink 1.4s ease-in-out infinite", boxShadow: `0 0 8px ${GOLD}` }} />
-        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.52rem", color: GOLD, letterSpacing: "0.22em", textTransform: "uppercase" }}>Terrain Scan</span>
-        <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono',monospace", fontSize: "0.48rem", color: `${GOLD}88`, letterSpacing: "0.12em" }}>ACTIVE</span>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.7rem", color: GOLD, letterSpacing: "0.22em", textTransform: "uppercase" }}>Terrain Scan</span>
+        <span style={{ marginLeft: "auto", fontFamily: "'JetBrains Mono',monospace", fontSize: "0.65rem", color: `${GOLD}88`, letterSpacing: "0.12em" }}>ACTIVE</span>
       </div>
       {/* Terrain SVG */}
       <div style={{ position: "relative", overflow: "hidden" }}>
@@ -586,9 +604,9 @@ function TerrainHolo() {
       </div>
       {/* Footer data */}
       <div style={{ padding: "5px 14px", display: "flex", justifyContent: "space-between", borderTop: `1px solid rgba(245,180,0,0.1)` }}>
-        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.46rem", color: `${GOLD}66`, letterSpacing: "0.1em" }}>ELEV 247m</span>
-        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.46rem", color: `${GOLD}55`, letterSpacing: "0.1em" }}>100×100 GRID</span>
-        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.46rem", color: `${GOLD}44`, letterSpacing: "0.1em" }}>PPO ACTIVE</span>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.62rem", color: `${GOLD}66`, letterSpacing: "0.1em" }}>ELEV 247m</span>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.62rem", color: `${GOLD}55`, letterSpacing: "0.1em" }}>100×100 GRID</span>
+        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.62rem", color: `${GOLD}44`, letterSpacing: "0.1em" }}>PPO ACTIVE</span>
       </div>
     </div>
   );
@@ -710,8 +728,7 @@ export default function LandingPage() {
       ref={rootRef}
       style={{
         background: "#030505",
-        height: "100vh",
-        overflow: "hidden",
+        minHeight: "100vh",
         color: "#f5f5f5",
         fontFamily: "'DM Sans', sans-serif",
       }}
@@ -789,8 +806,8 @@ export default function LandingPage() {
             ))}
           </div>
           <div style={{ paddingBottom: 2 }}>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.42rem", color: "#4b5563", letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1.3 }}>ADAPTIVE INTELLIGENCE</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.42rem", color: "#4b5563", letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1.3 }}>SYSTEM</div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.62rem", color: "#4b5563", letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1.3 }}>ADAPTIVE INTELLIGENCE</div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.62rem", color: "#4b5563", letterSpacing: "0.18em", textTransform: "uppercase", lineHeight: 1.3 }}>SYSTEM</div>
           </div>
         </div>
 
@@ -805,7 +822,7 @@ export default function LandingPage() {
                 onClick={() => router.push(NAV_ROUTES[link])}
                 style={{
                   fontFamily: "'JetBrains Mono',monospace",
-                  fontSize: "0.58rem",
+                  fontSize: "0.78rem",
                   letterSpacing: "0.1em",
                   textTransform: "uppercase",
                   color: active ? GOLD : "#9ca3af",
@@ -827,7 +844,7 @@ export default function LandingPage() {
           whileHover={{ background: GOLD, color: "#000", boxShadow: `0 0 28px ${GOLD}88` }}
           style={{
             fontFamily: "'JetBrains Mono',monospace", fontWeight: 700,
-            fontSize: "0.6rem", letterSpacing: "0.18em", textTransform: "uppercase",
+            fontSize: "0.81rem", letterSpacing: "0.18em", textTransform: "uppercase",
             color: GOLD, background: "transparent",
             border: `1px solid ${GOLD}aa`,
             borderRadius: 3, padding: "10px 22px",
@@ -909,7 +926,7 @@ export default function LandingPage() {
             {/* Eyebrow */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <div style={{ width: 18, height: "1.5px", background: GOLD }} />
-              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.52rem", color: GOLD, letterSpacing: "0.22em", textTransform: "uppercase" }}>Mining Intelligence Platform</span>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "1.16rem", color: GOLD, letterSpacing: "0.2em", textTransform: "uppercase" }}>Mining Intelligence Platform</span>
             </div>
 
             {/* ADIOS title */}
@@ -918,7 +935,7 @@ export default function LandingPage() {
                 <span key={i} className="gl" style={{
                   fontFamily: "'Orbitron', sans-serif",
                   fontWeight: 900,
-                  fontSize: "clamp(2.6rem,5.4vw,4.8rem)",
+                  fontSize: "clamp(3.4rem,7vw,6.2rem)",
                   letterSpacing: "0.06em",
                   color: ch === "O" || ch === "S" ? GOLD : "#ffffff",
                   textShadow: ch === "O" || ch === "S"
@@ -938,11 +955,11 @@ export default function LandingPage() {
             <div className="gs" style={{
               fontFamily: "'Orbitron', sans-serif",
               fontWeight: 700,
-              fontSize: "clamp(.58rem, 1.05vw, .78rem)",
-              letterSpacing: ".14em",
+              fontSize: "clamp(.86rem, 1.5vw, 1.12rem)",
+              letterSpacing: ".12em",
               color: "#ffffff",
-              lineHeight: 1.45,
-              marginBottom: 10,
+              lineHeight: 1.5,
+              marginBottom: 12,
               textTransform: "uppercase",
             }}>
               Adaptive Dump Intelligence &<br />Orchestration System
@@ -954,18 +971,18 @@ export default function LandingPage() {
             {/* Description */}
             <p className="gd" style={{
               fontFamily: "'DM Sans', sans-serif",
-              fontSize: ".82rem",
-              color: "#9ca3af",
+              fontSize: "1.08rem",
+              color: "#b8c0cc",
               lineHeight: 1.7,
-              marginBottom: 22,
-              maxWidth: 340,
+              marginBottom: 26,
+              maxWidth: 400,
             }}>
               Real-time adaptive intelligence for autonomous mining logistics.
               Optimizing every dump. Every load. Every decision.
             </p>
 
             {/* CTA Buttons */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 252 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, maxWidth: 290 }}>
               <motion.button
                 className="gb"
                 onClick={() => router.push("/dashboard")}
@@ -973,17 +990,17 @@ export default function LandingPage() {
                 whileTap={{ scale: .97 }}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "11px 20px",
+                  padding: "13px 22px",
                   background: GOLD, border: "none", borderRadius: 3,
                   cursor: "pointer",
                   fontFamily: "'Orbitron', sans-serif", fontWeight: 700,
-                  fontSize: ".58rem", letterSpacing: ".2em", textTransform: "uppercase",
+                  fontSize: "1.11rem", letterSpacing: ".18em", textTransform: "uppercase",
                   color: "#000",
                   boxShadow: `0 0 18px ${GOLD}55`,
                   transition: "box-shadow .2s",
                 }}
               >
-                LAUNCH PLATFORM <span style={{ fontSize: ".9rem" }}>↗</span>
+                LAUNCH PLATFORM <span style={{ fontSize: "1.05rem" }}>↗</span>
               </motion.button>
 
               <motion.button
@@ -992,11 +1009,11 @@ export default function LandingPage() {
                 whileHover={{ borderColor: GOLD, color: GOLD }}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "9px 20px",
+                  padding: "11px 22px",
                   background: "transparent", border: "1px solid rgba(255,255,255,0.18)",
                   borderRadius: 3, cursor: "pointer",
                   fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
-                  fontSize: ".56rem", letterSpacing: ".15em", textTransform: "uppercase",
+                  fontSize: "1.08rem", letterSpacing: ".13em", textTransform: "uppercase",
                   color: "#e5e5e5", transition: "all .2s",
                 }}
               >
@@ -1009,11 +1026,11 @@ export default function LandingPage() {
                 whileHover={{ borderColor: GOLD, color: GOLD }}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "9px 20px",
+                  padding: "11px 22px",
                   background: "transparent", border: "1px solid rgba(255,255,255,0.09)",
                   borderRadius: 3, cursor: "pointer",
                   fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
-                  fontSize: ".56rem", letterSpacing: ".15em", textTransform: "uppercase",
+                  fontSize: "1.08rem", letterSpacing: ".13em", textTransform: "uppercase",
                   color: "#9ca3af", transition: "all .2s",
                 }}
               >
@@ -1086,8 +1103,8 @@ export default function LandingPage() {
                     <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: color, boxShadow: `0 0 10px ${color}` }} />
                     <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `1.5px solid ${color}`, background: "transparent", animation: "truck-ping 2.4s ease-out infinite", animationDelay: `${idx * .78}s` }} />
                   </div>
-                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".6rem", color, fontWeight: 600, letterSpacing: ".08em" }}>{id}</span>
-                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".56rem", color: status === "DUMPING" ? "#4ade80" : status === "EN ROUTE" ? "#00D4FF" : "#6b7280", letterSpacing: ".04em" }}>{status}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.81rem", color, fontWeight: 600, letterSpacing: ".08em" }}>{id}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.76rem", color: status === "DUMPING" ? "#4ade80" : status === "EN ROUTE" ? "#00D4FF" : "#6b7280", letterSpacing: ".04em" }}>{status}</span>
                 </div>
               ))}
             </div>
@@ -1105,15 +1122,15 @@ export default function LandingPage() {
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
                 <div style={{ width: 7, height: 7, borderRadius: "50%", background: GOLD, boxShadow: `0 0 7px ${GOLD}` }} />
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".53rem", color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".1em" }}>Route Optimized</span>
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.72rem", color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".1em" }}>Route Optimized</span>
               </div>
-              <div style={{ fontFamily: "'Orbitron',sans-serif", fontSize: ".8rem", color: "#fff", fontWeight: 700, marginBottom: 10 }}>ETA 02:45 MIN</div>
+              <div style={{ fontFamily: "'Orbitron',sans-serif", fontSize: "1.08rem", color: "#fff", fontWeight: 700, marginBottom: 10 }}>ETA 02:45 MIN</div>
               <div style={{ height: 1, background: "rgba(255,255,255,0.06)", marginBottom: 8 }} />
               <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }}>
                 <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 7px #4ade80" }} />
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".53rem", color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".1em" }}>Fuel Optimized</span>
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.72rem", color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".1em" }}>Fuel Optimized</span>
               </div>
-              <div style={{ fontFamily: "'Orbitron',sans-serif", fontSize: ".8rem", color: "#4ade80", fontWeight: 700 }}>+18% EFFICIENCY</div>
+              <div style={{ fontFamily: "'Orbitron',sans-serif", fontSize: "1.08rem", color: "#4ade80", fontWeight: 700 }}>+18% EFFICIENCY</div>
             </div>
 
             {/* PPO active badge */}
@@ -1127,7 +1144,7 @@ export default function LandingPage() {
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 7px #4ade80", animation: "blink 1.9s ease-in-out infinite" }} />
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".58rem", color: "#4ade80", letterSpacing: ".12em", textTransform: "uppercase" }}>PPO Policy Active</span>
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.78rem", color: "#4ade80", letterSpacing: ".12em", textTransform: "uppercase" }}>PPO Policy Active</span>
               </div>
             </div>
 
@@ -1170,7 +1187,7 @@ export default function LandingPage() {
                 background: `rgba(245,180,0,0.04)`,
               }}>
                 <div style={{ width: 7, height: 7, borderRadius: "50%", background: GOLD, animation: "blink 2.1s ease-in-out infinite", boxShadow: `0 0 8px ${GOLD}` }} />
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".58rem", color: "#fff", letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 700 }}>▶ Live System Metrics</span>
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.78rem", color: "#fff", letterSpacing: ".18em", textTransform: "uppercase", fontWeight: 700 }}>▶ Live System Metrics</span>
               </div>
 
               {/* Metric rows — flex: 1 so they evenly fill available height */}
@@ -1196,21 +1213,21 @@ export default function LandingPage() {
                     background: `rgba(245,180,0,0.07)`,
                     border: `1px solid rgba(245,180,0,0.2)`,
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: ".72rem", color: GOLD, flexShrink: 0,
+                    fontSize: "0.97rem", color: GOLD, flexShrink: 0,
                   }}>{m.icon}</div>
 
                   {/* Label + value */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{
-                      fontFamily: "'JetBrains Mono',monospace", fontSize: ".44rem",
+                      fontFamily: "'JetBrains Mono',monospace", fontSize: "0.62rem",
                       color: "#6b7280", textTransform: "uppercase", letterSpacing: ".07em",
                       marginBottom: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                     }}>{m.label}</div>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
-                      <span style={{ fontFamily: "'Orbitron',sans-serif", fontSize: ".82rem", fontWeight: 700, color: "#fff" }}>
+                      <span style={{ fontFamily: "'Orbitron',sans-serif", fontSize: "1.11rem", fontWeight: 700, color: "#fff" }}>
                         <CountUp to={m.to} suffix={m.suffix} decimals={(m as any).decimals ?? 0} delay={mi * 0.12} />
                       </span>
-                      <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".46rem", color: m.pos ? "#4ade80" : "#f87171" }}>{m.delta}</span>
+                      <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.62rem", color: m.pos ? "#4ade80" : "#f87171" }}>{m.delta}</span>
                     </div>
                   </div>
 
@@ -1225,117 +1242,72 @@ export default function LandingPage() {
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 background: "rgba(74,222,128,0.025)",
               }}>
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".54rem", color: "#6b7280", textTransform: "uppercase", letterSpacing: ".1em" }}>System Status</span>
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.73rem", color: "#6b7280", textTransform: "uppercase", letterSpacing: ".1em" }}>System Status</span>
                 <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                   <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 8px #4ade80", animation: "blink 2s ease-in-out infinite" }} />
-                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".62rem", color: "#4ade80", fontWeight: 700, letterSpacing: ".1em" }}>OPERATIONAL</span>
+                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.84rem", color: "#4ade80", fontWeight: 700, letterSpacing: ".1em" }}>OPERATIONAL</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ── PROCESS STEPS STRIP — always visible at bottom of hero ── */}
-        <div style={{
-          position: "relative", zIndex: 20,
-          flexShrink: 0,
-          background: "rgba(2,3,3,0.92)",
-          backdropFilter: "blur(28px)",
-          borderTop: `1px solid rgba(245,180,0,0.22)`,
-          padding: "9px 24px 12px",
-        }}>
-          {/* Header label */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-            <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${GOLD}44, transparent)` }} />
-            <span style={{
-              fontFamily: "'JetBrains Mono',monospace", fontSize: ".48rem",
-              color: GOLD, letterSpacing: ".24em", textTransform: "uppercase", whiteSpace: "nowrap",
-            }}>HOW ADIOS THINKS</span>
-            <div style={{ flex: 1, height: 1, background: `linear-gradient(270deg, ${GOLD}44, transparent)` }} />
-          </div>
+      </section>
 
-          {/* 5 cards in a row */}
-          <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
+      {/* ═══════════════════════════════════════
+          SECTION — HOW ADIOS THINKS (process steps)
+      ═══════════════════════════════════════ */}
+      <section style={{ position: "relative", padding: "84px 28px", background: "#040606" }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+          <Reveal>
+            <div style={{ textAlign: "center", marginBottom: 44 }}>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.78rem", color: GOLD, letterSpacing: ".28em", textTransform: "uppercase" }}>The Decision Loop</span>
+              <h2 style={{ fontFamily: "'Orbitron',sans-serif", fontWeight: 900, fontSize: "clamp(1.7rem,3.6vw,2.7rem)", letterSpacing: ".06em", color: "#fff", textTransform: "uppercase", margin: "10px 0 0" }}>
+                How ADIOS Thinks
+              </h2>
+              <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "1.19rem", color: "#9ca3af", maxWidth: 520, margin: "12px auto 0", lineHeight: 1.6 }}>
+                Five stages, looping continuously — from raw terrain data to a dispatched truck and back again.
+              </p>
+            </div>
+          </Reveal>
+
+          <div style={{ display: "flex", alignItems: "stretch", gap: 0, flexWrap: "wrap" }}>
             {STEPS.map((step, i) => (
               <React.Fragment key={step.n}>
-                <motion.div
-                  className="sc"
-                  initial={{ opacity: 0, y: 18 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: .42, delay: .85 + i * .09 }}
-                  style={{
-                    flex: 1,
-                    display: "flex", flexDirection: "column",
-                    padding: "8px 10px 10px",
-                    background: "rgba(7,9,9,0.82)",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    borderRadius: 4,
-                    position: "relative",
-                    cursor: "default",
-                    gap: 5,
-                    overflow: "hidden",
-                  }}
-                >
-                  {/* Top gold accent */}
-                  <div style={{
-                    position: "absolute", top: 0, left: "15%", right: "15%", height: "1.5px",
-                    background: `linear-gradient(90deg, transparent, ${GOLD}99, transparent)`,
-                  }} />
-                  {/* Step number */}
-                  <div style={{
-                    fontFamily: "'JetBrains Mono',monospace", fontSize: ".5rem",
-                    color: "#3d4855", letterSpacing: ".12em",
-                  }}>{step.n}</div>
-                  {/* Icon (scaled down to fit compact height) */}
-                  <div style={{
-                    display: "flex", justifyContent: "center",
-                    transform: "scale(0.7)", transformOrigin: "center top",
-                    height: 40, marginBottom: -8,
-                  }}>
-                    <PIcon type={step.type} />
-                  </div>
-                  {/* Title */}
-                  <div style={{
-                    fontFamily: "'Orbitron',sans-serif", fontWeight: 700,
-                    fontSize: ".56rem", letterSpacing: ".16em",
-                    color: GOLD, textTransform: "uppercase", textAlign: "center",
-                  }}>{step.label}</div>
-                  {/* Description */}
-                  <p style={{
-                    fontFamily: "'DM Sans',sans-serif", fontSize: ".73rem",
-                    color: "#9ca3af", lineHeight: 1.45,
-                    textAlign: "center", margin: 0,
-                  }}>{step.desc}</p>
-                </motion.div>
-
-                {/* Connector between cards */}
-                {i < STEPS.length - 1 && (
-                  <div style={{
-                    width: 32, display: "flex", alignItems: "center",
-                    justifyContent: "center", flexShrink: 0, position: "relative",
-                  }}>
-                    <div style={{
-                      width: "100%", height: 1,
-                      background: `linear-gradient(90deg, ${GOLD}33, ${GOLD}88, ${GOLD}33)`,
+                <Reveal delay={i * 0.08}>
+                  <div
+                    className="sc"
+                    style={{
+                      width: 190,
+                      display: "flex", flexDirection: "column",
+                      padding: "20px 16px 22px",
+                      background: "rgba(7,9,9,0.82)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      borderRadius: 6,
                       position: "relative",
-                    }}>
-                      {/* Center dot */}
-                      <div style={{
-                        position: "absolute", left: "50%", top: "50%",
-                        transform: "translate(-50%,-50%)",
-                        width: 5, height: 5, borderRadius: "50%",
-                        background: GOLD, boxShadow: `0 0 6px ${GOLD}`,
-                        animation: "blink 2.2s ease-in-out infinite",
-                      }} />
-                      {/* Arrow tip */}
-                      <div style={{
-                        position: "absolute", right: -1, top: "50%",
-                        transform: "translateY(-50%)",
-                        width: 0, height: 0,
-                        borderTop: "4px solid transparent",
-                        borderBottom: "4px solid transparent",
-                        borderLeft: `7px solid ${GOLD}99`,
-                      }} />
+                      cursor: "default",
+                      gap: 8,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div style={{
+                      position: "absolute", top: 0, left: "15%", right: "15%", height: "1.5px",
+                      background: `linear-gradient(90deg, transparent, ${GOLD}99, transparent)`,
+                    }} />
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.78rem", color: "#3d4855", letterSpacing: ".12em" }}>{step.n}</div>
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                      <PIcon type={step.type} />
+                    </div>
+                    <div style={{ fontFamily: "'Orbitron',sans-serif", fontWeight: 700, fontSize: "0.92rem", letterSpacing: ".18em", color: GOLD, textTransform: "uppercase", textAlign: "center" }}>{step.label}</div>
+                    <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "1.08rem", color: "#9ca3af", lineHeight: 1.55, textAlign: "center", margin: 0 }}>{step.desc}</p>
+                  </div>
+                </Reveal>
+
+                {i < STEPS.length - 1 && (
+                  <div style={{ width: 28, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, position: "relative" }}>
+                    <div style={{ width: "100%", height: 1, background: `linear-gradient(90deg, ${GOLD}33, ${GOLD}88, ${GOLD}33)`, position: "relative" }}>
+                      <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 5, height: 5, borderRadius: "50%", background: GOLD, boxShadow: `0 0 6px ${GOLD}`, animation: "blink 2.2s ease-in-out infinite" }} />
+                      <div style={{ position: "absolute", right: -1, top: "50%", transform: "translateY(-50%)", width: 0, height: 0, borderTop: "4px solid transparent", borderBottom: "4px solid transparent", borderLeft: `7px solid ${GOLD}99` }} />
                     </div>
                   </div>
                 )}
@@ -1346,15 +1318,102 @@ export default function LandingPage() {
       </section>
 
       {/* ═══════════════════════════════════════
-          BOTTOM FEATURE BAR
+          SECTION — LIVE SYSTEM METRICS (full detail grid)
+      ═══════════════════════════════════════ */}
+      <section style={{ position: "relative", padding: "84px 28px", background: "#030505", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+          <Reveal>
+            <div style={{ textAlign: "center", marginBottom: 44 }}>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.78rem", color: GOLD, letterSpacing: ".28em", textTransform: "uppercase" }}>Measured, Not Marketed</span>
+              <h2 style={{ fontFamily: "'Orbitron',sans-serif", fontWeight: 900, fontSize: "clamp(1.7rem,3.6vw,2.7rem)", letterSpacing: ".06em", color: "#fff", textTransform: "uppercase", margin: "10px 0 0" }}>
+                Live System Metrics
+              </h2>
+              <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "1.19rem", color: "#9ca3af", maxWidth: 540, margin: "12px auto 0", lineHeight: 1.6 }}>
+                Pulled from the same simulation engine running on the dashboard — every figure here is reproducible, not illustrative.
+              </p>
+            </div>
+          </Reveal>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
+            {METRICS.map((m, mi) => (
+              <Reveal key={m.label} delay={(mi % 3) * 0.08}>
+                <div className="feat-card" style={{
+                  display: "flex", alignItems: "center", gap: 14,
+                  padding: "18px 20px",
+                  background: "rgba(8,9,9,0.78)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: 6,
+                }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 5,
+                    background: `rgba(245,180,0,0.07)`,
+                    border: `1px solid rgba(245,180,0,0.2)`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "1rem", color: GOLD, flexShrink: 0,
+                  }}>{m.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.65rem", color: "#6b7280", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 3 }}>{m.label}</div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+                      <span style={{ fontFamily: "'Orbitron',sans-serif", fontSize: "1.18rem", fontWeight: 700, color: "#fff" }}>
+                        <CountUp to={m.to} suffix={m.suffix} decimals={(m as any).decimals ?? 0} delay={mi * 0.06} />
+                      </span>
+                      <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.68rem", color: m.pos ? "#4ade80" : "#f87171" }}>{m.delta}</span>
+                    </div>
+                  </div>
+                  <Spark d={m.d} color={m.pos ? (m.t === "bar" ? "#4ade80" : GOLD) : "#f87171"} type={m.t} />
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          SECTION — BUILT FOR THE FUTURE OF MINING
+      ═══════════════════════════════════════ */}
+      <section style={{ position: "relative", padding: "84px 28px", background: "#040606", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ maxWidth: 1180, margin: "0 auto" }}>
+          <Reveal>
+            <div style={{ textAlign: "center", marginBottom: 44 }}>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.78rem", color: GOLD, letterSpacing: ".28em", textTransform: "uppercase" }}>Why ADIOS</span>
+              <h2 style={{ fontFamily: "'Orbitron',sans-serif", fontWeight: 900, fontSize: "clamp(1.7rem,3.6vw,2.7rem)", letterSpacing: ".06em", color: "#fff", textTransform: "uppercase", margin: "10px 0 0" }}>
+                Built for the Future of Mining
+              </h2>
+            </div>
+          </Reveal>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 18 }}>
+            {FEATURES.map(({ icon, title, desc }, fi) => (
+              <Reveal key={title} delay={fi * 0.09}>
+                <div className="feat-card" style={{
+                  padding: "26px 22px",
+                  background: "rgba(7,9,9,0.78)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: 8,
+                  height: "100%",
+                }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 6,
+                    border: `1px solid rgba(245,180,0,0.24)`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "1.2rem", color: GOLD, marginBottom: 16,
+                    background: `rgba(245,180,0,0.05)`,
+                  }}>{icon}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.86rem", fontWeight: 700, color: "#fff", letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 8 }}>{title}</div>
+                  <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "1.16rem", color: "#9ca3af", lineHeight: 1.6 }}>{desc}</div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          FOOTER
       ═══════════════════════════════════════ */}
       <footer style={{
         background: "#020304",
         borderTop: "1px solid rgba(255,255,255,0.05)",
-        padding: "22px 28px",
-        display: "flex", alignItems: "center",
-        justifyContent: "space-between",
-        gap: 18, flexWrap: "wrap",
         position: "relative",
       }}>
         {/* Top gold line */}
@@ -1363,47 +1422,99 @@ export default function LandingPage() {
           background: `linear-gradient(90deg, transparent 0%, ${GOLD}55 22%, ${GOLD}88 50%, ${GOLD}55 78%, transparent 100%)`,
         }} />
 
-        <div style={{ display: "flex", alignItems: "center", gap: 28, flexWrap: "wrap" }}>
-          {/* Title */}
-          <div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 400, fontSize: ".48rem", letterSpacing: ".22em", color: "#6b7280", textTransform: "uppercase" }}>Built for the</div>
-            <div style={{ fontFamily: "'Orbitron',sans-serif", fontWeight: 900, fontSize: ".72rem", letterSpacing: ".16em", color: "#fff", textTransform: "uppercase" }}>Future of Mining</div>
+        <div style={{
+          maxWidth: 1180, margin: "0 auto", padding: "56px 28px 28px",
+          display: "flex", flexWrap: "wrap", gap: 48, justifyContent: "space-between",
+        }}>
+          {/* Brand column */}
+          <div style={{ maxWidth: 300 }}>
+            <div style={{ display: "flex", alignItems: "baseline", marginBottom: 10 }}>
+              {"ADIOS".split("").map((ch, i) => (
+                <span key={i} style={{
+                  fontFamily: "'Orbitron', sans-serif", fontWeight: 900, fontSize: "1.3rem",
+                  letterSpacing: "0.1em",
+                  color: ch === "O" || ch === "S" ? GOLD : "#ffffff",
+                }}>{ch}</span>
+              ))}
+            </div>
+            <p style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "1.11rem", color: "#6b7280", lineHeight: 1.7, margin: 0 }}>
+              Adaptive Dump Intelligence &amp; Orchestration System — real-time
+              decision intelligence for autonomous mining logistics.
+            </p>
           </div>
 
-          <div style={{ width: 1, height: 36, background: "rgba(255,255,255,0.07)" }} />
-
-          {/* Feature blocks */}
-          {FEATURES.map(({ icon, title, desc }) => (
-            <div
-              key={title}
-              className="feat-card"
-              style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "default" }}
-            >
-              <div style={{
-                width: 28, height: 28, borderRadius: 3,
-                border: `1px solid rgba(245,180,0,0.24)`,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: ".78rem", color: GOLD, flexShrink: 0,
-                background: `rgba(245,180,0,0.05)`,
-              }}>{icon}</div>
-              <div>
-                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".52rem", fontWeight: 700, color: "#fff", letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 3 }}>{title}</div>
-                <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: ".76rem", color: "#6b7280", lineHeight: 1.5, maxWidth: 132 }}>{desc}</div>
-              </div>
+          {/* Navigate column */}
+          <div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.68rem", color: GOLD, letterSpacing: ".22em", textTransform: "uppercase", marginBottom: 16 }}>Navigate</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {NAV_LINKS.map(link => (
+                <button
+                  key={link}
+                  className="nl"
+                  onClick={() => router.push(NAV_ROUTES[link])}
+                  style={{
+                    fontFamily: "'DM Sans',sans-serif", fontSize: "1.11rem",
+                    color: "#9ca3af", background: "transparent", border: "none",
+                    cursor: "pointer", padding: 0, textAlign: "left",
+                  }}
+                >
+                  {link.charAt(0) + link.slice(1).toLowerCase()}
+                </button>
+              ))}
             </div>
-          ))}
+          </div>
+
+          {/* Built for column */}
+          <div style={{ maxWidth: 360 }}>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.68rem", color: GOLD, letterSpacing: ".22em", textTransform: "uppercase", marginBottom: 16 }}>Built For The Future Of Mining</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {FEATURES.map(({ icon, title, desc }) => (
+                <div key={title} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{
+                    width: 26, height: 26, borderRadius: 3,
+                    border: `1px solid rgba(245,180,0,0.24)`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "1.0rem", color: GOLD, flexShrink: 0,
+                    background: `rgba(245,180,0,0.05)`,
+                  }}>{icon}</div>
+                  <div>
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.68rem", fontWeight: 700, color: "#fff", letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 2 }}>{title}</div>
+                    <div style={{ fontFamily: "'DM Sans',sans-serif", fontSize: "1.0rem", color: "#6b7280", lineHeight: 1.5 }}>{desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* CAT brand block */}
+          <div style={{
+            background: GOLD,
+            padding: "16px 26px",
+            borderRadius: 4,
+            flexShrink: 0,
+            alignSelf: "flex-start",
+            boxShadow: `0 0 32px ${GOLD}55`,
+          }}>
+            <div style={{ fontFamily: "'Orbitron',sans-serif", fontWeight: 900, fontSize: "1rem", letterSpacing: ".13em", color: "#000", textTransform: "uppercase" }}>CATERPILLAR</div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.62rem", color: "#000", opacity: .5, textAlign: "center", marginTop: 2, letterSpacing: ".1em" }}>® INSPIRED</div>
+          </div>
         </div>
 
-        {/* CAT brand block */}
+        {/* Bottom bar */}
         <div style={{
-          background: GOLD,
-          padding: "13px 24px",
-          borderRadius: 3,
-          flexShrink: 0,
-          boxShadow: `0 0 32px ${GOLD}77`,
+          maxWidth: 1180, margin: "0 auto",
+          padding: "18px 28px 28px",
+          borderTop: "1px solid rgba(255,255,255,0.05)",
+          display: "flex", flexWrap: "wrap", gap: 12,
+          alignItems: "center", justifyContent: "space-between",
         }}>
-          <div style={{ fontFamily: "'Orbitron',sans-serif", fontWeight: 900, fontSize: ".95rem", letterSpacing: ".13em", color: "#000", textTransform: "uppercase" }}>CATERPILLAR</div>
-          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: ".42rem", color: "#000", opacity: .5, textAlign: "center", marginTop: 2, letterSpacing: ".1em" }}>® INSPIRED</div>
+          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.78rem", color: "#4b5563", letterSpacing: ".08em" }}>
+            © {new Date().getFullYear()} ADIOS — Adaptive Dump Intelligence &amp; Orchestration System
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 8px #4ade80", animation: "blink 2.4s ease-in-out infinite" }} />
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "0.76rem", color: "#4ade80", letterSpacing: ".1em", textTransform: "uppercase" }}>All Systems Operational</span>
+          </div>
         </div>
       </footer>
     </div>

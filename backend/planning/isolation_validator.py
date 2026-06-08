@@ -108,15 +108,21 @@ class IsolationValidator:
         return True
 
     def _pass_thresh(self):
-        """Return BFS passability ceiling.
+        """Return BFS passability ceiling: mean terrain height + truck clearance.
 
-        Uses configurable percentile (default 93rd) of heights.
-        Lower percentile = safer BFS (fewer false passable cells), but
-        more aggressive rejection. 93rd gives better balance than 97th
-        for dense packing scenarios where tall mounds appear earlier.
+        A fixed vehicle-clearance margin above the *current* mean fill level —
+        not a percentile of the height distribution. The percentile approach
+        pinned to its `max(..., 1.0)` floor while the terrain was still mostly
+        flat (early simulation), so a single near-entry pile taller than 1.0m
+        was misread as "impassable" and collapsed BFS reachability to ~0,
+        cascading into false-positive iso_rejected(0.00) for the whole map.
+        Anchoring to mean_height instead tracks fill progress: the ceiling
+        rises as the site fills, so legitimate piles stay crossable while
+        genuinely oversized obstructions (more than `truck_clearance_m` above
+        the surrounding terrain) still correctly block passage.
         """
         h = self.terrain.height[self.terrain.mask]
         if len(h) == 0:
             return 8.0
-        pct = getattr(SITE_CONFIG, "passability_percentile", 93.0)
-        return float(max(np.percentile(h, pct), 1.0))
+        clearance = getattr(SITE_CONFIG, "truck_clearance_m", 2.5)
+        return float(h.mean() + clearance)

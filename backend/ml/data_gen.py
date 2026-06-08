@@ -56,7 +56,7 @@ def make_mixed_fleet_sequence(n_dumps: int, seed: int = 0) -> list:
     for i in range(n_dumps):
         truck_idx = i % n_trucks
         profile = profiles[truck_idx]
-        max_p = TRUCK_PROFILES[profile].max_payload_t
+        max_p = TRUCK_PROFILES.get(profile, TRUCK_PROFILES["generic"]).max_payload_t
         # bimodal: 60% near max, 40% at half-load
         if rng.random() < 0.6:
             base_p = max_p * rng.uniform(0.85, 1.0)
@@ -83,7 +83,11 @@ def _build_synthetic_iot(dump_idx: int, n_dumps: int, rng: np.random.Generator) 
         min(progress * 1.2, 1.0),                                           # active_zone_density
         float(np.clip(rng.uniform(0.6, 1.0), 0.0, 1.0)),                    # weather_visibility
         float(np.clip(1.0 - 0.15 * progress + rng.normal(0.0, 0.03), 0.0, 1.0)),  # equipment_health
-        float(np.clip(rng.uniform(0.5, 0.95), 0.0, 1.0)),                   # ground_bearing_capacity
+        # ground_bearing_capacity — mirrors environment.py / IoTTelemetry's
+        # height-dependent model (taller accumulated piles ⇒ softer ground):
+        # use episode progress as the height proxy so BC sees the same
+        # qualitative correlation PPO trains on, not an untethered uniform draw.
+        float(np.clip(0.9 - 0.35 * progress + rng.normal(0.0, 0.04), 0.0, 1.0)),
         float(rng.uniform(0.0, 0.7)),                                       # queue_length_norm
     ], dtype=np.float32)
     assert iot.shape == (IOT_FEATURE_DIM,)

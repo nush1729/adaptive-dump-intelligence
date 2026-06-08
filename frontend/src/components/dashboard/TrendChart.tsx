@@ -73,7 +73,7 @@ export default function TrendChart({ snapshots, height = 200 }: TrendChartProps)
 
   if (!snapshots || snapshots.length < 2) {
     return (
-      <div className="flex items-center justify-center h-full font-mono text-[0.7rem] uppercase tracking-widest"
+      <div className="flex items-center justify-center h-full font-mono text-[1.01rem] uppercase tracking-widest"
         style={{ color: "var(--muted)" }}>
         Run a simulation to see trends
       </div>
@@ -84,7 +84,7 @@ export default function TrendChart({ snapshots, height = 200 }: TrendChartProps)
     <div className="w-full h-full flex flex-col">
       {/* Legend */}
       <div className="flex items-center gap-5 px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
-        <div className="font-syncopate text-[0.6rem] uppercase tracking-[0.2em]" style={{ color: "var(--muted)" }}>
+        <div className="font-syncopate text-[1.01rem] uppercase tracking-[0.2em]" style={{ color: "var(--muted)" }}>
           Performance Trend
         </div>
         <div className="ml-auto flex items-center gap-4">
@@ -95,7 +95,7 @@ export default function TrendChart({ snapshots, height = 200 }: TrendChartProps)
           ].map(({ color, label }) => (
             <div key={label} className="flex items-center gap-1.5">
               <span className="w-3 h-0.5 rounded-full" style={{ background: color }} />
-              <span className="font-mono text-[0.55rem] uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+              <span className="font-mono text-[0.96rem] uppercase tracking-wider" style={{ color: "var(--muted)" }}>
                 {label}
               </span>
             </div>

@@ -42,8 +42,17 @@ class SiteConfig:
     dump_sigma_ratio: float = 0.35
     payload_reference_t: float = 200.0
     dump_height_gain_m: float = 0.6
-    # Param 6: passability ceiling percentile — used in isolation_validator (93rd)
+    # Param 6 (superseded): passability ceiling percentile — used in isolation_validator (93rd).
+    # Kept only as a fallback; the percentile pins to its `max(..., 1.0)` floor while the
+    # terrain is still mostly flat (early-sim), so a single near-entry pile taller than 1.0m
+    # could be misread as "impassable" and collapse BFS reachability to ~0 (cascading
+    # iso_rejected(0.00) false positives). _pass_thresh() now derives the ceiling from
+    # mean_height + truck_clearance_m instead, which tracks fill progress correctly.
     passability_percentile: float = 93.0
+    # Vehicle clearance — max pile height a loaded haul truck can safely drive over,
+    # added on top of the terrain's current mean height to form the BFS passability
+    # ceiling (mirrors how a real operator judges "can I still get through there?").
+    truck_clearance_m: float = 2.5
     compaction_floor: float = 0.85
     compaction_gain: float = 0.15
     benchmark_seed_start: int = 8000
@@ -141,9 +150,9 @@ MATERIALS: Dict[str, MaterialConfig] = {
 # to penalise gaps more aggressively and prefer unfilled polygon sections
 DEFAULT_SCORE_WEIGHTS = {
     "volume": 1.5,
-    "coverage": 1.8,
+    "distance": 1.8,
     "slope": 0.5,
-    "isolation": 0.8,
+    "segregation": 0.8,
     "spacing": 3.0,
 }
 

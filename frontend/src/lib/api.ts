@@ -20,6 +20,25 @@ export async function runSimulation(cfg: object) {
   return r.json();
 }
 
+export interface TerrainUploadResult {
+  terrain_id: string;
+  rows: number;
+  cols: number;
+  active_cells: number;
+  height_range_m: [number, number];
+}
+
+export async function uploadTerrainCsv(file: File): Promise<TerrainUploadResult> {
+  const form = new FormData();
+  form.append("file", file);
+  const r = await fetch(`${BASE}/upload_terrain`, { method: "POST", body: form });
+  if (!r.ok) {
+    const detail = await r.json().catch(() => null);
+    throw new Error(detail?.detail || `Upload failed (${r.status})`);
+  }
+  return r.json();
+}
+
 export async function tuneWeights(cfg: object) {
   const r = await fetch(`${BASE}/tune`, {
     method: "POST",
@@ -53,7 +72,25 @@ export async function fetchSpacingAnalysis(seed: number, material: string, dumpP
   return r.json();
 }
 
-export async function fetchFleetIntelligence(seed?: number, nTrucks?: number) {
+export async function fetchFleetIntelligence(
+  seed?: number,
+  nTrucks?: number,
+  fleetModels?: string[],
+  customTruckSpecs?: Record<string, { payload_t: number; turn_r: number; base_r: number; color: string }>
+) {
+  if (fleetModels && fleetModels.length > 0) {
+    const r = await fetch(`${BASE}/fleet_intelligence`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        seed: seed ?? 42,
+        n_trucks: nTrucks ?? 4,
+        fleet_models: fleetModels,
+        custom_truck_specs: customTruckSpecs && Object.keys(customTruckSpecs).length > 0 ? customTruckSpecs : null,
+      }),
+    });
+    return r.json();
+  }
   const params = new URLSearchParams();
   if (seed !== undefined) params.set("seed", String(seed));
   if (nTrucks !== undefined) params.set("n_trucks", String(nTrucks));

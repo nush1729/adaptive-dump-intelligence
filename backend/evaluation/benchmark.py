@@ -145,9 +145,17 @@ def run_heuristic(terrain: Terrain, fleet, n_dumps: int) -> dict:
 
 
 def run_static(terrain: Terrain, fleet, n_dumps: int = 60, step: int | None = None) -> dict:
-    """Uniform grid baseline with the same fleet payload sequence and constraints."""
+    """Autonomous fixed-grid baseline — uniform lattice spaced at the
+    real-world autonomous dump spacing (SITE_CONFIG.autonomous_spacing_m,
+    ~7.38m), not an arbitrary grid stride. This is the conservative,
+    rule-based pattern autonomous haul systems fall back to: sparse,
+    perfectly regular, and prone to leaving coverage gaps near irregular
+    polygon edges (matches the 'Autonomous Dump Pattern with missed Dumps'
+    reference imagery)."""
     rs, cs = np.where(terrain.mask)
-    step = int(step or SITE_CONFIG.target_spacing_cells)
+    cell_side_m = SITE_CONFIG.cell_area_m2 ** 0.5
+    step = int(step or round(SITE_CONFIG.autonomous_spacing_m / cell_side_m))
+    step = max(step, 1)
     t0 = time.perf_counter()
     positions = []
     log = []
@@ -178,6 +186,79 @@ def run_static(terrain: Terrain, fleet, n_dumps: int = 60, step: int | None = No
     summary = summarize_episode(terrain, log, [latency_ms] * len(dispatches), positions, "static_grid")
     return {
         "policy":             "static_grid",
+        "dumps_succeeded":    len(positions),
+        "volume_m3":          summary["total_volume"],
+        "coverage_pct":       summary["coverage_pct"],
+        "packing_efficiency": summary["packing_efficiency"],
+        "height_uniformity":  summary["height_uniformity"],
+        "filled_uniformity":  summary["filled_uniformity"],
+        "rejection_rate":     summary["rejection_rate"],
+        "iso_rejection_rate": summary["iso_rejection_rate"],
+        "mean_spacing_m":     summary["mean_spacing_m"],
+        "latency_ms":         summary["latency_ms"],
+        "latency_p95_ms":     summary["latency_p95_ms"],
+    }
+
+
+def run_staffed(terrain: Terrain, fleet, n_dumps: int = 60, seed: int = 0) -> dict:
+    """Staffed/manual operator baseline — tight, organic spacing
+    (SITE_CONFIG.staffed_spacing_m, ~3.03m) with randomised local jitter
+    rather than a rigid lattice. Models a human operator who packs piles
+    closer together and adapts placement to terrain by eye, producing the
+    dense, irregular row patterns seen in the 'Staffed Dump Pattern with
+    no missed Dumps' reference imagery — denser and less wasteful of
+    polygon area than a fixed autonomous grid, but not constraint-aware
+    like ADIOS."""
+    rng = np.random.default_rng(seed)
+    rs, cs = np.where(terrain.mask)
+    cell_side_m = SITE_CONFIG.cell_area_m2 ** 0.5
+    base_step = max(1, round(SITE_CONFIG.staffed_spacing_m / cell_side_m))
+    jitter = max(1, base_step // 2)
+
+    t0 = time.perf_counter()
+    positions = []
+    log = []
+    val = IsolationValidator(terrain, terrain.entry, SITE_CONFIG.iso_threshold, SITE_CONFIG.min_dump_spacing_cells)
+    dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // len(fleet) + 1)
+    dispatches = dispatches[:n_dumps]
+
+    r0, r1 = int(rs.min()), int(rs.max())
+    c0, c1 = int(cs.min()), int(cs.max())
+    # Loosely-spaced lattice of "intended" spots, each perturbed by the
+    # operator's eye — organic rather than perfectly regular.
+    candidates = []
+    for r in range(r0, r1 + 1, base_step):
+        for c in range(c0, c1 + 1, base_step):
+            jr = int(np.clip(r + rng.integers(-jitter, jitter + 1), r0, r1))
+            jc = int(np.clip(c + rng.integers(-jitter, jitter + 1), c0, c1))
+            if terrain.mask[jr, jc]:
+                candidates.append((jr, jc))
+    # Row-major order (not shuffled) — an operator works the site
+    # methodically row by row, producing tight neighbour spacing rather
+    # than scattering dumps randomly across the polygon.
+
+    cell_i = 0
+    for i, (truck_id, payload_t) in enumerate(dispatches):
+        placed = False
+        while cell_i < len(candidates):
+            r, c = candidates[cell_i]
+            cell_i += 1
+            safe, _ = val.validate(r, c, payload_t)
+            if not safe:
+                continue
+            ok, reason = terrain.apply_dump(r, c, payload_t)
+            if ok:
+                val.record_dump(r, c)
+                positions.append((r, c))
+                log.append({"t": i, "truck": truck_id, "status": "dumped", "r": r, "c": c})
+                placed = True
+                break
+        if not placed:
+            log.append({"t": i, "truck": truck_id, "status": "no_space", "r": 0, "c": 0})
+    latency_ms = (time.perf_counter() - t0) * 1000 / max(len(dispatches), 1)
+    summary = summarize_episode(terrain, log, [latency_ms] * len(dispatches), positions, "staffed_manual")
+    return {
+        "policy":             "staffed_manual",
         "dumps_succeeded":    len(positions),
         "volume_m3":          summary["total_volume"],
         "coverage_pct":       summary["coverage_pct"],

@@ -94,8 +94,8 @@ export default function NavBar() {
             <span
               style={{
                 fontFamily: "JetBrains Mono",
-                fontSize: "0.52rem",
-                letterSpacing: "0.12em",
+                fontSize: "0.92rem",
+                letterSpacing: "0.1em",
                 textTransform: "uppercase",
                 color: mlOnline ? "#FFCD11" : "#6B7280",
               }}

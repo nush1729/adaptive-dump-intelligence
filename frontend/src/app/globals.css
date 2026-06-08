@@ -27,7 +27,7 @@
   --white:    #EDF0F4;
 
   --nav-bg:   rgba(8,10,13,0.95);
-  --nav-h:    52px;
+  --nav-h:    56px;
 
   --glow-cat:   0 0 20px rgba(255,205,17,0.35);
   --glow-amber: 0 0 20px rgba(255,165,0,0.35);
@@ -175,7 +175,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* Section header */
 .section-label {
   font-family: "Syncopate", sans-serif;
-  font-size: 0.58rem;
+  font-size: 0.95rem;
   letter-spacing: 0.26em;
   text-transform: uppercase;
   color: var(--muted);
@@ -212,7 +212,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .kpi-val.ore   { color: var(--ore); }
 .kpi-val.green { color: var(--green); }
 .kpi-label {
-  font-size: 0.58rem; letter-spacing: 0.15em; text-transform: uppercase;
+  font-size: 0.82rem; letter-spacing: 0.15em; text-transform: uppercase;
   color: var(--text2); font-family: "JetBrains Mono", monospace;
 }
 
@@ -249,7 +249,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   background: transparent; color: var(--ore);
   border: 1px solid rgba(255,107,53,0.4);
   font-family: "Syncopate", sans-serif;
-  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.16em;
+  font-size: 0.96rem; font-weight: 700; letter-spacing: 0.16em;
   text-transform: uppercase; cursor: pointer; border-radius: 3px;
   transition: all 0.18s;
 }
@@ -281,18 +281,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .adios-brand {
   font-family: "Syncopate", sans-serif;
-  font-size: 0.95rem; font-weight: 700; letter-spacing: 0.28em;
+  font-size: 1.05rem; font-weight: 700; letter-spacing: 0.22em;
   color: var(--cat); text-decoration: none; text-transform: uppercase;
   white-space: nowrap;
 }
 .adios-brand span { color: var(--ore); }
 .adios-nav-links {
-  display: flex; align-items: center; gap: 1px;
+  display: flex; align-items: center; gap: 2px;
   min-width: 0; overflow-x: auto;
 }
 .adios-nav-links a {
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.8rem; letter-spacing: 0.1em; font-weight: 500;
+  font-size: 0.92rem; letter-spacing: 0.06em; font-weight: 500;
   text-transform: uppercase; padding: 8px 14px;
   color: var(--text2); text-decoration: none;
   border-bottom: 2px solid transparent;
@@ -319,8 +319,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   box-shadow: 0 0 8px var(--green);
 }
 .adios-live strong {
-  font-family: "JetBrains Mono", monospace; font-size: 0.7rem;
-  color: var(--green); letter-spacing: 0.08em; text-transform: uppercase;
+  font-family: "JetBrains Mono", monospace; font-size: 0.86rem;
+  color: var(--green); letter-spacing: 0.06em; text-transform: uppercase;
   font-weight: 600; white-space: nowrap;
 }
 .adios-icon-button {
@@ -344,9 +344,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .adios-page-main    { flex: 1; min-width: 0; height: 100%; overflow-y: auto; overflow-x: hidden; background: var(--void); }
 
 .adios-status-bar {
-  flex-shrink: 0; height: 30px; display: flex; align-items: center; gap: 18px;
+  flex-shrink: 0; height: 36px; display: flex; align-items: center; gap: 18px;
   padding: 0 16px; background: var(--surface); border-top: 1px solid var(--border);
-  font-family: "JetBrains Mono", monospace; font-size: 0.66rem; color: var(--text2);
+  font-family: "JetBrains Mono", monospace; font-size: 0.92rem; color: var(--text2);
   letter-spacing: 0.04em; overflow: hidden; white-space: nowrap;
 }
 .adios-status-bar .dot {
@@ -367,19 +367,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .adios-sidebar:last-child { border-right: none; border-left: 1px solid var(--border); }
 
 .adios-sidebar-header {
-  min-height: 52px; padding: 11px 13px 10px 15px;
+  min-height: 60px; padding: 12px 13px 11px 15px;
   border-bottom: 1px solid var(--border);
   display: flex; align-items: center; gap: 10px;
   background: var(--panel);
   flex-shrink: 0;
 }
 .adios-sidebar-title {
-  font-family: "Syncopate", sans-serif; font-size: 0.7rem;
+  font-family: "Syncopate", sans-serif; font-size: 0.98rem;
   letter-spacing: 0.2em; color: var(--white); text-transform: uppercase;
   font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .adios-sidebar-subtitle {
-  margin-top: 2px; font-family: "JetBrains Mono", monospace; font-size: 0.56rem;
+  margin-top: 2px; font-family: "JetBrains Mono", monospace; font-size: 0.92rem;
   letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -398,12 +398,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   height: 100%; padding: 8px 7px; display: flex; flex-direction: column; gap: 6px; align-items: stretch;
 }
 .adios-rail-item {
-  min-height: 44px; border: 1px solid var(--border); background: var(--panel);
+  min-height: 56px; border: 1px solid var(--border); background: var(--panel);
   border-radius: 4px; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 2px;
+  align-items: center; justify-content: center; gap: 3px; padding: 4px 6px;
 }
-.adios-rail-item span { font-family: "JetBrains Mono", monospace; font-size: 0.46rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
-.adios-rail-item strong { font-family: "JetBrains Mono", monospace; font-size: 0.7rem; color: var(--cat); max-width: 42px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adios-rail-item span { font-family: "JetBrains Mono", monospace; font-size: 0.86rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.adios-rail-item strong { font-family: "JetBrains Mono", monospace; font-size: 1.05rem; color: var(--cat); max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ═══════════════════════════════════════════════════
    MISC PANELS
@@ -434,5 +434,5 @@ input[type=range] { accent-color: var(--cat); }
 @media (max-width: 900px) {
   .adios-live strong { display: none; }
   .adios-nav { gap: 10px; padding-inline: 12px; }
-  .adios-nav-links a { padding-inline: 8px; font-size: 0.7rem; }
+  .adios-nav-links a { padding-inline: 8px; font-size: 0.8rem; }
 }

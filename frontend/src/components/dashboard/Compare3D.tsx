@@ -1,8 +1,9 @@
 "use client";
 /**
- * Compare3D — side-by-side Plotly surface comparison:
- *   Left panel:  ADIOS (heuristic or ML) final terrain
- *   Right panel: Static uniform-grid baseline
+ * Compare3D — 3-way Plotly surface comparison of dump strategies:
+ *   Panel 1: Staffed/manual operator pattern (tight, organic spacing)
+ *   Panel 2: Autonomous fixed-grid baseline (sparse, rigid lattice)
+ *   Panel 3: ADIOS (heuristic or ML) adaptive terrain
  *
  * Uses plotly.js loaded via CDN script tag (avoids 3 MB bundle hit).
  */
@@ -15,6 +16,7 @@ declare global {
 interface Compare3DProps {
   adiosSurface: number[][] | null;
   staticSurface: number[][] | null;
+  staffedSurface?: number[][] | null;
   mask: boolean[][] | null;
   policy?: string;
 }
@@ -145,7 +147,7 @@ function PlotPanel({
   );
 }
 
-export default function Compare3D({ adiosSurface, staticSurface, mask, policy }: Compare3DProps) {
+export default function Compare3D({ adiosSurface, staticSurface, staffedSurface, mask, policy }: Compare3DProps) {
   const adiosLabel =
     policy === "maskable_ppo" ? "ADIOS — Maskable PPO" :
     policy === "imitation_bc" ? "ADIOS — Imitation BC" :
@@ -157,17 +159,24 @@ export default function Compare3D({ adiosSurface, staticSurface, mask, policy }:
       background: "var(--void)",
     }}>
       <PlotPanel
-        surface={adiosSurface}
+        surface={staffedSurface ?? null}
         mask={mask}
-        title={adiosLabel}
-        color="#FFC000"
+        title="Staffed — Manual Pattern"
+        color="#00A3B3"
       />
       <div style={{ width: 1, background: "var(--border)" }} />
       <PlotPanel
         surface={staticSurface}
         mask={mask}
-        title="Static Baseline — Grid"
+        title="Autonomous — Fixed Grid"
         color="#FF5722"
+      />
+      <div style={{ width: 1, background: "var(--border)" }} />
+      <PlotPanel
+        surface={adiosSurface}
+        mask={mask}
+        title={adiosLabel}
+        color="#FFC000"
       />
     </div>
   );

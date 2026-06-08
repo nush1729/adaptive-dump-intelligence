@@ -6,6 +6,8 @@ export interface SimConfig {
   material: "default" | "rock" | "ore" | "overburden";
   n_dumps: number;
   fleet_models: string[];
+  payload_overrides?: Record<string, number> | null;
+  custom_truck_specs?: Record<string, FleetSpec> | null;
   weights?: ScoreWeights;
   iso_threshold: number;
   auto_tune?: boolean;
@@ -15,10 +17,11 @@ export interface SimConfig {
 }
 
 export interface ScoreWeights {
-  w1: number;
-  w2: number;
-  w3: number;
-  w4: number;
+  volume: number;
+  distance: number;
+  slope: number;
+  segregation: number;
+  spacing: number;
 }
 
 export interface DumpSummary {
@@ -40,6 +43,10 @@ export interface StaticSummary {
   volume: number;
   coverage_pct: number;
   packing_efficiency: number;
+  height_uniformity?: number;
+  rejection_rate?: number;
+  mean_spacing_m?: number;
+  policy?: string;
 }
 
 export interface DumpSnapshot {
@@ -79,9 +86,11 @@ export interface DumpStage {
 export interface SimResult {
   summary: DumpSummary;
   static_summary: StaticSummary;
+  staffed_summary?: StaticSummary;
   weights_used: ScoreWeights;
   surface: number[][];
   static_surface: number[][];
+  staffed_surface?: number[][];
   slope_map: number[][];
   score_map: (number | null)[][] | null;
   mask: boolean[][];
@@ -124,13 +133,24 @@ export interface AnomalyAlert {
   message: string;
 }
 
+export interface ToastAlert {
+  id: number;
+  ts: number;
+  level: "info" | "warn" | "error";
+  title: string;
+  detail?: string;
+}
+
 export interface AnomalyReport {
   alerts: AnomalyAlert[];
   alert_count: number;
 }
 
 export interface WsMessage {
-  type: "dump" | "rejected" | "skip" | "done" | "error" | "zone_layout" | "anomaly";
+  type: "dump" | "rejected" | "skip" | "done" | "error" | "zone_layout" | "anomaly" | "deadlock" | "control_ack";
+  trucks?: string[];
+  action?: "pause" | "resume" | "set_speed";
+  step_delay_s?: number;
   dump?: number;
   truck?: string;
   r?: number;
@@ -189,6 +209,7 @@ export interface TruckInfo {
   turning_radius_m: number;
   axle_load_t: number;
   min_corridor_width_m: number;
+  is_custom?: boolean;
 }
 
 export interface IoTFeatures {

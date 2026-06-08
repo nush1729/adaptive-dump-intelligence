@@ -23,12 +23,12 @@ function NavBar({ active }: { active: string }) {
       </div>
       <div style={{ display: "flex", gap: 22 }}>
         {Object.keys(NAV_ROUTES).map((link) => (
-          <button key={link} onClick={() => router.push(NAV_ROUTES[link])} style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", letterSpacing: "0.12em", color: active === link ? "#FFB800" : "#6B7280", background: "transparent", border: "none", cursor: "pointer", padding: "2px 0", borderBottom: active === link ? "1px solid #FFB800" : "1px solid transparent", transition: "color 0.2s" }}>
+          <button key={link} onClick={() => router.push(NAV_ROUTES[link])} style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", letterSpacing: "0.12em", color: active === link ? "#FFB800" : "#6B7280", background: "transparent", border: "none", cursor: "pointer", padding: "2px 0", borderBottom: active === link ? "1px solid #FFB800" : "1px solid transparent", transition: "color 0.2s" }}>
             {link}
           </button>
         ))}
       </div>
-      <motion.button onClick={() => router.push("/dashboard")} whileHover={{ background: "#FFB800", color: "#000" }} style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.58rem", letterSpacing: "0.16em", color: "#FFB800", background: "transparent", border: "1px solid #FFB800", borderRadius: 2, padding: "7px 16px", cursor: "pointer", transition: "all 0.2s" }}>
+      <motion.button onClick={() => router.push("/dashboard")} whileHover={{ background: "#FFB800", color: "#000" }} style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.78rem", letterSpacing: "0.16em", color: "#FFB800", background: "transparent", border: "1px solid #FFB800", borderRadius: 2, padding: "7px 16px", cursor: "pointer", transition: "all 0.2s" }}>
         LAUNCH →
       </motion.button>
     </nav>
@@ -134,14 +134,14 @@ export default function TeamPage() {
 
         {/* Hero */}
         <section style={{ padding: "60px 64px 48px", borderBottom: "1px solid rgba(255,184,0,0.07)" }}>
-          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.52rem", color: "#6B7280", letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 16, height: 1, background: "#FFB800" }} />
             The Team
           </div>
           <h1 style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 900, fontSize: "clamp(2rem,4.5vw,3.5rem)", letterSpacing: "0.06em", textTransform: "uppercase", lineHeight: 1.1, marginBottom: 20 }}>
             Built By<br /><span style={{ color: "#FFB800" }}>Four Engineers.</span>
           </h1>
-          <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.72rem", color: "#6B7280", lineHeight: 1.8, maxWidth: 640 }}>
+          <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.97rem", color: "#6B7280", lineHeight: 1.8, maxWidth: 640 }}>
             ADIOS was designed, trained, and shipped end-to-end across AI architecture, safety systems, frontend visualisation, and path planning — solving Caterpillar Problem Statement 4: Optimal Dump Packing.
           </p>
 
@@ -149,8 +149,8 @@ export default function TeamPage() {
           <div style={{ display: "flex", gap: 0, marginTop: 40, border: "1px solid rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden", maxWidth: 680 }}>
             {HIGHLIGHTS.map((h, i) => (
               <div key={h.label} style={{ flex: 1, padding: "16px 20px", borderRight: i < HIGHLIGHTS.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
-                <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.44rem", color: "#6B7280", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 5 }}>{h.label}</div>
-                <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.72rem", color: "#FFF", letterSpacing: "0.06em" }}>{h.value}</div>
+                <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 5 }}>{h.label}</div>
+                <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.97rem", color: "#FFF", letterSpacing: "0.06em" }}>{h.value}</div>
               </div>
             ))}
           </div>
@@ -182,23 +182,23 @@ export default function TeamPage() {
                   {/* Header */}
                   <div style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 2, flexWrap: "wrap" }}>
                     <h2 style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 900, fontSize: "1.25rem", letterSpacing: "0.06em", color: "#FFF", margin: 0 }}>{member.name}</h2>
-                    <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.58rem", color: member.roleColor, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{member.role}</span>
+                    <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.78rem", color: member.roleColor, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>{member.role}</span>
                   </div>
 
                   {/* Focus */}
-                  <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.5rem", color: "#6B7280", letterSpacing: "0.06em", marginBottom: 14 }}>{member.focus}</div>
+                  <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: "#6B7280", letterSpacing: "0.06em", marginBottom: 14 }}>{member.focus}</div>
 
                   {/* Description */}
-                  <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.62rem", color: "#9CA3AF", lineHeight: 1.8, margin: "0 0 20px" }}>{member.description}</p>
+                  <p style={{ fontFamily: "JetBrains Mono", fontSize: "0.84rem", color: "#9CA3AF", lineHeight: 1.8, margin: "0 0 20px" }}>{member.description}</p>
 
                   {/* Contributions */}
                   <div style={{ marginBottom: 20 }}>
-                    <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.48rem", color: member.roleColor, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 10 }}>Key Contributions</div>
+                    <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: member.roleColor, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 10 }}>Key Contributions</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       {member.contributions.map((c) => (
                         <div key={c} style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                           <ContribDot color={member.roleColor} />
-                          <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.56rem", color: "#9CA3AF", lineHeight: 1.5 }}>{c}</span>
+                          <span style={{ fontFamily: "JetBrains Mono", fontSize: "0.76rem", color: "#9CA3AF", lineHeight: 1.5 }}>{c}</span>
                         </div>
                       ))}
                     </div>
@@ -207,7 +207,7 @@ export default function TeamPage() {
                   {/* Tags */}
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                     {member.tags.map((tag) => (
-                      <span key={tag} style={{ fontFamily: "JetBrains Mono", fontSize: "0.48rem", color: member.roleColor, border: `1px solid ${member.roleColor}40`, borderRadius: 2, padding: "3px 10px", letterSpacing: "0.08em" }}>{tag}</span>
+                      <span key={tag} style={{ fontFamily: "JetBrains Mono", fontSize: "0.7rem", color: member.roleColor, border: `1px solid ${member.roleColor}40`, borderRadius: 2, padding: "3px 10px", letterSpacing: "0.08em" }}>{tag}</span>
                     ))}
                   </div>
                 </div>
@@ -221,7 +221,7 @@ export default function TeamPage() {
           <div style={{ border: "1px solid rgba(255,184,0,0.12)", borderRadius: 4, padding: "32px 40px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, flexWrap: "wrap" }}>
             <div>
               <div style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 900, fontSize: "1.1rem", letterSpacing: "0.08em", color: "#FFF", marginBottom: 6 }}>See The System In Action</div>
-              <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.6rem", color: "#6B7280", maxWidth: 400 }}>
+              <div style={{ fontFamily: "JetBrains Mono", fontSize: "0.81rem", color: "#6B7280", maxWidth: 400 }}>
                 Run live simulations, explore the intelligence engine, and benchmark PPO vs heuristic performance.
               </div>
             </div>
@@ -229,14 +229,14 @@ export default function TeamPage() {
               <motion.button
                 onClick={() => router.push("/dashboard")}
                 whileHover={{ background: "#FFB800", color: "#000" }}
-                style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.6rem", letterSpacing: "0.14em", color: "#FFB800", background: "transparent", border: "1px solid #FFB800", borderRadius: 2, padding: "10px 20px", cursor: "pointer", transition: "all 0.2s" }}
+                style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.81rem", letterSpacing: "0.14em", color: "#FFB800", background: "transparent", border: "1px solid #FFB800", borderRadius: 2, padding: "10px 20px", cursor: "pointer", transition: "all 0.2s" }}
               >
                 LAUNCH SIMULATION →
               </motion.button>
               <motion.button
                 onClick={() => router.push("/intelligence")}
                 whileHover={{ borderColor: "#FFB800", color: "#FFB800" }}
-                style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.6rem", letterSpacing: "0.14em", color: "#9CA3AF", background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 2, padding: "10px 20px", cursor: "pointer", transition: "all 0.2s" }}
+                style={{ fontFamily: "'Syncopate', sans-serif", fontWeight: 700, fontSize: "0.81rem", letterSpacing: "0.14em", color: "#9CA3AF", background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 2, padding: "10px 20px", cursor: "pointer", transition: "all 0.2s" }}
               >
                 EXPLORE ENGINE →
               </motion.button>
