@@ -1,0 +1,4 @@
+backend/ml/weights/**/*.pth filter=lfs diff=lfs merge=lfs -text
+backend/ml/weights/**/*.onnx filter=lfs diff=lfs merge=lfs -text
+backend/ml/weights/*.zip filter=lfs diff=lfs merge=lfs -text
+backend/ml/weights/**/*.pt filter=lfs diff=lfs merge=lfs -text
