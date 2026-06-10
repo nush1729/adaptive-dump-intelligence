@@ -86,7 +86,7 @@ def _talus_height_diff(material: str, cell_distance: float) -> float:
 
 
 def relax_slopes(height: np.ndarray, mask: np.ndarray, material: str,
-                 mutate: bool = False) -> np.ndarray:
+                 mutate: bool = False, passes: int = _AVALANCHE_PASSES) -> np.ndarray:
     """Redistribute material from over-steep cells to lower neighbours.
 
     Cellular-automaton "sandpile" relaxation: any cell whose height exceeds a
@@ -99,7 +99,7 @@ def relax_slopes(height: np.ndarray, mask: np.ndarray, material: str,
     out = height if mutate else height.copy()
     rows, cols = out.shape
 
-    for _ in range(_AVALANCHE_PASSES):
+    for _ in range(passes):
         delta = np.zeros_like(out)
         for dr, dc, dist in _NEIGHBOR_OFFSETS:
             max_diff = _talus_height_diff(material, dist)
@@ -133,8 +133,14 @@ def relax_slopes(height: np.ndarray, mask: np.ndarray, material: str,
 
 
 def apply_dump_to_height(height: np.ndarray, mask: np.ndarray, r: int, c: int,
-                         payload_t: float, material: str, mutate: bool = False) -> np.ndarray:
-    """Apply a dump to a height grid, then relax it to a stable pile shape."""
+                         payload_t: float, material: str, mutate: bool = False,
+                         relax_passes: int = _AVALANCHE_PASSES) -> np.ndarray:
+    """Apply a dump to a height grid, then relax it to a stable pile shape.
+
+    `relax_passes` lets cheap reachability pre-checks (e.g. the action-mask
+    iso sampler) trade relaxation fidelity for speed — the chosen cell is
+    always re-validated at full fidelity before the dump is committed.
+    """
     out = height if mutate else height.copy()
     rows, cols = out.shape
     for dr, dc, delta in dump_kernel(payload_t, material):
@@ -151,5 +157,5 @@ def apply_dump_to_height(height: np.ndarray, mask: np.ndarray, r: int, c: int,
             out[nr, nc] *= compaction
         out[nr, nc] += delta
 
-    relax_slopes(out, mask, material, mutate=True)
+    relax_slopes(out, mask, material, mutate=True, passes=relax_passes)
     return out

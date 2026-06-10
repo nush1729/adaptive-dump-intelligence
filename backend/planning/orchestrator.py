@@ -157,6 +157,7 @@ class ADIOSOrchestrator:
 
             placed = False
             exhausted_no_space = False
+            terrain_map = None  # lazily built once per dispatch; terrain is unchanged across retry attempts
             for _attempt in range(50):
                 masker = ConstrainedActionMasker(self.terrain, self.validator)
                 action_mask = masker.mask(
@@ -171,7 +172,8 @@ class ADIOSOrchestrator:
                         r, c = None, None
                     else:
                         # CTDE: TruckAgent proposes action with IoT-enriched context
-                        terrain_map = _build_terrain_map(self.terrain)
+                        if terrain_map is None:
+                            terrain_map = _build_terrain_map(self.terrain)
                         iot_features = self.iot.get_iot_feature_vector(local_height_m=entry_height_m)
                         action = agent.propose_action(
                             terrain_map=terrain_map,

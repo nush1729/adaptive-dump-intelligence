@@ -48,6 +48,7 @@ frontend/.env.*.local
 # Claude Code session files
 # =========================
 .claude/
+CLAUDE.md
 
 # =========================
 # TensorBoard logs (large, not needed in repo)

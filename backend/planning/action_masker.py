@@ -144,7 +144,8 @@ class ConstrainedActionMasker:
 
         for r, c in valid_rc:
             sim_h = apply_dump_to_height(
-                terrain.height, terrain.mask, int(r), int(c), payload_t, terrain.material, mutate=False
+                terrain.height, terrain.mask, int(r), int(c), payload_t, terrain.material, mutate=False,
+                relax_passes=SITE_CONFIG.iso_mask_relax_passes,
             )
             reach = bfs_reachable(sim_h, terrain.mask, entry, threshold)
             if reach < reach_thresh:

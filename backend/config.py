@@ -69,6 +69,13 @@ class SiteConfig:
     # candidates remain (was: up to 600 cells -> ~8s/call once the pool sat
     # just under iso_mask_cell_limit, compounding across retry attempts).
     iso_mask_sample_size: int = 30
+    # Avalanche relaxation passes used by _apply_iso's sampling pre-check.
+    # The chosen cell is re-validated at full _AVALANCHE_PASSES fidelity by
+    # IsolationValidator.validate() before a dump commits, so the sampler only
+    # needs an approximate post-dump shape to gauge BFS reachability —
+    # cutting passes here is the dominant cost reduction for mask() (relax_slopes
+    # was ~85% of mask() time at full fidelity x 30 samples x up to 50 attempts).
+    iso_mask_relax_passes: int = 2
     training_payload_t: float = 100.0
     generic_payloads_t: Tuple[float, ...] = (50.0, 100.0, 200.0, 240.0, 400.0)
     # Param 11: IoT haul latency rolling window — raised 10 → 20 ticks

@@ -183,7 +183,7 @@ def evaluate_policy(weights_path: str, n_eval: int = 10):
             action = policy.predict(obs, masks)
             obs, _, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
-        ml_scores.append(env.terrain.packing_efficiency())
+        ml_scores.append(env.terrain.tpacking_efficiency())
 
         # Heuristic rollout
         terrain_h = Terrain.make_demo_polygon(100, 100, "default", seed)

@@ -6,16 +6,26 @@ Reachability < 85 % → instant rejection. Real terrain never touched.
 Passability threshold: dynamic = mean(height) + 2 * std(height).
 Minimum dump spacing enforced as hard constraint before BFS.
 """
-from collections import deque
 import numpy as np
+from scipy.ndimage import label
 
 from config import SITE_CONFIG
 from environment.dump_physics import apply_dump_to_height
 
-# ── free function: pure BFS reachability ─────────────────────────────────────
+# 4-connected structuring element for scipy.ndimage.label
+_STRUCTURE = np.array([[0, 1, 0],
+                        [1, 1, 1],
+                        [0, 1, 0]], dtype=bool)
+
+# ── free function: connected-component reachability ─────────────────────────
 
 def bfs_reachable(height_map, mask, entry, passability_thresh):
-    """4-connected BFS from *entry*.  Returns reachable / total_passable."""
+    """4-connected reachability from *entry*. Returns reachable / total_passable.
+
+    Equivalent to a BFS flood-fill, but computed via scipy's connected-component
+    labeling — a single vectorized pass over the grid instead of a per-cell
+    Python BFS loop (the latter dominated _apply_iso's per-candidate cost).
+    """
     passable = mask & (height_map <= passability_thresh)
     rows, cols = passable.shape
     er, ec = entry
@@ -28,23 +38,15 @@ def bfs_reachable(height_map, mask, entry, passability_thresh):
         d = np.abs(pts[:, 0] - er) + np.abs(pts[:, 1] - ec)
         er, ec = int(pts[d.argmin(), 0]), int(pts[d.argmin(), 1])
 
-    visited = np.zeros_like(passable, dtype=bool)
-    visited[er, ec] = True
-    q = deque([(er, ec)])
-    count = 1
-
-    while q:
-        r, c = q.popleft()
-        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            nr, nc = r + dr, c + dc
-            if 0 <= nr < rows and 0 <= nc < cols \
-               and passable[nr, nc] and not visited[nr, nc]:
-                visited[nr, nc] = True
-                count += 1
-                q.append((nr, nc))
-
     total_passable = int(passable.sum())
-    return count / max(total_passable, 1)
+    if total_passable == 0:
+        return 0.0
+
+    labeled, _ = label(passable, structure=_STRUCTURE)
+    entry_label = labeled[er, ec]
+    count = int((labeled == entry_label).sum())
+
+    return count / total_passable
 
 
 # ── IsolationValidator ───────────────────────────────────────────────────────
