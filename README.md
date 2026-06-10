@@ -1,7 +1,7 @@
 <!--
   README.md — Project overview, architecture, run guide, and ML training instructions for ADIOS.
   This file is the single source of truth for anyone trying to understand, run, or extend the system.
-  CAT Hackathon submission — Problem Statement 4: Optimal Dump Packing
+  CATERPILLER Hackathon submission — Problem Statement 4: Optimal Dump Packing
 -->
 
 <div align="center">
@@ -160,11 +160,11 @@ flowchart LR
 
 **Why two stages?**
 - **Stage 1 (BC)** gives the PPO a warm start — it doesn't have to explore randomly from scratch. The policy already knows roughly where to dump before PPO kicks in.
-- **Stage 2 (PPO)** fine-tunes with real rewards: volume filled, spacing tightness, isolation safety, pile-proximity bonus. It learns to outperform the heuristic on unseen polygons.
+- **Stage 2 (PPO)** fine-tunes with real rewards: volume filled, spacing tightness, isolation safety, pile-proximity bonus. It learns to outperform the heuristic on unseen polygons
 
 ---
 
-## Observation Space — What The Policy Sees
+## Observation Space — What The Policy Sees 
 
 Each truck gets a **Dict observation** with two components:
 
@@ -226,7 +226,7 @@ The `metadata.json` sidecar next to each checkpoint records its `context_dim`, `
 
 ---
 
-## Spacing Gap — Before vs. After
+## Spacing Gap — Before vs. After 
 
 ```mermaid
 xychart-beta
