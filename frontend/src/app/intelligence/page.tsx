@@ -49,15 +49,17 @@ const ARCHITECTURE = [
     ],
   },
   {
-    title: "Context Vector (13-dim)",
-    subtitle: "Truck + IoT Features",
+    title: "Context Vector (17-dim)",
+    subtitle: "9 Truck Features + 8 IoT Features",
     color: "#00D4FF",
     items: [
-      { label: "Truck Profile (5-d)", desc: "One-hot: CAT-793F, CAT-797F, CAT-777E, CAT-785D, generic" },
-      { label: "Payload Ratio (1-d)", desc: "Normalised payload / max capacity" },
-      { label: "Dump Count (1-d)", desc: "Normalised historical dumps this session" },
-      { label: "Material Type (2-d)", desc: "One-hot: ore / waste" },
-      { label: "IoT Features (4-d)", desc: "Fleet congestion, latency, utilisation, zone density" },
+      { label: "Truck Profile (4-d)", desc: "One-hot: Cat793 (240t) / Cat777 (100t) / Cat797 (400t) / generic" },
+      { label: "Payload Ratio (1-d)", desc: "Normalised payload / max capacity (ceiling 500t)" },
+      { label: "Dump Count (1-d)", desc: "Normalised historical dumps this session / max_dumps" },
+      { label: "Local Density (1-d)", desc: "Dump density at current position — how packed the nearby area is" },
+      { label: "Compaction Factor (1-d)", desc: "Material compaction state at target cell" },
+      { label: "Slope Angle (1-d)", desc: "Terrain slope at current truck position" },
+      { label: "IoT Features (8-d)", desc: "Fleet congestion · haul latency · utilisation · zone density · weather visibility · equipment health · ground bearing capacity · queue length" },
     ],
   },
 ];
@@ -71,9 +73,9 @@ const CTDE_STEPS = [
 
 const TRAINING = [
   { phase: "Phase 1: Behavioural Cloning", detail: "EnrichedTerrainFCN pre-trained on 50 expert heuristic trajectories × 50 dumps. Achieves ~21% top-1 accuracy — provides warm policy initialisation." },
-  { phase: "Phase 2: PPO Fine-tuning", detail: "MaskablePPO + MultiInputPolicy + ADIOSMultiInputExtractor. 100K steps, parallel envs, optional curriculum learning (easy→medium→hard polygon shapes)." },
-  { phase: "Phase 3: Curriculum Learning", detail: "Optional staged difficulty progression across training (easy→medium→hard polygon seeds), enabled via the --curriculum flag in pretrain.py." },
-  { phase: "Results", detail: "ep_rew_mean: −128 → +12.7 over 100K steps — a real, monotonic convergence. Eval: PPO policy efficiency 3.9% vs heuristic 3.5% (+0.4pp). Saved: ml/weights/ppo_adios.zip" },
+  { phase: "Phase 2: PPO Fine-tuning", detail: "MaskablePPO + MultiInputPolicy + ADIOSMultiInputExtractor. 500K steps with curriculum learning (easy→medium→hard polygon shapes), n_envs=4 parallel environments, checkpoint every 100K steps." },
+  { phase: "Phase 3: Curriculum Learning", detail: "Staged difficulty progression: easy (20% of steps, single generic truck / short episodes) → medium (30%, mixed fleet) → hard (50%, full fleet, full seed range). Single model, same obs/action/reward space throughout — optimizer state carries over between stages." },
+  { phase: "Results", detail: "ep_rew_mean: −128 → +12.7 over training — real monotonic convergence. PPO spacing distribution shows tighter clustering around 3.03m staffed target vs heuristic. Both policies pass through identical 5-gate constraint pipeline. Saved: ml/weights/ppo_adios.zip" },
 ];
 
 export default function IntelligencePage() {

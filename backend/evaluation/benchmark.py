@@ -278,6 +278,7 @@ def run_ml(terrain: Terrain, fleet, n_dumps: int, weights_path: str) -> dict:
     try:
         from ml.policy import load_policy
         from scipy.ndimage import distance_transform_edt
+        from ml.environment import build_context_vector, _compute_pile_mask, _compute_spacing_density
         policy = load_policy(weights_path)
     except Exception as e:
         return {"policy": "ml_error", "error": str(e)}
@@ -286,27 +287,40 @@ def run_ml(terrain: Terrain, fleet, n_dumps: int, weights_path: str) -> dict:
     dispatches = [(t.truck_id, t.payload_t) for t in fleet] * (n_dumps // len(fleet) + 1)
     dispatches  = dispatches[:n_dumps]
     COLS        = terrain.cols
+    _dump_counts: dict = {}
 
-    def _obs(t: Terrain) -> np.ndarray:
-        h     = t.height
-        mask  = t.mask.astype(np.float32)
-        h_n   = np.clip(h / SITE_CONFIG.max_height_m, 0.0, 1.0).astype(np.float32)
-        dist  = distance_transform_edt(t.mask).astype(np.float32)
-        d_n   = dist / (dist.max() or 1.0)
-        return np.stack([h_n, mask, d_n], axis=0)
+    def _obs(t: Terrain, truck_id: str, payload_t: float, dump_idx: int) -> dict:
+        h      = t.height
+        mask   = t.mask.astype(np.float32)
+        h_n    = np.clip(h / SITE_CONFIG.max_height_m, 0.0, 1.0).astype(np.float32)
+        dist   = distance_transform_edt(t.mask).astype(np.float32)
+        d_n    = dist / (dist.max() or 1.0)
+        pile   = _compute_pile_mask(h)
+        density = _compute_spacing_density(h, t.mask)
+        terrain_map = np.stack([h_n, mask, d_n, pile, density], axis=0)
+        progress = dump_idx / max(n_dumps, 1)
+        iot = np.array([
+            min(progress * 1.5, 1.0), float(np.random.uniform(0.0, 0.6)),
+            progress, min(progress * 1.2, 1.0),
+            float(np.clip(np.random.uniform(0.6, 1.0), 0.0, 1.0)),
+            float(np.clip(1.0 - 0.15 * progress, 0.0, 1.0)),
+            0.8, float(np.random.uniform(0.0, 0.7)),
+        ], dtype=np.float32)
+        ctx = build_context_vector(truck_id, payload_t, _dump_counts.get(truck_id, 0), t.material, iot)
+        return {"terrain_map": terrain_map, "context_vector": ctx}
 
     total, success, rejected = 0, 0, 0
     latencies, dump_positions = [], []
     reserved = set()
 
-    for _, payload_t in dispatches:
+    for dump_idx, (truck_id, payload_t) in enumerate(dispatches):
         total += 1
         t0 = time.perf_counter()
         placed = False
 
         for _attempt in range(50):
-            obs = _obs(terrain)
-            
+            obs = _obs(terrain, truck_id, payload_t, dump_idx)
+
             action_mask = ConstrainedActionMasker(terrain, val).mask(payload_t, reserved_cells=reserved, include_iso=True)
 
             if not action_mask.any():
@@ -325,6 +339,7 @@ def run_ml(terrain: Terrain, fleet, n_dumps: int, weights_path: str) -> dict:
                 success += 1
                 dump_positions.append((r, c))
                 val.record_dump(r, c)
+                _dump_counts[truck_id] = _dump_counts.get(truck_id, 0) + 1
                 placed = True
                 reserved.discard((r, c))
                 break

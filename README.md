@@ -20,7 +20,7 @@
 <img src="https://readme-typing-svg.demolab.com?font=Orbitron&weight=700&size=22&duration=2600&pause=900&color=FFB800&center=true&vCenter=true&multiline=true&repeat=true&width=900&height=100&lines=CATERPILLAR+Hackathon+%7C+Optimal+Dump+Packing;MaskablePPO+%2B+IoT+Telemetry+%2B+A*+Path+Planning;Safer+Placement.+Higher+Capacity.+Smarter+Terrain." alt="Animated tagline" />
 
 ---
-[![Frontend](https://img.shields.io/badge/Frontend-Next.js%2015-111111?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![Frontend](https://img.shields.io/badge/Frontend-Next.js%2014-111111?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![Backend](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![ML](https://img.shields.io/badge/ML-MaskablePPO%20IoT--Enriched-0F62FE?style=for-the-badge&logo=pytorch&logoColor=white)](#ml-training)
 [![3D](https://img.shields.io/badge/3D-React%20Three%20Fiber-F97316?style=for-the-badge&logo=threedotjs&logoColor=white)](https://docs.pmnd.rs/react-three-fiber)
@@ -375,11 +375,8 @@ python3 -m venv .venv
 source .venv/bin/activate          # Mac / Linux
 # .venv\Scripts\activate           # Windows
 
-# Install all Python dependencies (production/serving footprint)
+# Install all Python dependencies (includes sb3-contrib for MaskablePPO)
 pip install -r requirements.txt
-
-# Also install sb3-contrib for MaskablePPO (required for PPO inference)
-pip install sb3-contrib
 ```
 
 > Training, linting, and testing need a few extra packages (tensorboard, pytest,
@@ -453,11 +450,14 @@ You don't need to train to run the demo — a trained checkpoint (`ppo_adios.zip
 cd backend
 source .venv/bin/activate
 
-# Default: 100K steps on CPU (~12 minutes, demo quality)
-python pretrain.py
+# Recommended: 500K steps with curriculum on CPU (~60 min) or GPU (~30 min)
+python pretrain.py --steps 500000 --curriculum
 
-# Reduced run for quick iteration (~10 minutes on CPU)
-python pretrain.py --steps 25000
+# With GPU (significant speedup for PPO network updates):
+python pretrain.py --steps 500000 --curriculum --device cuda
+
+# Quick demo-quality run — 100K steps on CPU (~12 minutes)
+python pretrain.py --steps 100000
 
 # Skip BC stage and go straight to PPO (faster, slightly worse warm start)
 python pretrain.py --steps 100000 --skip-bc
@@ -465,6 +465,8 @@ python pretrain.py --steps 100000 --skip-bc
 # Custom output path
 python pretrain.py --steps 100000 --out ml/weights/my_new_run
 ```
+
+`--curriculum` trains in three stages: easy (20% of steps, single truck / short episodes) → medium (30%, mixed fleet) → hard (50%, full fleet / full seed range). The same model and optimizer state carry across stages — no restarts. Produces better generalisation than a single-stage run at the same step count.
 
 What gets created/overwritten after training:
 ```
@@ -481,14 +483,22 @@ ml/weights/ppo_adios/
 
 ### Step 5 · Run Benchmark Evaluation (Optional)
 
-Compare PPO vs heuristic across 20 held-out polygons and print all 10 KPIs:
+Compare PPO vs heuristic across 20 held-out polygons and write results to the file the BenchmarkPanel reads. **Run this after training new weights** to update the dashboard's benchmark numbers.
 
 ```bash
 cd backend
 source .venv/bin/activate
 
-python -m evaluation.compute_eval
+# Full 20-polygon held-out benchmark (seeds 8000–8019, never used in training)
+python evaluation/benchmark.py \
+  --polygons 20 \
+  --dumps 60 \
+  --seed-start 8000 \
+  --use-ml \
+  --out data/benchmark/benchmark_results.json
 ```
+
+This writes `data/benchmark/benchmark_results.json` — the exact file that `GET /benchmark` serves to the frontend BenchmarkPanel. Takes ~5–10 minutes locally. Restart the backend after to pick up the new file.
 
 ---
 
@@ -496,7 +506,7 @@ python -m evaluation.compute_eval
 
 | Symptom | Fix |
 |---------|-----|
-| `ModuleNotFoundError: sb3_contrib` | `pip install sb3-contrib` |
+| `ModuleNotFoundError: sb3_contrib` | `pip install -r requirements.txt` (sb3-contrib is already listed — likely venv not activated) |
 | Health shows `"heuristic"` instead of PPO | Ensure `ppo_adios.zip` exists in `backend/ml/weights/` and its `metadata.json` `context_dim` matches `CONTEXT_DIM` in `config.py` |
 | `context_dim` mismatch after changing `IOT_FEATURE_DIM` | Retrain with `python pretrain.py` — `load_policy()` falls back gracefully (BC → heuristic) until you do |
 | All simulation dispatches fail with `path_unreachable` | Verify `max_slope=2.5` in [planning/pathfinder.py:14](backend/planning/pathfinder.py) |
@@ -510,7 +520,7 @@ python -m evaluation.compute_eval
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend framework | Next.js 15 (App Router) |
+| Frontend framework | Next.js 14 (App Router) |
 | 3D rendering | React Three Fiber + Three.js |
 | Animations | Framer Motion + GSAP |
 | State management | Zustand |
@@ -518,7 +528,7 @@ python -m evaluation.compute_eval
 | WebSocket streaming | FastAPI WebSocket |
 | RL framework | Stable Baselines 3 + sb3_contrib |
 | Policy type | MaskablePPO (MultiInputPolicy) |
-| Neural net | PyTorch 2.11 |
+| Neural net | PyTorch (2.x) |
 | Environment | Gymnasium (custom DumpPackingEnv) |
 | Terrain physics | NumPy · SciPy Gaussian |
 | Path planning | Custom A\* (8-connected, slope-aware) |

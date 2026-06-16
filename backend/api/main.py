@@ -824,8 +824,12 @@ async def ws_simulate(ws: WebSocket):
         policy = None
         ptype = "heuristic"
         if cfg.use_ml:
-            policy, ptype = _load_policy_cached(raise_on_fail=True)
-            
+            try:
+                policy, ptype = _load_policy_cached(raise_on_fail=True)
+            except RuntimeError:
+                cfg.use_ml = False
+                policy = None
+
         orch = ADIOSOrchestrator(terrain, weights=weights, audit_path=AUDIT_PATH, n_trucks=len(fleet), min_spacing=cfg.min_dump_spacing)
         orch.validator.reach_thresh = cfg.iso_threshold
 

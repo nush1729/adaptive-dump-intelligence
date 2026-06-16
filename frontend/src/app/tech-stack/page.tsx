@@ -53,11 +53,10 @@ const STACK = [
     layer: "Backend",
     color: "#FFB800",
     items: [
-      { name: "FastAPI", role: "Async REST API, WebSocket simulation endpoint, Pydantic validation" },
-      { name: "Uvicorn", role: "ASGI server, single-worker CPU deployment, port 8000" },
-      { name: "NumPy + SciPy", role: "Terrain data processing, distance transforms, Gaussian blur" },
-      { name: "Shapely", role: "Polygon geometry operations for dump zone boundary checking" },
-      { name: "scikit-learn", role: "Evaluation utilities, normalisation, clustering for terrain analysis" },
+      { name: "FastAPI", role: "Async REST API, WebSocket simulation streaming, Pydantic v2 validation" },
+      { name: "Uvicorn", role: "ASGI server with thread-pool offloading for heavy simulation tasks, port 8000" },
+      { name: "NumPy + SciPy", role: "Terrain grid ops, EDT distance transforms, Gaussian deposition, BFS flood-fill" },
+      { name: "scikit-learn", role: "KDTree nearest-neighbour spacing queries and evaluation metrics" },
     ],
   },
   {

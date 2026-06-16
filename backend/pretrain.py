@@ -32,7 +32,8 @@ def parse_args():
     return p.parse_args()
 
 
-def stage1_behavioural_cloning(out_dir: str, n_polygons: int = 50, epochs: int = 5):
+def stage1_behavioural_cloning(out_dir: str, n_polygons: int = 50, epochs: int = 5,
+                               device: str = "cpu"):
     """
     Pre-train the EnrichedTerrainFCN on expert (heuristic) demonstrations.
     Uses the same Dict observation format as the PPO environment so BC and
@@ -50,6 +51,7 @@ def stage1_behavioural_cloning(out_dir: str, n_polygons: int = 50, epochs: int =
         "--dumps-per", "50",
         "--epochs", str(epochs),
         "--out", os.path.relpath(out_dir, os.path.dirname(__file__)),
+        "--device", device,
     ]
     args = sup_parse()
     ckpt_path = sup_train(args)
@@ -183,7 +185,7 @@ def evaluate_policy(weights_path: str, n_eval: int = 10):
             action = policy.predict(obs, masks)
             obs, _, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
-        ml_scores.append(env.terrain.tpacking_efficiency())
+        ml_scores.append(env.terrain.packing_efficiency())
 
         # Heuristic rollout
         terrain_h = Terrain.make_demo_polygon(100, 100, "default", seed)
@@ -224,7 +226,7 @@ if __name__ == "__main__":
     bc_path = None
     if not args.skip_bc:
         try:
-            bc_path = stage1_behavioural_cloning(out_dir)
+            bc_path = stage1_behavioural_cloning(out_dir, device=args.device)
         except Exception as e:
             print(f"  BC stage skipped ({e})")
 
